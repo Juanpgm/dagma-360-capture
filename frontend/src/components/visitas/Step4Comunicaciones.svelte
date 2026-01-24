@@ -1,0 +1,411 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import Toggle from "../ui/Toggle.svelte";
+  import Textarea from "../ui/Textarea.svelte";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import type { Estado360 } from "../../types/visitas";
+
+  export let estado360: Estado360 | undefined;
+  export let viabilidadAlcalde: boolean | undefined;
+  export let entregaPublica: boolean | undefined;
+  export let photosUrl: string[];
+  export let photoFiles: File[] = []; // Nuevo prop para los archivos
+
+  let selectedFiles: FileList | null = null;
+  let photoPreviewUrls: string[] = [];
+
+  // Opciones del Estado 360
+  const estado360Options: Estado360[] = ["Antes", "Durante", "Después"];
+
+  // Debug: Log cambios en los valores
+  $: {
+    console.log("Step4 valores actualizados:", {
+      estado360,
+      viabilidadAlcalde,
+      entregaPublica,
+      filesCount: photoFiles?.length,
+    });
+  }
+
+  onMount(() => {
+    console.log("Step4 montado - valores recibidos:", {
+      estado360,
+      viabilidadAlcalde,
+      entregaPublica,
+    });
+  });
+
+  function selectEstado360(value: Estado360) {
+    estado360 = value;
+  }
+
+  function handleFileChange(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const files = target.files;
+
+    if (files && files.length > 0) {
+      // Convertir FileList a Array y agregar a los existentes
+      const newFiles = Array.from(files);
+      photoFiles = [...photoFiles, ...newFiles];
+
+      // Generar previsualizaciones para los nuevos archivos
+      newFiles.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            photoPreviewUrls = [...photoPreviewUrls, e.target.result as string];
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+
+      // Limpiar el input para permitir seleccionar los mismos archivos nuevamente si se desea
+      target.value = "";
+    }
+  }
+
+  function removePhoto(index: number) {
+    photoPreviewUrls = photoPreviewUrls.filter((_, i) => i !== index);
+    photoFiles = photoFiles.filter((_, i) => i !== index);
+  }
+</script>
+
+<div class="step-container">
+  <div class="step-header">
+    <h2 class="step-title">Comunicaciones y Cierre</h2>
+    <p class="step-description">Complete la información final</p>
+  </div>
+
+  <div class="step-content">
+    <!-- Estado 360 con Botones -->
+    <div class="estado-360-section">
+      <label class="field-label">
+        Estado 360 <span class="required">*</span>
+      </label>
+      <p class="field-hint">Estado inferido automáticamente</p>
+
+      <div class="estado-360-buttons">
+        {#each estado360Options as option}
+          <button
+            type="button"
+            class="estado-btn"
+            class:active={estado360 === option}
+            on:click={() => selectEstado360(option)}
+          >
+            <span class="estado-icon">
+              {#if option === "Antes"}
+                🏗️
+              {:else if option === "Durante"}
+                ⚙️
+              {:else}
+                ✅
+              {/if}
+            </span>
+            <span class="estado-text">{option}</span>
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <!-- Toggles -->
+    <Card variant="default" padding="sm">
+      <div class="toggles-section">
+        <h4 class="section-title">Información Adicional</h4>
+
+        <Toggle
+          label="¿Viabilidad del Alcalde Local?"
+          bind:checked={viabilidadAlcalde}
+        />
+
+        <Toggle label="¿Entrega Pública?" bind:checked={entregaPublica} />
+      </div>
+    </Card>
+
+    <!-- Evidencia Fotográfica -->
+    <Card variant="outlined" padding="sm">
+      <div class="photos-section">
+        <h4 class="section-title">📸 Evidencia Fotográfica</h4>
+
+        <div class="file-input-wrapper">
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            capture="environment"
+            on:change={handleFileChange}
+            id="photo-input"
+            class="file-input"
+          />
+          <label for="photo-input" class="file-label">
+            <span class="file-icon">📷</span>
+            <span class="file-text">
+              {photoFiles.length > 0
+                ? `${photoFiles.length} foto(s)`
+                : "Tomar fotos"}
+            </span>
+          </label>
+        </div>
+
+        {#if photoPreviewUrls.length > 0}
+          <div class="photo-previews">
+            {#each photoPreviewUrls as photoUrl, index}
+              <div class="photo-preview">
+                <img src={photoUrl} alt="Preview {index + 1}" />
+                <button
+                  class="remove-photo-btn"
+                  on:click={() => removePhoto(index)}
+                  type="button"
+                >
+                  ✕
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+        <p class="photos-hint">Tome fotos claras del estado actual</p>
+      </div>
+    </Card>
+  </div>
+</div>
+
+<style>
+  .step-container {
+    padding: 1rem;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .step-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .step-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.25rem;
+  }
+
+  .step-description {
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  .step-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* Estado 360 Buttons */
+  .estado-360-section {
+    margin-bottom: 0.5rem;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.25rem;
+  }
+
+  .required {
+    color: #ef4444;
+    margin-left: 0.125rem;
+  }
+
+  .field-hint {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin: 0 0 0.75rem 0;
+  }
+
+  .estado-360-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+
+  .estado-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.25rem 0.5rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 100px;
+  }
+
+  .estado-btn:hover {
+    border-color: #667eea;
+    background: #f9fafb;
+  }
+
+  .estado-btn:active {
+    transform: scale(0.97);
+  }
+
+  .estado-btn.active {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  }
+
+  .estado-icon {
+    font-size: 2rem;
+    filter: grayscale(100%);
+    opacity: 0.6;
+    transition: all 0.2s ease;
+  }
+
+  .estado-btn.active .estado-icon {
+    filter: grayscale(0%);
+    opacity: 1;
+    transform: scale(1.1);
+  }
+
+  .estado-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6b7280;
+    transition: color 0.2s ease;
+  }
+
+  .estado-btn.active .estado-text {
+    color: #667eea;
+    font-weight: 700;
+  }
+
+  .section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 0.75rem 0;
+  }
+
+  .toggles-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .photos-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .file-input-wrapper {
+    position: relative;
+  }
+
+  .file-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .file-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: #4f46e5;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 600;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .file-label:active {
+    transform: scale(0.98);
+  }
+
+  .file-icon {
+    font-size: 1.25rem;
+  }
+
+  .file-text {
+    font-size: 0.875rem;
+  }
+
+  .photo-previews {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .photo-preview {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+  }
+
+  .photo-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .remove-photo-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+  }
+
+  .photos-hint {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin: 0;
+    text-align: center;
+  }
+
+  /* Responsive para móviles pequeños */
+  @media (max-width: 400px) {
+    .estado-360-buttons {
+      gap: 0.5rem;
+    }
+
+    .estado-btn {
+      padding: 1rem 0.25rem;
+      min-height: 90px;
+    }
+
+    .estado-icon {
+      font-size: 1.75rem;
+    }
+
+    .estado-text {
+      font-size: 0.8125rem;
+    }
+  }
+</style>
