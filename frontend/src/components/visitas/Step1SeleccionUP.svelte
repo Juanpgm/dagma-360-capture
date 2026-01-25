@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Button from '../ui/Button.svelte';
-  import type { UnidadProyecto } from '../../types/visitas';
+  import type { Parque } from '../../types/visitas';
   import { getCurrentPosition, calculateDistanceToGeometry } from '../../lib/geolocation';
   import type { Coordenadas } from '../../types/visitas';
   
-  export let unidadesProyecto: UnidadProyecto[];
-  export let selectedUP: UnidadProyecto | null;
-  export let onSelect: (up: UnidadProyecto) => void;
-  export let onLoadUPs: () => Promise<void>;
+  export let parques: Parque[];
+  export let selectedParque: Parque | null;
+  export let onSelect: (parque: Parque) => void;
+  export let onLoadParques: () => Promise<void>;
   export let isLoading: boolean;
 
   let searchTerm = '';
@@ -21,9 +21,9 @@
   let currentPage = 1;
   let itemsPerPage = 10;
 
-  // Columnas disponibles
+  // Columnas disponibles para parques
   interface ColumnConfig {
-    key: keyof UnidadProyecto | 'distancia';
+    key: keyof Parque | 'distancia' | 'estado_intervencion';
     label: string;
     visible: boolean;
     width?: string;
@@ -31,44 +31,46 @@
 
   let columns: ColumnConfig[] = [
     { key: 'distancia', label: 'Distancia', visible: true, width: '100px' },
-    { key: 'upid', label: 'UP ID', visible: true, width: '80px' },
-    { key: 'nombre_up', label: 'Nombre UP', visible: true, width: '200px' },
-    { key: 'nombre_up_detalle', label: 'Detalle UP', visible: true, width: '200px' },
-    { key: 'tipo_equipamiento', label: 'Tipo Equipamiento', visible: false, width: '150px' },
-    { key: 'tipo_intervencion', label: 'Tipo Intervención', visible: false, width: '150px' },
-    { key: 'estado', label: 'Estado', visible: false, width: '100px' },
-    { key: 'avance_obra', label: 'Avance %', visible: true, width: '90px' },
-    { key: 'presupuesto_base', label: 'Presupuesto', visible: false, width: '120px' },
+    { key: 'upid', label: 'ID', visible: true, width: '100px' },
+    { key: 'nombre_up', label: 'Nombre del Parque', visible: true, width: '250px' },
+    { key: 'identificador', label: 'Tipo', visible: true, width: '120px' },
+    { key: 'barrio_vereda', label: 'Barrio', visible: true, width: '150px' },
+    { key: 'comuna_corregimiento', label: 'Comuna', visible: true, width: '120px' },
+    { key: 'direccion', label: 'Dirección', visible: true, width: '200px' },
+    { key: 'estado_intervencion', label: 'Estado', visible: true, width: '130px' },
+    { key: 'tipo_equipamiento', label: 'Equipamiento', visible: false, width: '150px' },
+    { key: 'avance_obra', label: 'Avance %', visible: false, width: '90px' },
   ];
 
   $: visibleColumns = columns.filter(col => col.visible);
 
-  // Filtrar proyectos por búsqueda
-  $: filteredProyectos = unidadesProyecto.filter(up => {
+  // Filtrar parques por búsqueda
+  $: filteredParques = parques.filter(parque => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
-      up.upid.toString().includes(term) ||
-      up.nombre_up?.toLowerCase().includes(term) ||
-      up.nombre_up_detalle?.toLowerCase().includes(term) ||
-      up.tipo_equipamiento?.toLowerCase().includes(term) ||
-      up.tipo_intervencion?.toLowerCase().includes(term) ||
-      up.estado?.toLowerCase().includes(term)
+      parque.upid?.toLowerCase().includes(term) ||
+      parque.nombre_up?.toLowerCase().includes(term) ||
+      parque.identificador?.toLowerCase().includes(term) ||
+      parque.barrio_vereda?.toLowerCase().includes(term) ||
+      parque.comuna_corregimiento?.toLowerCase().includes(term) ||
+      parque.direccion?.toLowerCase().includes(term) ||
+      parque.tipo_equipamiento?.toLowerCase().includes(term)
     );
   });
 
   // Ordenar por distancia si hay ubicación actual
-  $: sortedProyectos = sortByDistance && currentLocation 
-    ? [...filteredProyectos].sort((a, b) => {
-        const distA = calculateProjectDistance(a);
-        const distB = calculateProjectDistance(b);
+  $: sortedParques = sortByDistance && currentLocation 
+    ? [...filteredParques].sort((a, b) => {
+        const distA = calculateParqueDistance(a);
+        const distB = calculateParqueDistance(b);
         return distA - distB;
       })
-    : filteredProyectos;
+    : filteredParques;
 
   // Paginación
-  $: totalPages = Math.ceil(sortedProyectos.length / itemsPerPage);
-  $: paginatedProyectos = sortedProyectos.slice(
+  $: totalPages = Math.ceil(sortedParques.length / itemsPerPage);
+  $: paginatedParques = sortedParques.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -78,18 +80,38 @@
     currentPage = 1;
   }
 
-  // Función para calcular distancia a un proyecto
-  function calculateProjectDistance(up: UnidadProyecto): number {
-    if (!currentLocation || !up.geometry || !up.geometry.coordinates) {
+  // Función para calcular distancia a un parque
+  function calculateParqueDistance(parque: Parque): number {
+    if (!currentLocation) {
       return Infinity;
     }
     
-    try {
-      return calculateDistanceToGeometry(currentLocation, up.geometry);
-    } catch (error) {
-      console.error('Error calculando distancia:', error);
-      return Infinity;
+    // Intentar usar geometry primero
+    if (parque.geometry && parque.geometry.coordinates) {
+      try {
+        return calculateDistanceToGeometry(currentLocation, parque.geometry);
+      } catch (error) {
+        console.error('Error calculando distancia desde geometry:', error);
+      }
     }
+    
+    // Fallback a lat/lon si existen
+    if (parque.lat && parque.lon) {
+      try {
+        const lat = parseFloat(parque.lat);
+        const lon = parseFloat(parque.lon);
+        if (!isNaN(lat) && !isNaN(lon)) {
+          return calculateDistanceToGeometry(currentLocation, {
+            type: 'Point',
+            coordinates: [lon, lat]
+          });
+        }
+      } catch (error) {
+        console.error('Error calculando distancia desde lat/lon:', error);
+      }
+    }
+    
+    return Infinity;
   }
 
   // Formatear distancia para mostrar
@@ -120,92 +142,67 @@
   }
 
   onMount(async () => {
-    if (unidadesProyecto.length === 0) {
-      await onLoadUPs();
+    if (parques.length === 0) {
+      await onLoadParques();
     }
     // Capturar ubicación automáticamente al montar
     await captureLocation();
   });
 
-  function handleSelectUP(up: UnidadProyecto) {
-    console.log('Proyecto seleccionado:', up);
-    onSelect(up);
+  function handleSelectParque(parque: Parque) {
+    console.log('Parque seleccionado:', parque);
+    onSelect(parque);
   }
 
-  function openGoogleMaps(geometry: UnidadProyecto['geometry']) {
-    console.log('openGoogleMaps llamado con:', JSON.stringify(geometry, null, 2));
+  function openGoogleMaps(parque: Parque) {
+    console.log('openGoogleMaps llamado para parque:', parque.nombre_up);
     
-    if (!geometry || !geometry.coordinates) {
-      alert('Este proyecto no tiene coordenadas geográficas disponibles.');
-      return;
-    }
-
     let lat: number, lng: number;
 
     try {
-      // PASO 1: Parsear coordenadas si vienen como string
-      let coords = geometry.coordinates;
-      if (typeof coords === 'string') {
-        console.log('Parseando coordenadas desde string:', coords);
-        coords = JSON.parse(coords);
-      }
-
-      console.log('Procesando coordenadas:', { type: geometry.type, coords, isArray: Array.isArray(coords) });
-
-      // PASO 2: Extraer coordenadas según el tipo de geometría
-      if (geometry.type === 'Point') {
-        // Point: [lng, lat]
-        if (!Array.isArray(coords) || coords.length !== 2) {
-          throw new Error(`Point inválido: esperaba [lng, lat], recibió ${JSON.stringify(coords)}`);
+      // Intentar usar geometry primero
+      if (parque.geometry && parque.geometry.coordinates) {
+        const coords = parque.geometry.coordinates;
+        
+        if (parque.geometry.type === 'Point') {
+          [lng, lat] = coords as [number, number];
+        } else if (parque.geometry.type === 'LineString') {
+          const lineCoords = coords as [number, number][];
+          [lng, lat] = lineCoords[0];
+        } else if (parque.geometry.type === 'MultiLineString') {
+          const firstLine = (coords as [number, number][][])[0];
+          [lng, lat] = firstLine[0];
+        } else if (parque.geometry.type === 'Polygon') {
+          const ring = (coords as [number, number][][])[0];
+          [lng, lat] = ring[0];
+        } else {
+          throw new Error(`Tipo de geometría no soportado: ${parque.geometry.type}`);
         }
-        [lng, lat] = coords as [number, number];
-      } else if (geometry.type === 'LineString') {
-        // LineString: [[lng, lat], [lng, lat], ...] - USAR PRIMER PUNTO
-        if (!Array.isArray(coords) || coords.length === 0) {
-          throw new Error('LineString sin coordenadas');
-        }
-        const lineCoords = coords as [number, number][];
-        [lng, lat] = lineCoords[0]; // Primer punto del trazo
-        console.log('📍 Usando primer punto del trazo LineString:', { lng, lat });
-      } else if (geometry.type === 'MultiLineString') {
-        // MultiLineString: [[[lng, lat], ...], [[lng, lat], ...]] - USAR PRIMER PUNTO DE LA PRIMERA LÍNEA
-        if (!Array.isArray(coords) || coords.length === 0 || !Array.isArray(coords[0]) || coords[0].length === 0) {
-          throw new Error('MultiLineString sin coordenadas');
-        }
-        const firstLine = coords[0] as [number, number][];
-        [lng, lat] = firstLine[0]; // Primer punto de la primera línea
-        console.log('📍 Usando primer punto del MultiLineString:', { lng, lat });
-      } else if (geometry.type === 'Polygon') {
-        // Polygon: [[[lng, lat], ...]] - USAR PRIMER PUNTO DEL PRIMER ANILLO
-        if (!Array.isArray(coords) || coords.length === 0 || !coords[0] || coords[0].length === 0) {
-          throw new Error('Polygon sin coordenadas');
-        }
-        const ring = coords[0] as [number, number][];
-        [lng, lat] = ring[0]; // Primer punto del polígono
-        console.log('📍 Usando primer punto del Polygon:', { lng, lat });
+      } 
+      // Fallback a lat/lon
+      else if (parque.lat && parque.lon) {
+        lat = parseFloat(parque.lat);
+        lng = parseFloat(parque.lon);
       } else {
-        throw new Error(`Tipo de geometría no soportado: ${geometry.type}`);
+        throw new Error('No hay coordenadas disponibles');
       }
 
-      console.log('Coordenadas extraídas:', { lat, lng });
-
-      // PASO 3: Validar que las coordenadas sean números válidos
+      // Validar coordenadas
       if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
         throw new Error(`Coordenadas no válidas: lat=${lat}, lng=${lng}`);
       }
 
-      // Validar rangos razonables (Cali está en lat: 3-4, lng: -77 a -76)
       if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
         throw new Error(`Coordenadas fuera de rango: lat=${lat}, lng=${lng}`);
       }
       
       const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-      console.log('✅ Abriendo Google Maps:', { type: geometry.type, lat, lng, url: mapsUrl });
+      console.log('✅ Abriendo Google Maps:', { lat, lng, url: mapsUrl });
       window.open(mapsUrl, '_blank');
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      alert(`Las coordenadas del proyecto no son válidas.\n\nDetalle: ${errorMsg}`);
-      console.error('❌ Error procesando coordenadas:', { error: errorMsg, geometry });
+      alert(`Las coordenadas del parque no son válidas.\n\nDetalle: ${errorMsg}`);
+      console.error('❌ Error procesando coordenadas:', { error: errorMsg, parque });
     }
   }
 
@@ -215,29 +212,28 @@
     }
   }
 
-  function toggleColumnVisibility(columnKey: keyof UnidadProyecto | 'distancia') {
+  function toggleColumnVisibility(columnKey: keyof Parque | 'distancia' | 'estado_intervencion') {
     columns = columns.map(col => 
       col.key === columnKey ? { ...col, visible: !col.visible } : col
     );
   }
 
-  function formatCurrency(value: number | null | undefined): string {
-    if (value === null || value === undefined) return '-';
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(value);
-  }
-
-  function getCellValue(up: UnidadProyecto, key: keyof UnidadProyecto | 'distancia'): string {
+  function getCellValue(parque: Parque, key: keyof Parque | 'distancia' | 'estado_intervencion'): string {
     // Caso especial para distancia
     if (key === 'distancia') {
-      const distance = calculateProjectDistance(up);
+      const distance = calculateParqueDistance(parque);
       return formatDistance(distance);
     }
 
-    const value = up[key as keyof UnidadProyecto];
+    // Caso especial para estado de intervención
+    if (key === 'estado_intervencion') {
+      if (parque.intervenciones && parque.intervenciones.length > 0) {
+        return parque.intervenciones[0].estado;
+      }
+      return '-';
+    }
+
+    const value = parque[key as keyof Parque];
     
     if (value === null || value === undefined) return '-';
     
@@ -245,19 +241,33 @@
       return `${value}%`;
     }
     
-    if (key === 'presupuesto_base' && typeof value === 'number') {
-      return formatCurrency(value);
-    }
-    
     return String(value);
+  }
+
+  // Obtener badge color para estado
+  function getEstadoBadgeClass(estado: string): string {
+    const estadoLower = estado.toLowerCase();
+    if (estadoLower.includes('ejecución') || estadoLower.includes('activo')) {
+      return 'badge-success';
+    }
+    if (estadoLower.includes('suspendido') || estadoLower.includes('inactivo')) {
+      return 'badge-warning';
+    }
+    if (estadoLower.includes('terminado') || estadoLower.includes('completado')) {
+      return 'badge-info';
+    }
+    if (estadoLower.includes('alistamiento')) {
+      return 'badge-secondary';
+    }
+    return 'badge-default';
   }
 </script>
 
 <div class="step-container">
   <div class="step-header">
-    <h2 class="step-title">Selección de Proyecto</h2>
+    <h2 class="step-title">Selección de Parque</h2>
     <p class="step-description">
-      Busque y seleccione la Unidad de Proyecto
+      Busque y seleccione el parque o zona verde a verificar
     </p>
   </div>
 
@@ -265,14 +275,14 @@
     {#if isLoading}
       <div class="loading-state">
         <div class="spinner"></div>
-        <p>Cargando proyectos...</p>
+        <p>Cargando parques...</p>
       </div>
     {:else}
       <!-- Barra de herramientas -->
       <div class="toolbar">
         <input
           type="text"
-          placeholder="Buscar por nombre, tipo, estado..."
+          placeholder="Buscar por nombre, barrio, comuna..."
           bind:value={searchTerm}
           class="search-input"
         />
@@ -286,7 +296,7 @@
                 <span>Capturando GPS...</span>
               </div>
             {:else if currentLocation}
-              <div class="gps-status active" title="Proyectos ordenados por cercanía">
+              <div class="gps-status active" title="Parques ordenados por cercanía">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                   <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#10b981"/>
                 </svg>
@@ -312,7 +322,7 @@
             </svg>
             Columnas
           </button>
-          <span class="results-count">{sortedProyectos.length} proyecto(s)</span>
+          <span class="results-count">{sortedParques.length} parque(s)</span>
         </div>
       </div>
 
@@ -335,7 +345,7 @@
         </div>
       {/if}
 
-      <!-- Tabla de proyectos -->
+      <!-- Tabla de parques -->
       <div class="table-container">
         <table class="projects-table">
           <thead>
@@ -347,24 +357,36 @@
             </tr>
           </thead>
           <tbody>
-            {#if filteredProyectos.length === 0}
+            {#if filteredParques.length === 0}
               <tr>
                 <td colspan={visibleColumns.length + 1} class="empty-state">
-                  No se encontraron proyectos
+                  No se encontraron parques
                 </td>
               </tr>
             {:else}
-              {#each paginatedProyectos as up}
-                <tr class:selected={selectedUP?.upid === up.upid}>
+              {#each paginatedParques as parque}
+                <tr class:selected={selectedParque?.upid === parque.upid}>
                   {#each visibleColumns as column}
-                    <td>{getCellValue(up, column.key)}</td>
+                    {#if column.key === 'estado_intervencion'}
+                      <td>
+                        {#if parque.intervenciones && parque.intervenciones.length > 0}
+                          <span class="badge {getEstadoBadgeClass(parque.intervenciones[0].estado)}">
+                            {parque.intervenciones[0].estado}
+                          </span>
+                        {:else}
+                          -
+                        {/if}
+                      </td>
+                    {:else}
+                      <td>{getCellValue(parque, column.key)}</td>
+                    {/if}
                   {/each}
                   <td class="actions-cell">
                     <button
                       class="btn-action btn-maps"
-                      on:click={() => openGoogleMaps(up.geometry)}
-                      disabled={!up.geometry?.coordinates}
-                      title={up.geometry?.coordinates ? 'Abrir en Google Maps' : 'Sin coordenadas'}
+                      on:click={() => openGoogleMaps(parque)}
+                      disabled={!parque.has_geometry}
+                      title={parque.has_geometry ? 'Abrir en Google Maps' : 'Sin coordenadas'}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M8 0C5.2 0 3 2.2 3 5c0 3.9 5 11 5 11s5-7.1 5-11c0-2.8-2.2-5-5-5zm0 7.5c-1.4 0-2.5-1.1-2.5-2.5S6.6 2.5 8 2.5s2.5 1.1 2.5 2.5S9.4 7.5 8 7.5z"/>
@@ -372,7 +394,7 @@
                     </button>
                     <button
                       class="btn-action btn-select"
-                      on:click={() => handleSelectUP(up)}
+                      on:click={() => handleSelectParque(parque)}
                     >
                       Seleccionar
                     </button>
@@ -385,10 +407,10 @@
       </div>
 
       <!-- Paginación -->
-      {#if filteredProyectos.length > 0}
+      {#if filteredParques.length > 0}
         <div class="pagination">
           <div class="pagination-info">
-            Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredProyectos.length)} de {filteredProyectos.length}
+            Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredParques.length)} de {filteredParques.length}
           </div>
           
           <div class="pagination-controls">
@@ -427,10 +449,10 @@
         </div>
       {/if}
 
-      {#if selectedUP}
+      {#if selectedParque}
         <div class="up-preview">
-          <h4>Proyecto seleccionado: {selectedUP.nombre_up}</h4>
-          <p class="selected-id">UP ID: {selectedUP.upid}</p>
+          <h4>Parque seleccionado: {selectedParque.nombre_up}</h4>
+          <p class="selected-id">UP ID: {selectedParque.upid}</p>
         </div>
       {/if}
     {/if}
@@ -832,10 +854,46 @@
     color: #9ca3af;
   }
 
+  /* Status Badges */
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+
+  .badge-success {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
+
+  .badge-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+
+  .badge-info {
+    background-color: #dbeafe;
+    color: #1e40af;
+  }
+
+  .badge-secondary {
+    background-color: #f3f4f6;
+    color: #374151;
+  }
+
+  .badge-default {
+    background-color: #e5e7eb;
+    color: #6b7280;
+  }
+
   /* Selected Preview */
   .up-preview {
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
+    background: #ecfdf5;
+    border: 1px solid #86efac;
     border-radius: 8px;
     padding: 1rem;
   }
@@ -843,13 +901,13 @@
   .up-preview h4 {
     font-size: 0.875rem;
     font-weight: 600;
-    color: #1e40af;
+    color: #047857;
     margin: 0 0 0.25rem 0;
   }
 
   .selected-id {
     font-size: 0.75rem;
-    color: #3b82f6;
+    color: #059669;
     margin: 0;
   }
 

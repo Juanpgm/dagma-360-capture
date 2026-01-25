@@ -26,8 +26,8 @@
 <div class="login-container">
   <div class="login-card">
     <div class="logo">
-      <h1>CaliTrack 360</h1>
-      <p>Captura de información de proyectos</p>
+      <h1>DAGMA Parques</h1>
+      <p>Verificación de Parques y Zonas Verdes</p>
     </div>
 
     <form on:submit={handleSubmit}>
@@ -74,7 +74,7 @@
     align-items: center;
     justify-content: center;
     padding: 1rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
   }
 
   .login-card {

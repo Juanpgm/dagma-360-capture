@@ -2,48 +2,84 @@
   import { authStore } from "../stores/authStore";
   import VisitaVerificacion from "./visitas/VisitaVerificacion.svelte";
   import HistorialVisitas from "./visitas/HistorialVisitas.svelte";
+  import ReportesParques from "./visitas/ReportesParques.svelte";
+  import MapaParques from "./visitas/MapaParques.svelte";
+  import MapaReportes from "./visitas/MapaReportes.svelte";
 
-  let showVisitas = false;
-  let showHistorial = false;
+  type View = 'home' | 'visita' | 'historial' | 'reportes' | 'mapa-parques' | 'mapa-reportes';
+  let currentView: View = 'home';
 
   const handleLogout = async () => {
     await authStore.logout();
   };
 
-  function openVisitas() {
-    showVisitas = true;
-    showHistorial = false;
+  function openVisita() {
+    currentView = 'visita';
   }
 
   function openHistorial() {
-    showHistorial = true;
-    showVisitas = false;
+    currentView = 'historial';
   }
 
-  function closeVisitas() {
-    showVisitas = false;
+  function openReportes() {
+    currentView = 'reportes';
   }
 
-  function closeHistorial() {
-    showHistorial = false;
+  function openMapaParques() {
+    currentView = 'mapa-parques';
+  }
+
+  function openMapaReportes() {
+    currentView = 'mapa-reportes';
+  }
+
+  function goHome() {
+    currentView = 'home';
   }
 </script>
 
-{#if showVisitas}
-  <VisitaVerificacion onClose={closeVisitas} />
-{:else if showHistorial}
-  <HistorialVisitas onClose={closeHistorial} />
+{#if currentView === 'visita'}
+  <VisitaVerificacion onClose={goHome} />
+{:else if currentView === 'historial'}
+  <HistorialVisitas onClose={goHome} />
+{:else if currentView === 'reportes'}
+  <div class="view-container">
+    <header class="header">
+      <button class="btn-back" on:click={goHome}>← Volver</button>
+      <h1>DAGMA Parques</h1>
+      <button class="btn-logout" on:click={handleLogout}>Cerrar sesión</button>
+    </header>
+    <ReportesParques />
+  </div>
+{:else if currentView === 'mapa-parques'}
+  <div class="view-container">
+    <header class="header">
+      <button class="btn-back" on:click={goHome}>← Volver</button>
+      <h1>DAGMA Parques</h1>
+      <button class="btn-logout" on:click={handleLogout}>Cerrar sesión</button>
+    </header>
+    <MapaParques />
+  </div>
+{:else if currentView === 'mapa-reportes'}
+  <div class="view-container">
+    <header class="header">
+      <button class="btn-back" on:click={goHome}>← Volver</button>
+      <h1>DAGMA Parques</h1>
+      <button class="btn-logout" on:click={handleLogout}>Cerrar sesión</button>
+    </header>
+    <MapaReportes />
+  </div>
 {:else}
   <div class="home-container">
     <header class="header">
-      <h1>CaliTrack 360</h1>
+      <h1>DAGMA Parques</h1>
       <button class="btn-logout" on:click={handleLogout}>Cerrar sesión</button>
     </header>
 
     <div class="content">
       <div class="welcome">
         <h2>¡Bienvenido!</h2>
-        <p>Gestión de visitas de verificación en campo</p>
+        <p>Sistema de Información de Parques</p>
 
         <div class="user-card">
           <div class="user-avatar">
@@ -77,28 +113,34 @@
 
         <!-- Menú de acciones -->
         <div class="actions-grid">
-          <button class="action-card" on:click={openVisitas}>
-            <div class="action-icon">📋</div>
-            <h3 class="action-title">Nueva Visita</h3>
-            <p class="action-description">Registrar visita de verificación</p>
+          <button class="action-card primary" on:click={openVisita}>
+            <div class="action-icon">🌳</div>
+            <h3 class="action-title">Reconocimiento</h3>
+            <p class="action-description">Registrar reconocimiento</p>
           </button>
 
-          <button class="action-card" on:click={openHistorial}>
+          <button class="action-card" on:click={openReportes}>
             <div class="action-icon">📊</div>
-            <h3 class="action-title">Historial</h3>
-            <p class="action-description">Ver visitas registradas</p>
+            <h3 class="action-title">Reportes</h3>
+            <p class="action-description">Historial de reconocimientos</p>
           </button>
 
-          <button class="action-card" disabled>
-            <div class="action-icon">📸</div>
-            <h3 class="action-title">Capturas</h3>
-            <p class="action-description">Próximamente</p>
+          <button class="action-card" on:click={openMapaParques}>
+            <div class="action-icon">🗺️</div>
+            <h3 class="action-title">Mapa de Parques</h3>
+            <p class="action-description">Visualizar parques en mapa</p>
           </button>
 
-          <button class="action-card" disabled>
-            <div class="action-icon">⚙️</div>
-            <h3 class="action-title">Configuración</h3>
-            <p class="action-description">Próximamente</p>
+          <button class="action-card" on:click={openMapaReportes}>
+            <div class="action-icon">📍</div>
+            <h3 class="action-title">Mapa de Reportes</h3>
+            <p class="action-description">Reconocimientos en mapa</p>
+          </button>
+
+          <button class="action-card secondary" on:click={openHistorial}>
+            <div class="action-icon">📋</div>
+            <h3 class="action-title">Historial Legacy</h3>
+            <p class="action-description">Versión anterior</p>
           </button>
         </div>
       </div>
@@ -107,6 +149,12 @@
 {/if}
 
 <style>
+  .view-container {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background-color: var(--surface);
+  }
+
   .home-container {
     min-height: 100vh;
     min-height: 100dvh;
@@ -126,6 +174,23 @@
     color: var(--primary);
     font-size: 1.5rem;
     font-weight: 700;
+  }
+
+  .btn-back {
+    background-color: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+
+  .btn-back:hover {
+    background-color: var(--primary);
+    color: white;
   }
 
   .btn-logout {
@@ -259,6 +324,15 @@
     cursor: pointer;
     transition: all 0.2s ease;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .action-card.primary {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border-color: #059669;
+  }
+
+  .action-card.secondary {
+    opacity: 0.7;
   }
 
   .action-card:hover:not(:disabled) {

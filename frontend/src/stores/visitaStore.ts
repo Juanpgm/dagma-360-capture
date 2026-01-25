@@ -1,39 +1,31 @@
 /**
- * Store Svelte para gestionar el estado del formulario de Visitas de Verificación
+ * Store Svelte para gestionar el estado del formulario de Reconocimientos de Parques DAGMA
  */
 
 import { writable, derived, get } from 'svelte/store';
 import type {
   FormularioState,
-  VisitaVerificacion,
+  ReconocimientoParque,
   StepNumber,
-  UnidadProyecto,
-  CentroGestor,
-  UPEntorno,
-  Estado360
+  Parque
 } from '../types/visitas';
-import { fetchUnidadesProyecto, fetchCentrosGestores } from '../api/visitas';
 import { getCurrentPosition } from '../lib/geolocation';
+import { getParques } from '../api/visitas';
 
 /**
  * Estado inicial del formulario
  */
 const initialState: FormularioState = {
-  currentStep: 0,
+  currentStep: 1,
   completedSteps: new Set<StepNumber>(),
   data: {
-    tipo_visita: 'verificacion',
-    up_entorno: [],
-    photos_url: [],
-    fecha_registro: new Date().toISOString(),
-    viabilidad_alcalde: false,
-    entrega_publica: false
+    photos: [],
+    fecha_registro: new Date().toISOString()
   },
   isLoading: false,
   error: null,
-  unidadesProyecto: [],
-  centrosGestores: [],
-  selectedUP: null
+  parques: [],
+  selectedParque: null
 };
 
 /**
@@ -52,9 +44,7 @@ function createVisitaStore() {
       set({
         ...initialState,
         data: {
-          tipo_visita: 'verificacion',
-          up_entorno: [],
-          photos_url: [],
+          photos: [],
           fecha_registro: new Date().toISOString()
         },
         completedSteps: new Set<StepNumber>()
@@ -66,41 +56,8 @@ function createVisitaStore() {
      */
     nextStep: () => {
       update(state => {
-        const nextStep = Math.min(state.currentStep + 1, 4) as StepNumber;
+        const nextStep = Math.min(state.currentStep + 1, 3) as StepNumber;
         
-        let updates: Partial<VisitaVerificacion> = {};
-        
-        // Si vamos al paso 4, inicializar datos si faltan
-        if (nextStep === 4) {
-            const currentData = state.data;
-            
-            // 1. Estado 360
-            if (!currentData.estado_360) {
-                const estadoProyecto = state.selectedUP?.estado || '';
-                let inferred: Estado360 = 'Después'; // Default fallback
-                
-                // Normalizar para comparación
-                const estadoNorm = estadoProyecto.trim();
-                
-                if (estadoNorm === 'En alistamiento') inferred = 'Antes';
-                else if (estadoNorm === 'En ejecución' || estadoNorm === 'Suspendido') inferred = 'Durante';
-                else if (estadoNorm === 'Terminado' || estadoNorm === 'Inaugurado') inferred = 'Después';
-                else {
-                     // Fallback a avance_obra
-                     const avance = state.selectedUP?.avance_obra || 0;
-                     if (avance < 30) inferred = 'Antes';
-                     else if (avance < 90) inferred = 'Durante';
-                     else inferred = 'Después';
-                }
-                updates.estado_360 = inferred;
-                console.log('Estado 360 inferido en nextStep:', inferred, 'desde estado:', estadoProyecto);
-            }
-            
-            // 2. Toggles
-            if (currentData.viabilidad_alcalde === undefined) updates.viabilidad_alcalde = false;
-            if (currentData.entrega_publica === undefined) updates.entrega_publica = false;
-        }
-
         // Crear nuevo Set con el paso actual agregado (inmutabilidad)
         const newCompletedSteps = new Set(state.completedSteps);
         newCompletedSteps.add(state.currentStep);
@@ -110,8 +67,7 @@ function createVisitaStore() {
         return {
           ...state,
           currentStep: nextStep,
-          completedSteps: newCompletedSteps,
-          data: { ...state.data, ...updates }
+          completedSteps: newCompletedSteps
         };
       });
     },
@@ -122,7 +78,7 @@ function createVisitaStore() {
     previousStep: () => {
       update(state => ({
         ...state,
-        currentStep: Math.max(state.currentStep - 1, 0) as StepNumber
+        currentStep: Math.max(state.currentStep - 1, 1) as StepNumber
       }));
     },
 
@@ -136,7 +92,7 @@ function createVisitaStore() {
     /**
      * Actualiza los datos del formulario
      */
-    updateData: (partialData: Partial<VisitaVerificacion>) => {
+    updateData: (partialData: Partial<ReconocimientoParque>) => {
       update(state => ({
         ...state,
         data: { ...state.data, ...partialData }
@@ -144,83 +100,17 @@ function createVisitaStore() {
     },
 
     /**
-     * Selecciona una Unidad de Proyecto
+     * Selecciona un Parque
      */
-    selectUnidadProyecto: (up: UnidadProyecto) => {
+    selectParque: (parque: Parque) => {
       update(state => ({
         ...state,
-        selectedUP: up,
+        selectedParque: parque,
         data: {
           ...state.data,
-          upid: up.upid,
-          nombre_up: up.nombre_up
-        }
-      }));
-    },
-
-    /**
-     * Pre-selecciona el Estado 360 basado en el estado del proyecto
-     */
-    inferEstado360: (): Estado360 => {
-      const state = get({ subscribe });
-      const estadoProyecto = state.selectedUP?.estado || '';
-      
-      // Mapeo basado en el estado del proyecto (igual que el backend)
-      if (estadoProyecto === 'En alistamiento') return 'Antes';
-      if (estadoProyecto === 'En ejecución' || estadoProyecto === 'Suspendido') return 'Durante';
-      if (estadoProyecto === 'Terminado' || estadoProyecto === 'Inaugurado') return 'Después';
-      
-      // Fallback: usar avance_obra si el estado no coincide
-      const avance = state.selectedUP?.avance_obra || 0;
-      if (avance < 30) return 'Antes';
-      if (avance >= 30 && avance < 90) return 'Durante';
-      return 'Después';
-    },
-
-    /**
-     * Agrega un registro de UP Entorno
-     */
-    addUPEntorno: (entorno: Omit<UPEntorno, 'id'>) => {
-      update(state => {
-        const newEntorno: UPEntorno = {
-          ...entorno,
-          id: `entorno_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        };
-        
-        return {
-          ...state,
-          data: {
-            ...state.data,
-            up_entorno: [...(state.data.up_entorno || []), newEntorno]
-          }
-        };
-      });
-    },
-
-    /**
-     * Elimina un registro de UP Entorno
-     */
-    removeUPEntorno: (id: string) => {
-      update(state => ({
-        ...state,
-        data: {
-          ...state.data,
-          up_entorno: (state.data.up_entorno || []).filter(e => e.id !== id)
-        }
-      }));
-    },
-
-    /**
-     * Actualiza un registro de UP Entorno
-     */
-    updateUPEntorno: (id: string, updates: Partial<UPEntorno>) => {
-      update(state => ({
-        ...state,
-        data: {
-          ...state.data,
-          up_entorno: (state.data.up_entorno || []).map(e =>
-            e.id === id ? { ...e, ...updates } : e
-          )
+          upid: parque.upid,
+          nombre_up: parque.nombre_up,
+          direccion: parque.direccion || ''
         }
       }));
     },
@@ -233,12 +123,18 @@ function createVisitaStore() {
       
       try {
         const coords = await getCurrentPosition();
+        
+        // Formatear coordenadas como JSON array string
+        const coordinatesData = JSON.stringify([coords.longitude, coords.latitude]);
+        
         update(state => ({
           ...state,
           isLoading: false,
           data: {
             ...state.data,
-            coordenadas_gps: coords
+            coordenadas_gps: coords,
+            coordinates_type: 'Point',
+            coordinates_data: coordinatesData
           }
         }));
       } catch (error) {
@@ -251,47 +147,59 @@ function createVisitaStore() {
     },
 
     /**
-     * Carga las Unidades de Proyecto desde la API
+     * Agrega fotos al reconocimiento
      */
-    loadUnidadesProyecto: async () => {
+    addPhotos: (files: File[]) => {
+      update(state => ({
+        ...state,
+        data: {
+          ...state.data,
+          photos: [...(state.data.photos || []), ...files]
+        }
+      }));
+    },
+
+    /**
+     * Elimina una foto por índice
+     */
+    removePhoto: (index: number) => {
+      update(state => ({
+        ...state,
+        data: {
+          ...state.data,
+          photos: (state.data.photos || []).filter((_, i) => i !== index)
+        }
+      }));
+    },
+
+    /**
+     * Carga la lista de parques desde el API
+     */
+    loadParques: async () => {
       update(state => ({ ...state, isLoading: true, error: null }));
       
       try {
-        const ups = await fetchUnidadesProyecto();
+        const parques = await getParques();
+        
         update(state => ({
           ...state,
           isLoading: false,
-          unidadesProyecto: ups
+          parques
         }));
       } catch (error) {
         update(state => ({
           ...state,
           isLoading: false,
-          error: error instanceof Error ? error.message : 'Error al cargar UPs'
+          error: error instanceof Error ? error.message : 'Error al cargar parques'
         }));
       }
     },
 
     /**
-     * Carga los Centros Gestores desde la API
+     * Establece la lista de parques
      */
-    loadCentrosGestores: async () => {
-      update(state => ({ ...state, isLoading: true, error: null }));
-      
-      try {
-        const centros = await fetchCentrosGestores();
-        update(state => ({
-          ...state,
-          isLoading: false,
-          centrosGestores: centros
-        }));
-      } catch (error) {
-        update(state => ({
-          ...state,
-          isLoading: false,
-          error: error instanceof Error ? error.message : 'Error al cargar centros gestores'
-        }));
-      }
+    setParques: (parques: Parque[]) => {
+      update(state => ({ ...state, parques }));
     },
 
     /**
@@ -311,7 +219,7 @@ function createVisitaStore() {
 }
 
 /**
- * Store global del formulario de visitas
+ * Store global del formulario de reconocimientos
  */
 export const visitaStore = createVisitaStore();
 
@@ -322,38 +230,29 @@ export const visitaStore = createVisitaStore();
 // Progreso del formulario (0-100%)
 export const formProgress = derived(
   visitaStore,
-  $store => (($store.completedSteps.size / 5) * 100)
+  $store => (($store.completedSteps.size / 3) * 100)
 );
 
 // Verifica si el paso actual está completo
 export const isCurrentStepValid = derived(
   visitaStore,
   $store => {
-    const { currentStep, data, selectedUP } = $store;
+    const { currentStep, data, selectedParque } = $store;
     
     switch (currentStep) {
-      case 0:
-        return !!data.tipo_visita;
-      
       case 1:
-        return !!selectedUP;
+        // Paso 1: Debe haber un parque seleccionado
+        return !!selectedParque;
       
       case 2:
-        return data.validacion !== undefined &&
-               (data.validacion.esCorrecta || !!data.validacion.comentario);
+        // Paso 2: Formulario + GPS
+        return !!data.tipo_intervencion &&
+               !!data.descripcion_intervencion &&
+               !!data.coordenadas_gps;
       
       case 3:
-        return !!data.coordenadas_gps &&
-               !!data.descripcion_intervencion &&
-               !!data.descripcion_solicitud;
-      
-      case 4:
-        // Validar que estado_360 esté definido y que los toggles tengan valor booleano
-        const hasEstado360 = data.estado_360 !== undefined && data.estado_360 !== null;
-        const hasViabilidad = typeof data.viabilidad_alcalde === 'boolean';
-        const hasEntrega = typeof data.entrega_publica === 'boolean';
-        console.log('Validación Step 4:', { hasEstado360, hasViabilidad, hasEntrega, data: { estado_360: data.estado_360, viabilidad: data.viabilidad_alcalde, entrega: data.entrega_publica } });
-        return hasEstado360 && hasViabilidad && hasEntrega;
+        // Paso 3: No es obligatorio tener fotos, pero el paso es válido siempre
+        return true;
       
       default:
         return false;
@@ -361,11 +260,10 @@ export const isCurrentStepValid = derived(
   }
 );
 
-// Nombres de los pasos para el stepper UI
+// Nombres de los pasos para el stepper UI (3 pasos)
 export const stepNames = [
-  'Tipo de Visita',
-  'Selección UP',
-  'Validación',
-  'Captura Técnica',
-  'Comunicaciones'
+  'Selección de Parque',
+  'Datos y GPS',
+  'Evidencia Fotográfica'
 ];
+

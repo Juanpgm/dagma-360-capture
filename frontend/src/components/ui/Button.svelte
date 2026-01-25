@@ -64,14 +64,14 @@
 
   /* Variantes */
   .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
     color: white;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
   }
 
   .btn-primary:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
   }
 
   .btn-primary:active:not(:disabled) {
@@ -90,12 +90,12 @@
 
   .btn-outline {
     background: transparent;
-    color: #667eea;
-    border: 2px solid #667eea;
+    color: #059669;
+    border: 2px solid #059669;
   }
 
   .btn-outline:hover:not(:disabled) {
-    background: rgba(102, 126, 234, 0.1);
+    background: rgba(5, 150, 105, 0.1);
   }
 
   .btn-danger {

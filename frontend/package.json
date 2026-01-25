@@ -1,6 +1,6 @@
 {
-  "name": "calitrack-360-frontend",
-  "version": "0.1.0",
+  "name": "dagma-parques-frontend",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.0.1",
     "@tsconfig/svelte": "^5.0.6",
+    "@types/leaflet": "^1.9.21",
     "svelte": "^4.2.8",
     "svelte-check": "^3.6.2",
     "tslib": "^2.6.2",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "firebase": "^12.6.0",
+    "leaflet": "^1.9.4",
     "workbox-window": "^7.0.0"
   }
 }

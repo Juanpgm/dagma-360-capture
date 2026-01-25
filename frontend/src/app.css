@@ -1,16 +1,18 @@
 :root {
-  --primary: #2563eb;
-  --primary-dark: #1d4ed8;
-  --primary-light: #3b82f6;
-  --secondary: #64748b;
+  /* Paleta ambiental DAGMA */
+  --primary: #059669;
+  --primary-dark: #047857;
+  --primary-light: #10b981;
+  --secondary: #0284c7;
+  --accent: #92400e;
   --background: #ffffff;
-  --surface: #f8fafc;
+  --surface: #f0fdf4;
   --error: #ef4444;
   --success: #10b981;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --border: #e2e8f0;
-  --shadow: rgba(0, 0, 0, 0.1);
+  --text-primary: #064e3b;
+  --text-secondary: #065f46;
+  --border: #d1fae5;
+  --shadow: rgba(5, 150, 105, 0.1);
 }
 
 * {

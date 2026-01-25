@@ -6,28 +6,21 @@
     isCurrentStepValid,
   } from "../../stores/visitaStore";
   import { authStore } from "../../stores/authStore";
-  import { createVisitaVerificacion } from "../../api/visitas";
+  import { registrarReconocimiento, getParques } from "../../api/visitas";
   import Stepper from "../ui/Stepper.svelte";
   import Button from "../ui/Button.svelte";
   import Modal from "../ui/Modal.svelte";
-  import Step0TipoVisita from "./Step0TipoVisita.svelte";
   import Step1SeleccionUP from "./Step1SeleccionUP.svelte";
-  import Step2Validacion from "./Step2Validacion.svelte";
-  import Step3Captura from "./Step3Captura.svelte";
-  import Step4Comunicaciones from "./Step4Comunicaciones.svelte";
-  import type {
-    TipoVisita,
-    UnidadProyecto,
-    ValidacionDatos,
-    Estado360,
-  } from "../../types/visitas";
+  import Step2Formulario from "./Step2Formulario.svelte";
+  import Step3Fotos from "./Step3Fotos.svelte";
+  import type { Parque } from "../../types/visitas";
 
   export let onClose: () => void;
 
   let submitting = false;
   let submitError: string | null = null;
   let submitSuccess = false;
-  let photoFiles: File[] = []; // Archivos de fotos para subir
+  let photoFiles: File[] = [];
 
   // Estado del modal
   let modalOpen = false;
@@ -44,51 +37,25 @@
   $: canContinue = $isCurrentStepValid;
   $: currentStep = state.currentStep;
 
-  // Debug: Log validation state
-  $: {
-    console.log("Estado paso 4:", {
-      currentStep,
-      estado_360: state.data.estado_360,
-      viabilidad_alcalde: state.data.viabilidad_alcalde,
-      entrega_publica: state.data.entrega_publica,
-      canContinue,
-    });
-  }
-
   onMount(() => {
     // Resetear formulario al montar
     visitaStore.reset();
   });
 
-  // Handlers para Step 0
-  function handleTipoVisitaSelect(tipo: TipoVisita) {
-    visitaStore.updateData({ tipo_visita: tipo });
-    visitaStore.nextStep();
-  }
-
   // Handlers para Step 1
-  function handleUPSelect(up: UnidadProyecto) {
-    visitaStore.selectUnidadProyecto(up);
+  function handleParqueSelect(parque: Parque) {
+    visitaStore.selectParque(parque);
     // Avanzar automáticamente al siguiente paso después de seleccionar
     visitaStore.nextStep();
   }
 
-  async function handleLoadUPs() {
-    await visitaStore.loadUnidadesProyecto();
+  async function handleLoadParques() {
+    await visitaStore.loadParques();
   }
 
   // Handlers para Step 2
-  function handleValidation(validacion: ValidacionDatos) {
-    visitaStore.updateData({ validacion });
-  }
-
-  // Handlers para Step 3
   async function handleCaptureGPS() {
     await visitaStore.captureGPS();
-  }
-
-  async function handleLoadCentros() {
-    await visitaStore.loadCentrosGestores();
   }
 
   // Navegación
@@ -96,13 +63,8 @@
     if (!canContinue) return;
 
     // Validaciones específicas por paso antes de continuar
-    if (currentStep === 1 && !state.selectedUP) {
-      visitaStore.setError("Debe seleccionar una Unidad de Proyecto");
-      return;
-    }
-
-    if (currentStep === 2 && !state.data.validacion) {
-      visitaStore.setError("Debe validar la información");
+    if (currentStep === 1 && !state.selectedParque) {
+      visitaStore.setError("Debe seleccionar un parque");
       return;
     }
 
@@ -145,80 +107,58 @@
       const data = state.data;
 
       if (
-        !data.upid ||
+        !state.selectedParque ||
         !data.coordenadas_gps ||
+        !data.tipo_intervencion ||
         !data.descripcion_intervencion ||
-        !data.descripcion_solicitud ||
-        !data.estado_360 ||
-        data.viabilidad_alcalde === undefined ||
-        data.entrega_publica === undefined
+        !data.direccion
       ) {
         throw new Error("Faltan campos requeridos");
       }
 
-      // Validar que haya una UP seleccionada
-      if (!state.selectedUP) {
-        throw new Error("No se ha seleccionado una Unidad de Proyecto");
-      }
-
-      // Obtener datos del usuario desde el store de autenticación
-      const user = $authStore.user || authStore.getUser();
-      const userEmail = user?.email || "usuario@calitrack360.gov.co";
-      const userDisplayName =
-        user?.displayName ||
-        user?.email?.split("@")[0] ||
-        "Usuario Calitrack 360";
-
-      console.log("Datos de usuario para el reporte:", {
-        userEmail,
-        userDisplayName,
+      console.log("Enviando reconocimiento al servidor...", {
+        parque: state.selectedParque.nombre_up,
+        tipo: data.tipo_intervencion,
+        direccion: data.direccion,
       });
 
-      // Preparar datos completos
-      const visitaCompleta = {
-        ...data,
-        fecha_registro: new Date().toISOString(),
-      } as any;
-
-      console.log("Enviando visita al servidor...", {
-        upid: state.selectedUP.upid,
-        estado_360: data.estado_360,
-        tipo_visita: data.tipo_visita,
-      });
+      // Preparar datos de reconocimiento
+      const reconocimiento = {
+        upid: state.selectedParque.upid,
+        tipo_intervencion: data.tipo_intervencion,
+        descripcion_intervencion: data.descripcion_intervencion,
+        direccion: data.direccion,
+        observaciones: data.observaciones || "",
+        coordenadas_gps: data.coordenadas_gps,
+        coordinates_type: state.selectedParque.geometry?.type || "Point",
+        coordinates_data: state.selectedParque.geometry?.coordinates 
+          ? JSON.stringify(state.selectedParque.geometry.coordinates)
+          : `[${state.selectedParque.lon}, ${state.selectedParque.lat}]`,
+      };
 
       // Enviar al backend usando el nuevo endpoint
-      const response = await createVisitaVerificacion(
-        visitaCompleta,
-        state.selectedUP,
-        userEmail,
-        userDisplayName,
-        photoFiles
-      );
+      const response = await registrarReconocimiento(reconocimiento, photoFiles);
 
       if (response.success) {
         submitSuccess = true;
-        console.log("Visita registrada exitosamente:", {
-          document_id: response.document_id,
-          photos_uploaded: response.photos_uploaded?.length || 0,
-          photos_failed: response.photos_failed?.length || 0,
-        });
+        console.log("Reconocimiento registrado exitosamente:", response);
 
         // Mostrar modal de éxito
-        modalTitle = "¡Visita Registrada!";
-        modalMessage = "La visita se ha guardado correctamente en el sistema.";
+        modalTitle = "¡Reconocimiento Registrado!";
+        modalMessage = "El reconocimiento del parque se ha guardado correctamente.";
         modalType = "success";
         modalShowCancel = false;
         modalConfirmText = "Entendido";
         modalOpen = true;
       }
     } catch (error) {
-      console.error("Error al enviar visita:", error);
+      console.error("Error al enviar reconocimiento:", error);
       submitError =
-        error instanceof Error ? error.message : "Error al registrar la visita";
+        error instanceof Error ? error.message : "Error al registrar la verificación";
 
       // Mostrar modal de error
       modalTitle = "Error";
-      modalMessage = submitError || "Ocurrió un error al guardar la visita.";
+      modalMessage = submitError || "Ocurrió un error al guardar el reconocimiento.";
       modalType = "error";
       modalShowCancel = false;
       modalConfirmText = "Entendido";
@@ -229,7 +169,7 @@
   }
 
   function handleCancel() {
-    modalTitle = "¿Cancelar visita?";
+    modalTitle = "¿Cancelar reconocimiento?";
     modalMessage = "Se perderán todos los datos ingresados hasta el momento.";
     modalType = "warning";
     modalShowCancel = true;
@@ -250,7 +190,7 @@
       <button class="back-btn" on:click={handleCancel}>
         <span class="back-icon">←</span>
       </button>
-      <h1 class="header-title">Nueva Visita</h1>
+      <h1 class="header-title">Reconocimiento de Parque</h1>
     </div>
   </div>
 
@@ -266,45 +206,26 @@
 
   <!-- Contenido del paso actual -->
   <div class="step-content">
-    {#if currentStep === 0}
-      <Step0TipoVisita onSelect={handleTipoVisitaSelect} />
-    {:else if currentStep === 1}
+    {#if currentStep === 1}
       <Step1SeleccionUP
-        unidadesProyecto={state.unidadesProyecto}
-        selectedUP={state.selectedUP}
-        onSelect={handleUPSelect}
-        onLoadUPs={handleLoadUPs}
+        parques={state.parques}
+        selectedParque={state.selectedParque}
+        onSelect={handleParqueSelect}
+        onLoadParques={handleLoadParques}
         isLoading={state.isLoading}
       />
     {:else if currentStep === 2}
-      {#if state.selectedUP}
-        <Step2Validacion
-          selectedUP={state.selectedUP}
-          validacion={state.data.validacion}
-          onValidate={handleValidation}
-        />
-      {/if}
-    {:else if currentStep === 3}
-      <Step3Captura
+      <Step2Formulario
         coordenadas={state.data.coordenadas_gps}
+        bind:tipoIntervencion={state.data.tipo_intervencion}
         bind:descripcionIntervencion={state.data.descripcion_intervencion}
-        bind:descripcionSolicitud={state.data.descripcion_solicitud}
-        bind:upEntorno={state.data.up_entorno}
-        centrosGestores={state.centrosGestores}
-        selectedUP={state.selectedUP}
+        bind:observaciones={state.data.observaciones}
+        selectedParque={state.selectedParque}
         onCaptureGPS={handleCaptureGPS}
-        onLoadCentros={handleLoadCentros}
-        onAddEntorno={visitaStore.addUPEntorno}
-        onRemoveEntorno={visitaStore.removeUPEntorno}
-        onUpdateEntorno={visitaStore.updateUPEntorno}
         isLoading={state.isLoading}
       />
-    {:else if currentStep === 4}
-      <Step4Comunicaciones
-        bind:estado360={state.data.estado_360}
-        bind:viabilidadAlcalde={state.data.viabilidad_alcalde}
-        bind:entregaPublica={state.data.entrega_publica}
-        bind:photosUrl={state.data.photos_url}
+    {:else if currentStep === 3}
+      <Step3Fotos
         bind:photoFiles
       />
     {/if}
@@ -319,7 +240,7 @@
     <!-- Navegación inferior (dentro del flujo) -->
     <div class="navigation-footer">
       <div class="nav-buttons">
-        {#if currentStep > 0}
+        {#if currentStep > 1}
           <div class="btn-wrapper left">
             <Button
               variant="outline"
@@ -335,12 +256,11 @@
           <!-- Spacer -->
         {/if}
 
-        {#if currentStep < 4}
+        {#if currentStep < 3}
           <div class="btn-wrapper right">
             <Button
               variant="primary"
               size="md"
-              fullWidth={currentStep === 0}
               onClick={handleNext}
               disabled={!canContinue || state.isLoading}
             >
