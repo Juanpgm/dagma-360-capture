@@ -2,7 +2,11 @@
 import { authStore } from '../stores/authStore';
 import { get } from 'svelte/store';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web-production-2d737.up.railway.app';
+// En desarrollo: usa el proxy /api -> https://railway.app
+// En producción: usa la URL completa de VITE_API_URL
+const API_BASE_URL = import.meta.env.DEV 
+  ? '/api'
+  : (import.meta.env.VITE_API_URL || 'https://web-production-2d737.up.railway.app');
 
 /**
  * Cliente HTTP con autenticación automática

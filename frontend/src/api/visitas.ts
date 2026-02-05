@@ -340,10 +340,17 @@ export async function registrarReconocimiento(
     }
     
     // Hacer la petición POST usando fetch directamente porque necesitamos FormData
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://gestorproyectoapi-production.up.railway.app';
+    // En desarrollo: usa el proxy /api -> https://railway.app
+    // En producción: usa la URL completa de VITE_API_URL
+    const API_URL = import.meta.env.DEV 
+      ? '/api/grupo-operativo/reconocimiento'
+      : `${import.meta.env.VITE_API_URL}/grupo-operativo/reconocimiento`;
+    
     const token = localStorage.getItem('auth_token');
     
-    const response = await fetch(`${API_BASE_URL}/grupo-operativo/reconocimiento`, {
+    console.log('📤 Enviando reconocimiento a:', API_URL);
+    
+    const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         ...(token && { 'Authorization': `Bearer ${token}` })
