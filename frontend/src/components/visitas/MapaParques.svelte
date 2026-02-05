@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { getParques } from '../../api/visitas';
-  import type { Parque } from '../../types/visitas';
-  import L from 'leaflet';
-  import 'leaflet/dist/leaflet.css';
+  import { onMount, onDestroy } from "svelte";
+  import { getParques } from "../../api/visitas";
+  import type { Parque } from "../../types/visitas";
+  import L from "leaflet";
+  import "leaflet/dist/leaflet.css";
 
   let mapContainer: HTMLDivElement;
   let map: L.Map | null = null;
@@ -13,8 +13,17 @@
   let markers: L.Marker[] = [];
 
   onMount(async () => {
-    await loadParques();
-    initMap();
+    console.log("🎯 MapaParques.svelte mounted");
+    try {
+      await loadParques();
+      console.log(`📦 Parques cargados: ${parques.length}`);
+      if (parques.length === 0) {
+        console.warn("⚠️  No hay parques cargados");
+      }
+      initMap();
+    } catch (err) {
+      console.error("❌ Error en mount:", err);
+    }
   });
 
   onDestroy(() => {
@@ -31,8 +40,8 @@
     try {
       parques = await getParques();
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Error al cargar parques';
-      console.error('Error loading parques:', err);
+      error = err instanceof Error ? err.message : "Error al cargar parques";
+      console.error("Error loading parques:", err);
     } finally {
       loading = false;
     }
@@ -42,12 +51,12 @@
     if (!mapContainer) return;
 
     // Crear mapa centrado en Cali
-    map = L.map(mapContainer).setView([3.4516, -76.5320], 12);
+    map = L.map(mapContainer).setView([3.4516, -76.532], 12);
 
     // Agregar capa de OpenStreetMap
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors",
+      maxZoom: 19,
     }).addTo(map);
 
     // Agregar marcadores de parques
@@ -55,81 +64,252 @@
   }
 
   function addParqueMarkers() {
-    if (!map) return;
+    if (!map) {
+      console.error("❌ Mapa no inicializado");
+      return;
+    }
 
-    // Limpiar marcadores anteriores
-    markers.forEach(marker => marker.remove());
+    console.log(`\n🎨 == DIBUJANDO PARQUES ==`);
+    console.log(`   Total: ${parques.length}`);
+    console.log(
+      `   Con geometría: ${parques.filter((p) => p.geometry).length}`,
+    );
+
+    // Limpiar capas anteriores (excepto tile layer)
+    let layerCount = 0;
+    map.eachLayer((layer) => {
+      if (
+        layer instanceof L.Marker ||
+        layer instanceof L.Polygon ||
+        layer instanceof L.Polyline ||
+        layer instanceof L.FeatureGroup
+      ) {
+        map!.removeLayer(layer);
+        layerCount++;
+      }
+    });
+    console.log(`   Capas limpias: ${layerCount}`);
+
     markers = [];
+    const allLayers: L.Layer[] = [];
 
-    const bounds: L.LatLngBounds[] = [];
+    console.log(`📍 Dibujando ${parques.length} parques`);
 
-    parques.forEach(parque => {
-      let lat: number | null = null;
-      let lng: number | null = null;
+    parques.forEach((parque, index) => {
+      if (!parque.geometry) {
+        console.warn(`⚠️  Parque ${index} (${parque.nombre_up}) sin geometría`);
+        return;
+      }
 
-      // Intentar obtener coordenadas desde geometry
-      if (parque.geometry?.coordinates) {
-        if (parque.geometry.type === 'Point') {
-          lng = parque.geometry.coordinates[0];
-          lat = parque.geometry.coordinates[1];
-        } else if (parque.geometry.type === 'Polygon' || parque.geometry.type === 'MultiLineString') {
-          // Calcular centroide aproximado
-          const coords = Array.isArray(parque.geometry.coordinates[0][0])
-            ? parque.geometry.coordinates[0]
-            : parque.geometry.coordinates;
-          
-          const lats = coords.map((c: any) => Array.isArray(c) ? c[1] : 0);
-          const lngs = coords.map((c: any) => Array.isArray(c) ? c[0] : 0);
-          
-          lat = lats.reduce((a: number, b: number) => a + b, 0) / lats.length;
-          lng = lngs.reduce((a: number, b: number) => a + b, 0) / lngs.length;
+      const geometry = parque.geometry;
+      const popupContent = getPopupContent(parque);
+      let layersCount = 0;
+
+      try {
+        switch (geometry.type) {
+          case "Point":
+            const pointLayer = createPoint(
+              geometry.coordinates as [number, number],
+              popupContent,
+            );
+            if (pointLayer) {
+              pointLayer.addTo(map!);
+              allLayers.push(pointLayer);
+              layersCount = 1;
+            }
+            break;
+
+          case "LineString":
+            const lineLayer = createLineString(
+              geometry.coordinates as [number, number][],
+              popupContent,
+            );
+            if (lineLayer) {
+              lineLayer.addTo(map!);
+              allLayers.push(lineLayer);
+              layersCount = 1;
+            }
+            break;
+
+          case "Polygon":
+            const polygonLayer = createPolygon(
+              geometry.coordinates as [number, number][][],
+              popupContent,
+            );
+            if (polygonLayer) {
+              polygonLayer.addTo(map!);
+              allLayers.push(polygonLayer);
+              layersCount = 1;
+            }
+            break;
+
+          case "MultiPoint":
+            const multiPointLayers = (
+              geometry.coordinates as [number, number][]
+            ).map((coords) => createPoint(coords, popupContent));
+            multiPointLayers.forEach((l) => l?.addTo(map!));
+            allLayers.push(
+              ...(multiPointLayers.filter((l) => l !== null) as L.Layer[]),
+            );
+            layersCount = multiPointLayers.length;
+            break;
+
+          case "MultiLineString":
+            const multiLineLayers = (
+              geometry.coordinates as [number, number][][]
+            ).map((coords) => createLineString(coords, popupContent));
+            multiLineLayers.forEach((l) => l?.addTo(map!));
+            allLayers.push(
+              ...(multiLineLayers.filter((l) => l !== null) as L.Layer[]),
+            );
+            layersCount = multiLineLayers.length;
+            break;
+
+          case "MultiPolygon":
+            const multiPolyLayers = (
+              geometry.coordinates as [number, number][][][]
+            ).map((coords) => createPolygon(coords, popupContent));
+            multiPolyLayers.forEach((l) => l?.addTo(map!));
+            allLayers.push(
+              ...(multiPolyLayers.filter((l) => l !== null) as L.Layer[]),
+            );
+            layersCount = multiPolyLayers.length;
+            break;
+
+          case "GeometryCollection":
+            console.warn(`⚠️  GeometryCollection no soportada aún`);
+            break;
+
+          default:
+            console.warn(
+              `⚠️  Tipo de geometría desconocido: ${(geometry as any).type}`,
+            );
         }
-      }
 
-      // Fallback a lat/lon strings
-      if (!lat && parque.lat && parque.lon) {
-        lat = parseFloat(parque.lat);
-        lng = parseFloat(parque.lon);
-      }
-
-      if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
-        const marker = L.marker([lat, lng], {
-          icon: L.divIcon({
-            className: 'custom-marker',
-            html: `<div class="marker-icon">🌳</div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
-          })
-        });
-
-        // Popup con información del parque
-        const estadoIntervencion = parque.intervenciones?.[0]?.estado || 'Sin datos';
-        marker.bindPopup(`
-          <div class="popup-content">
-            <h4>${parque.nombre_up}</h4>
-            <p><strong>ID:</strong> ${parque.upid}</p>
-            ${parque.barrio_vereda ? `<p><strong>Barrio:</strong> ${parque.barrio_vereda}</p>` : ''}
-            ${parque.direccion ? `<p><strong>Dirección:</strong> ${parque.direccion}</p>` : ''}
-            <p><strong>Estado:</strong> <span class="estado-badge">${estadoIntervencion}</span></p>
-          </div>
-        `);
-
-        marker.addTo(map!);
-        markers.push(marker);
-        bounds.push(L.latLngBounds([lat, lng], [lat, lng]));
+        if (layersCount > 0) {
+          console.log(
+            `  ✓ ${parque.nombre_up}: ${geometry.type} (${layersCount} capa${layersCount > 1 ? "s" : ""})`,
+          );
+        }
+      } catch (err) {
+        console.error(`❌ Error dibujando ${parque.nombre_up}:`, err);
       }
     });
 
-    // Ajustar vista para mostrar todos los marcadores
-    if (bounds.length > 0 && map) {
-      const group = new L.FeatureGroup(markers);
-      map.fitBounds(group.getBounds().pad(0.1));
+    console.log(`✅ == RESULTADO ==`);
+    console.log(`   Capas dibujadas: ${allLayers.length}`);
+    console.log(`   Marcadores: ${markers.length}`);
+
+    // Ajustar vista
+    if (allLayers.length > 0 && map) {
+      try {
+        setTimeout(() => {
+          const group = new L.FeatureGroup(allLayers);
+          map!.fitBounds(group.getBounds().pad(0.1));
+        }, 100);
+      } catch (err) {
+        console.error("Error ajustando vista:", err);
+      }
     }
   }
 
+  function getPopupContent(parque: Parque): string {
+    const estadoIntervencion =
+      parque.intervenciones?.[0]?.estado || "Sin datos";
+    return `
+      <div class="popup-content">
+        <h4>${parque.nombre_up}</h4>
+        <p><strong>ID:</strong> ${parque.upid}</p>
+        ${parque.barrio_vereda ? `<p><strong>Barrio:</strong> ${parque.barrio_vereda}</p>` : ""}
+        ${parque.direccion ? `<p><strong>Dirección:</strong> ${parque.direccion}</p>` : ""}
+        <p><strong>Estado:</strong> <span class="estado-badge">${estadoIntervencion}</span></p>
+        <p><strong>Tipo:</strong> ${parque.geometry?.type || "Sin geometría"}</p>
+      </div>
+    `;
+  }
+
+  function createPoint(
+    coords: [number, number],
+    popup: string,
+  ): L.Marker | null {
+    const [lng, lat] = coords;
+    if (isNaN(lat) || isNaN(lng)) return null;
+
+    const marker = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: "custom-marker",
+        html: `<div class="marker-icon">🌳</div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+      }),
+    });
+    marker.bindPopup(popup);
+    markers.push(marker);
+    return marker;
+  }
+
+  function createLineString(
+    coords: [number, number][],
+    popup: string,
+  ): L.Polyline | null {
+    if (coords.length < 2) return null;
+
+    const latLngs = coords
+      .map(([lng, lat]) => [lat, lng] as [number, number])
+      .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
+
+    if (latLngs.length < 2) return null;
+
+    const polyline = L.polyline(latLngs, {
+      color: "#059669",
+      weight: 3,
+      opacity: 0.8,
+    });
+    polyline.bindPopup(popup);
+    return polyline;
+  }
+
+  function createPolygon(
+    coords: [number, number][][],
+    popup: string,
+  ): L.Polygon | null {
+    if (coords.length === 0 || coords[0].length < 3) return null;
+
+    const latLngs = coords[0]
+      .map(([lng, lat]) => [lat, lng] as [number, number])
+      .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
+
+    if (latLngs.length < 3) return null;
+
+    const polygon = L.polygon(latLngs, {
+      color: "#047857",
+      weight: 3,
+      opacity: 0.8,
+      fillColor: "#d1fae5",
+      fillOpacity: 0.5,
+      interactive: true,
+    });
+    polygon.bindPopup(popup);
+    return polygon;
+  }
+
   function recenterMap() {
-    if (map && markers.length > 0) {
-      const group = new L.FeatureGroup(markers);
+    if (!map) return;
+
+    // Obtener todas las capas dibujadas en el mapa
+    const layers: L.Layer[] = [];
+    map.eachLayer((layer) => {
+      if (
+        layer instanceof L.Marker ||
+        layer instanceof L.Polygon ||
+        layer instanceof L.Polyline
+      ) {
+        layers.push(layer);
+      }
+    });
+
+    if (layers.length > 0) {
+      const group = new L.FeatureGroup(layers);
       map.fitBounds(group.getBounds().pad(0.1));
     }
   }
@@ -138,7 +318,9 @@
 <div class="mapa-container">
   <div class="header">
     <h1 class="title">Mapa de Parques</h1>
-    <p class="subtitle">Visualización geográfica de los {parques.length} parques</p>
+    <p class="subtitle">
+      Visualización geográfica de los {parques.length} parques
+    </p>
     <button class="btn-recenter" on:click={recenterMap}>
       🎯 Centrar Mapa
     </button>
@@ -161,6 +343,46 @@
 </div>
 
 <style>
+  :global(.leaflet-pane) {
+    z-index: 1;
+  }
+
+  :global(.leaflet-overlay-pane) {
+    z-index: 400 !important;
+  }
+
+  :global(.leaflet-shadow-pane) {
+    z-index: 500 !important;
+  }
+
+  :global(.leaflet-marker-pane) {
+    z-index: 600 !important;
+  }
+
+  :global(.leaflet-popup-pane) {
+    z-index: 700 !important;
+  }
+
+  :global(.leaflet-polygon) {
+    stroke: #047857 !important;
+    stroke-width: 3 !important;
+    opacity: 0.8 !important;
+    fill: #d1fae5 !important;
+    fill-opacity: 0.5 !important;
+    z-index: 450 !important;
+  }
+
+  :global(.leaflet-polyline) {
+    stroke: #059669 !important;
+    stroke-width: 3 !important;
+    opacity: 0.8 !important;
+    z-index: 450 !important;
+  }
+
+  :global(.leaflet-path) {
+    pointer-events: auto !important;
+  }
+
   :global(.custom-marker) {
     background: none;
     border: none;
@@ -274,7 +496,9 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .error {
@@ -288,14 +512,18 @@
   .map-wrapper {
     flex: 1;
     border-radius: 8px;
-    overflow: hidden;
+    overflow: visible;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 1;
   }
 
   .map {
     width: 100%;
     height: 100%;
     min-height: 500px;
+    position: relative;
+    z-index: 1;
   }
 
   @media (max-width: 768px) {

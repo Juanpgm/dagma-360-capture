@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test CORS Proxy</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 4px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test CORS Proxy</h1>
+    <div id="status"></div>
+    <pre id="output"></pre>
+
+    <script>
+        const output = document.getElementById('output');
+        const status = document.getElementById('status');
+
+        async function test() {
+            output.textContent = '';
+            
+            // Prueba 1: Verificar que estamos en localhost
+            log('info', `🌐 Origen actual: ${window.location.origin}`);
+            
+            // Prueba 2: Llamar al endpoint a través del proxy
+            log('info', `📡 Intentando fetch a: /api/init/parques`);
+            
+            try {
+                const response = await fetch('/api/init/parques', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                log('info', `✅ Status HTTP: ${response.status} ${response.statusText}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('success', `✅ CORS WORKING!`);
+                    log('info', `📦 Data received: ${data.data ? data.data.length + ' parques' : 'unknown format'}`);
+                    log('info', `📋 Response: ${JSON.stringify(data, null, 2)}`);
+                } else {
+                    log('error', `❌ HTTP Error: ${response.status}`);
+                }
+            } catch (error) {
+                log('error', `❌ Fetch failed: ${error.message}`);
+                log('error', `   Stack: ${error.stack}`);
+            }
+        }
+
+        function log(type, message) {
+            const line = `<span class="${type}">${message}</span>\n`;
+            output.innerHTML += line;
+            console.log(message);
+        }
+
+        // Ejecutar test al cargar
+        window.addEventListener('load', test);
+    </script>
+</body>
+</html>

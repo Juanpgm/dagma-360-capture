@@ -59,8 +59,15 @@ export default defineConfig({
     })
   ],
   server: {
-    port: 5173
-    // No se necesita proxy - el frontend consume directamente la API de Railway
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'https://web-production-2d737.up.railway.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+        secure: false
+      }
+    }
   },
   build: {
     outDir: 'dist',

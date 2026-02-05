@@ -2,7 +2,7 @@
 import { authStore } from '../stores/authStore';
 import { get } from 'svelte/store';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://gestorproyectoapi-production.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web-production-2d737.up.railway.app';
 
 /**
  * Cliente HTTP con autenticación automática

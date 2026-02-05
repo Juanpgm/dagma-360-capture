@@ -1,7 +1,8 @@
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://gestorproyectoapi-production.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web-production-2d737.up.railway.app';
+const USE_FIREBASE = import.meta.env.VITE_USE_FIREBASE === 'true';
 
 interface LoginCredentials {
   username: string;
@@ -15,12 +16,106 @@ interface LoginResponse {
 }
 
 /**
- * Login con Firebase Auth SDK
+ * Login directo con API (sin Firebase)
+ * Flujo alternativo cuando Firebase no está configurado
+ */
+const loginWithAPI = async (credentials: LoginCredentials): Promise<LoginResponse> => {
+  console.log('🔐 Attempting direct API login:', { email: credentials.username });
+
+  try {
+    // Paso 1: Primero autenticar con Firebase para obtener id_token
+    console.log('📡 Authenticating with Firebase to get id_token...');
+    const firebaseAuth = await signInWithEmailAndPassword(
+      auth,
+      credentials.username,
+      credentials.password
+    );
+
+    const idToken = await firebaseAuth.user.getIdToken();
+    console.log('✅ Firebase id_token obtained');
+
+    // Paso 2: Login en la API con el id_token
+    console.log('🌐 Logging in to API:', `${API_BASE_URL}/auth/login`);
+    
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        id_token: idToken,
+        email: credentials.username
+      })
+    });
+
+    console.log('📥 API response:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ API login failed:', errorText);
+      
+      let error;
+      try {
+        error = JSON.parse(errorText);
+      } catch {
+        error = { detail: errorText || 'Error de autenticación' };
+      }
+      
+      throw new Error(error.detail || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ API login successful:', data);
+
+    // Combinar datos
+    const email = credentials.username;
+    const userData = {
+      email: email,
+      uid: firebaseAuth.user.uid,
+      displayName: data.user?.nombre_completo || data.user?.nombre || email.split('@')[0],
+      username: data.user?.username || data.user?.email?.split('@')[0] || email.split('@')[0],
+      photoURL: data.user?.photo_url || null,
+      ...data.user,
+      roles: data.user?.roles || [],
+      permissions: data.user?.permissions || []
+    };
+
+    return {
+      access_token: data.access_token || idToken,
+      token_type: data.token_type || 'Bearer',
+      user: userData
+    };
+
+  } catch (err: any) {
+    console.error('💥 API login error:', err);
+    
+    // Mapear errores de Firebase a mensajes legibles
+    if (err.code === 'auth/user-not-found') {
+      throw new Error('Usuario no encontrado');
+    } else if (err.code === 'auth/wrong-password') {
+      throw new Error('Contraseña incorrecta');
+    } else if (err.code === 'auth/invalid-email') {
+      throw new Error('Email inválido');
+    } else if (err.code === 'auth/too-many-requests') {
+      throw new Error('Demasiados intentos. Intenta más tarde.');
+    }
+    
+    throw err;
+  }
+};
+
+/**
+ * Login con Firebase Auth SDK (flujo original)
  * 1. Autentica con Firebase usando email/password
  * 2. Obtiene idToken de Firebase
  * 3. Valida con backend que agrega roles/permisos
  */
-export const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
+const loginWithFirebase = async (credentials: LoginCredentials): Promise<LoginResponse> => {
   console.log('🔐 Attempting login with Firebase Auth SDK:', { email: credentials.username });
 
   try {
@@ -42,7 +137,7 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
     console.log('🌐 Validating session with backend:', `${API_BASE_URL}/auth/validate-session`);
     
     const response = await fetch(`${API_BASE_URL}/auth/validate-session`, {
-      method: 'GET',
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${idToken}`,
         'Content-Type': 'application/json',
@@ -123,6 +218,17 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
     
     throw err;
   }
+};
+
+/**
+ * Login principal - usa API directamente
+ */
+export const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
+  // Por defecto usar login directo con API
+  if (USE_FIREBASE) {
+    return loginWithFirebase(credentials);
+  }
+  return loginWithAPI(credentials);
 };
 
 /**

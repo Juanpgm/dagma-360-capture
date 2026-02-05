@@ -30,7 +30,22 @@ export interface Intervencion {
 }
 
 /**
- * Parque desde /init/parques
+ * Tipo de geometría GeoJSON soportada
+ */
+export type GeometryType = 'Point' | 'LineString' | 'Polygon' | 'MultiPoint' | 'MultiLineString' | 'MultiPolygon';
+
+/**
+ * Coordenadas GeoJSON (soporta todos los tipos)
+ */
+export type GeoJSONCoordinates = 
+  | [number, number] // Point
+  | [number, number][] // LineString, MultiPoint
+  | [number, number][][] // Polygon, MultiLineString
+  | [number, number][][][] // MultiPolygon
+  | any; // Fallback para geometrías complejas
+
+/**
+ * Parque desde /init/parques - Soporta todas las geometrías GeoJSON
  */
 export interface Parque {
   nombre_up_detalle: string | null;
@@ -54,8 +69,8 @@ export interface Parque {
   n_intervenciones: number;
   tipo_equipamiento: string;
   geometry: {
-    type: 'Point' | 'LineString' | 'MultiLineString' | 'Polygon' | string;
-    coordinates: [number, number] | [number, number][] | [number, number][][];
+    type: GeometryType;
+    coordinates: GeoJSONCoordinates;
   } | null;
   comuna_corregimiento: string | null;
   bpin: number;

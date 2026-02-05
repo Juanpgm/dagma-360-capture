@@ -1,0 +1,35 @@
+
+> dagma-parques-frontend@1.0.0 dev
+> vite
+
+Port 5173 is in use, trying another one...
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m2082[22m[2m[0m ms[22m
+
+  [32mΓ₧£[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m
+[2m  [32mΓ₧£[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m[32m  Γ₧£[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/HistorialVisitas.svelte:196:12 A11y: A form label must be associated with a control.
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/HistorialVisitas.svelte:200:12 A11y: A form label must be associated with a control.
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/HistorialVisitas.svelte:222:16 A11y: A form label must be associated with a control.
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/HistorialVisitas.svelte:240:16 A11y: A form label must be associated with a control.
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/HistorialVisitas.svelte:265:16 A11y: A form label must be associated with a control.
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/HistorialVisitas.svelte:283:16 A11y: A form label must be associated with a control.
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/ReportesParques.svelte:297:4 A11y: visible, non-interactive elements with an on:click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as <button type="button"> or <a> might be more appropriate. See https://svelte.dev/docs/accessibility-warnings#a11y-click-events-have-key-events for more details.
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/ReportesParques.svelte:297:4 A11y: <div> with click handler must have an ARIA role
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/ReportesParques.svelte:296:2 A11y: visible, non-interactive elements with an on:click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as <button type="button"> or <a> might be more appropriate. See https://svelte.dev/docs/accessibility-warnings#a11y-click-events-have-key-events for more details.
+12:23:14 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/visitas/ReportesParques.svelte:296:2 A11y: <div> with click handler must have an ARIA role
+12:23:15 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/ui/Card.svelte:12:0 A11y: noninteractive element cannot have nonnegative tabIndex value
+12:23:15 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/ui/Modal.svelte:21:4 A11y: visible, non-interactive elements with an on:click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as <button type="button"> or <a> might be more appropriate. See https://svelte.dev/docs/accessibility-warnings#a11y-click-events-have-key-events for more details.
+12:23:15 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/ui/Modal.svelte:21:4 A11y: <div> with click handler must have an ARIA role
+12:23:15 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/ui/Modal.svelte:20:2 A11y: visible, non-interactive elements with an on:click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as <button type="button"> or <a> might be more appropriate. See https://svelte.dev/docs/accessibility-warnings#a11y-click-events-have-key-events for more details.
+12:23:15 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/ui/Modal.svelte:20:2 A11y: <div> with click handler must have an ARIA role
+12:23:15 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/ui/MultiSelect.svelte:39:4 A11y: A form label must be associated with a control.
+12:23:15 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/ui/MultiSelect.svelte:89:14 A11y: visible, non-interactive elements with an on:click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as <button type="button"> or <a> might be more appropriate. See https://svelte.dev/docs/accessibility-warnings#a11y-click-events-have-key-events for more details.
+12:23:15 a.┬ám. [vite-plugin-svelte] A:/programing_workspace/artefacto-360-dagma/frontend/src/components/ui/MultiSelect.svelte:89:14 A11y: Non-interactive element <label> should not be assigned mouse or keyboard event listeners.
+[2m12:24:35 a.┬ám.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtest-proxy.html[22m
+[2m12:24:36 a.┬ám.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtest-proxy.html[22m
+[2m12:25:51 a.┬ám.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtest-proxy.html[22m
+[2m12:25:51 a.┬ám.[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[2m12:25:51 a.┬ám.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/visitas/VisitaVerificacion.svelte, /src/components/visitas/HistorialVisitas.svelte, /src/components/visitas/ReportesParques.svelte, /src/components/visitas/MapaReportes.svelte, /src/components/visitas/MapaParques.svelte[22m
+[2m12:25:51 a.┬ám.[22m [36m[1m[vite][22m[39m server restarted.
