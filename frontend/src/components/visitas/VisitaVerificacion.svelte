@@ -34,7 +34,9 @@
 
   // Suscripción al store
   $: state = $visitaStore;
-  $: canContinue = $isCurrentStepValid;
+  $: canContinue = currentStep === 3 
+    ? photoFiles.length > 0  // En el paso 3, validar que haya fotos
+    : $isCurrentStepValid;    // En otros pasos, usar la validación del store
   $: currentStep = state.currentStep;
 
   onMount(() => {
@@ -59,13 +61,43 @@
   }
 
   // Navegación
-  function handleNext() {
+  async function handleNext() {
     if (!canContinue) return;
 
     // Validaciones específicas por paso antes de continuar
     if (currentStep === 1 && !state.selectedParque) {
       visitaStore.setError("Debe seleccionar un parque");
       return;
+    }
+
+    // Si estamos en el paso 1 y avanzamos al 2, verificar permisos GPS antes
+    if (currentStep === 1) {
+      const permissionStatus = await visitaStore.checkGPSPermission();
+      
+      if (permissionStatus === 'unavailable') {
+        // GPS no disponible en el navegador
+        modalTitle = "GPS No Disponible";
+        modalMessage = "Tu navegador o dispositivo no soporta geolocalización. Necesitas un navegador moderno con capacidad GPS para registrar reconocimientos.";
+        modalType = "error";
+        modalShowCancel = false;
+        modalConfirmText = "Entendido";
+        modalOpen = true;
+        return;
+      }
+      
+      if (permissionStatus === 'denied') {
+        // Permiso denegado - mostrar instrucciones
+        modalTitle = "Permiso GPS Requerido";
+        modalMessage = "El acceso a la ubicación ha sido denegado. Por favor, habilita el permiso de ubicación en la configuración de tu navegador y recarga la página para continuar.";
+        modalType = "warning";
+        modalShowCancel = false;
+        modalConfirmText = "Entendido";
+        modalOpen = true;
+        return;
+      }
+      
+      // Si el permiso es 'prompt', el navegador pedirá permiso automáticamente cuando intentemos capturar
+      // Si el permiso es 'granted', continuamos normalmente
     }
 
     visitaStore.setError(null);
@@ -111,9 +143,10 @@
         !data.coordenadas_gps ||
         !data.tipo_intervencion ||
         !data.descripcion_intervencion ||
-        !data.direccion
+        !data.direccion ||
+        photoFiles.length === 0
       ) {
-        throw new Error("Faltan campos requeridos");
+        throw new Error("Faltan campos requeridos. Asegúrese de completar todos los pasos incluyendo al menos una foto.");
       }
 
       console.log("Enviando reconocimiento al servidor...", {
@@ -122,7 +155,7 @@
         direccion: data.direccion,
       });
 
-      // Preparar datos de reconocimiento
+      // Preparar datos de reconocimiento con las coordenadas GPS capturadas
       const reconocimiento = {
         upid: state.selectedParque.upid,
         tipo_intervencion: data.tipo_intervencion,
@@ -130,10 +163,9 @@
         direccion: data.direccion,
         observaciones: data.observaciones || "",
         coordenadas_gps: data.coordenadas_gps,
-        coordinates_type: state.selectedParque.geometry?.type || "Point",
-        coordinates_data: state.selectedParque.geometry?.coordinates 
-          ? JSON.stringify(state.selectedParque.geometry.coordinates)
-          : `[${state.selectedParque.lon}, ${state.selectedParque.lat}]`,
+        // Usar las coordenadas GPS capturadas, no las del parque
+        coordinates_type: data.coordinates_type || "Point",
+        coordinates_data: data.coordinates_data || JSON.stringify([data.coordenadas_gps.longitude, data.coordenadas_gps.latitude]),
       };
 
       // Enviar al backend usando el nuevo endpoint
@@ -220,7 +252,7 @@
         bind:tipoIntervencion={state.data.tipo_intervencion}
         bind:descripcionIntervencion={state.data.descripcion_intervencion}
         bind:observaciones={state.data.observaciones}
-        selectedParque={state.selectedParque}
+        selectedParque={state.selectedParque ?? undefined}
         onCaptureGPS={handleCaptureGPS}
         isLoading={state.isLoading}
       />

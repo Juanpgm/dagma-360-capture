@@ -101,7 +101,7 @@
         <div class="empty-state">
           <div class="empty-icon">📸</div>
           <p class="empty-text">No hay fotos seleccionadas</p>
-          <p class="empty-hint">Las fotos son opcionales pero recomendadas para documentar el estado del parque</p>
+          <p class="empty-hint"><strong>Debe agregar al menos una foto</strong> para documentar el estado del parque</p>
         </div>
       {/if}
     </div>

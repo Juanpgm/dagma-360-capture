@@ -9,9 +9,9 @@
   import { formatCoordinates, calculateDistanceToGeometry } from '../../lib/geolocation';
   
   export let coordenadas: Coordenadas | undefined;
-  export let tipoIntervencion: string;
-  export let descripcionIntervencion: string;
-  export let observaciones: string;
+  export let tipoIntervencion: string | undefined;
+  export let descripcionIntervencion: string | undefined;
+  export let observaciones: string | undefined;
   export let selectedParque: Parque | undefined;
   export let onCaptureGPS: () => Promise<void>;
   export let isLoading: boolean;
@@ -20,6 +20,7 @@
   let autoCaptureAttempted = false;
   let distanceToParque: number | null = null;
   let showDistanceWarning = false;
+  let isAutoCaptureInProgress = false;
 
   // Tipos de intervención disponibles
   const tiposIntervencion = [
@@ -61,7 +62,9 @@
     // Capturar GPS automáticamente al entrar al paso
     if (!coordenadas && !autoCaptureAttempted) {
       autoCaptureAttempted = true;
+      isAutoCaptureInProgress = true;
       await handleCaptureGPS();
+      isAutoCaptureInProgress = false;
     }
   });
 
@@ -111,7 +114,7 @@
         {#if isLoading && !coordenadas}
           <div class="gps-loading">
             <div class="spinner"></div>
-            <p>Obteniendo ubicación GPS...</p>
+            <p>{isAutoCaptureInProgress ? 'Capturando ubicación automáticamente...' : 'Obteniendo ubicación GPS...'}</p>
           </div>
         {:else if coordenadas}
           <div class="gps-info">
@@ -149,15 +152,13 @@
         {/if}
 
         {#if gpsError}
-          <div class="error-message">{gpsError}</div>
-        {/if}
-
-        {#if !coordenadas && !isLoading && !gpsError}
-          <div class="gps-empty">
-            <p>No se han capturado coordenadas GPS</p>
-            <Button size="sm" onClick={handleCaptureGPS}>
-              Capturar Ubicación
-            </Button>
+          <div class="error-message">
+            {gpsError}
+            <div style="margin-top: 0.5rem;">
+              <Button size="sm" onClick={handleCaptureGPS} disabled={isLoading}>
+                {isLoading ? 'Reintentando...' : 'Reintentar Captura'}
+              </Button>
+            </div>
           </div>
         {/if}
       </div>
@@ -321,20 +322,6 @@
     padding: 0.875rem;
     color: #991b1b;
     font-size: 0.875rem;
-  }
-
-  .gps-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    padding: 1.5rem;
-    text-align: center;
-  }
-
-  .gps-empty p {
-    color: #6b7280;
-    margin: 0;
   }
 
   .form-section {

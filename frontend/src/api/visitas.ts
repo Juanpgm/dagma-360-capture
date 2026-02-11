@@ -317,12 +317,29 @@ export async function registrarReconocimiento(
   try {
     const formData = new FormData();
     
+    // Validar campos requeridos
+    if (!reconocimiento.tipo_intervencion) {
+      throw new Error('El tipo de intervención es requerido');
+    }
+    if (!reconocimiento.descripcion_intervencion) {
+      throw new Error('La descripción de intervención es requerida');
+    }
+    if (!reconocimiento.direccion) {
+      throw new Error('La dirección es requerida');
+    }
+    if (!reconocimiento.coordinates_data) {
+      throw new Error('Las coordenadas GPS son requeridas');
+    }
+    if (!photoFiles || photoFiles.length === 0) {
+      throw new Error('Debe incluir al menos una foto');
+    }
+    
     // Campos requeridos del API
-    formData.append('tipo_intervencion', reconocimiento.tipo_intervencion || '');
-    formData.append('descripcion_intervencion', reconocimiento.descripcion_intervencion || '');
-    formData.append('direccion', reconocimiento.direccion || '');
+    formData.append('tipo_intervencion', reconocimiento.tipo_intervencion);
+    formData.append('descripcion_intervencion', reconocimiento.descripcion_intervencion);
+    formData.append('direccion', reconocimiento.direccion);
     formData.append('coordinates_type', reconocimiento.coordinates_type || 'Point');
-    formData.append('coordinates_data', reconocimiento.coordinates_data || '[-76.5225, 3.4516]');
+    formData.append('coordinates_data', reconocimiento.coordinates_data);
     
     // Campos opcionales
     if (reconocimiento.observaciones) {

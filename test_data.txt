@@ -1,0 +1,1 @@
+tipo_intervencion=Mantenimiento&descripcion_intervencion=Prueba de reconocimiento&direccion=Calle 5 # 10-20&coordinates_type=Point&coordinates_data=[-76.5225, 3.4516]

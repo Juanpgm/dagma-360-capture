@@ -14,10 +14,34 @@ interface GeolocationOptions {
 }
 
 /**
- * Verifica si la API de Geolocalización está disponible
+ * Verificación de disponibilidad de geolocalización
  */
 export function isGeolocationAvailable(): boolean {
-  return 'geolocation' in navigator;
+  return 'geolocation' in navigator && Boolean(navigator.geolocation);
+}
+
+/**
+ * Verifica el estado de los permisos de geolocalización
+ * Solo funciona en navegadores modernos que soporten Permissions API
+ */
+export async function checkGeolocationPermission(): Promise<'granted' | 'denied' | 'prompt' | 'unavailable'> {
+  if (!isGeolocationAvailable()) {
+    return 'unavailable';
+  }
+  
+  try {
+    // Verificar si la API de permisos está disponible
+    if (navigator.permissions && navigator.permissions.query) {
+      const result = await navigator.permissions.query({ name: 'geolocation' });
+      return result.state as 'granted' | 'denied' | 'prompt';
+    }
+    // Si no hay API de permisos, retornar 'prompt' (asumir que debemos pedir permiso)
+    return 'prompt';
+  } catch (error) {
+    // Si hay error al verificar permisos, retornar 'prompt'
+    console.warn('Error al verificar permisos de geolocalización:', error);
+    return 'prompt';
+  }
 }
 
 /**
@@ -29,12 +53,12 @@ export async function getCurrentPosition(
   options: GeolocationOptions = {}
 ): Promise<Coordenadas> {
   if (!isGeolocationAvailable()) {
-    throw new Error('La geolocalización no está disponible en este dispositivo');
+    throw new Error('La geolocalización no está disponible en este navegador. Necesita un navegador moderno con soporte GPS.');
   }
 
   const defaultOptions: PositionOptions = {
     enableHighAccuracy: true, // Usar GPS de alta precisión
-    timeout: 10000, // 10 segundos máximo
+    timeout: 15000, // 15 segundos máximo (aumentado para mejor precisión)
     maximumAge: 0, // No usar caché, obtener posición actual
     ...options
   };
@@ -55,13 +79,13 @@ export async function getCurrentPosition(
         
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = 'Permiso de ubicación denegado. Por favor, habilita el acceso a la ubicación en tu dispositivo.';
+            errorMessage = 'Permiso de ubicación denegado. Por favor, habilita el acceso a la ubicación en la configuración de tu navegador o dispositivo.';
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Ubicación no disponible. Verifica que tu GPS esté activado.';
+            errorMessage = 'Ubicación no disponible. Verifica que el GPS esté activado y que tengas conexión con satélites.';
             break;
           case error.TIMEOUT:
-            errorMessage = 'Tiempo de espera agotado al obtener ubicación.';
+            errorMessage = 'Tiempo de espera agotado al obtener ubicación. Inténtalo de nuevo en un lugar con mejor señal GPS.';
             break;
         }
         

@@ -9,7 +9,7 @@ import type {
   StepNumber,
   Parque
 } from '../types/visitas';
-import { getCurrentPosition } from '../lib/geolocation';
+import { getCurrentPosition, checkGeolocationPermission, isGeolocationAvailable } from '../lib/geolocation';
 import { getParques } from '../api/visitas';
 
 /**
@@ -19,6 +19,9 @@ const initialState: FormularioState = {
   currentStep: 1,
   completedSteps: new Set<StepNumber>(),
   data: {
+    tipo_intervencion: '',
+    descripcion_intervencion: '',
+    observaciones: '',
     photos: [],
     fecha_registro: new Date().toISOString()
   },
@@ -44,6 +47,9 @@ function createVisitaStore() {
       set({
         ...initialState,
         data: {
+          tipo_intervencion: '',
+          descripcion_intervencion: '',
+          observaciones: '',
           photos: [],
           fecha_registro: new Date().toISOString()
         },
@@ -113,6 +119,24 @@ function createVisitaStore() {
           direccion: parque.direccion || ''
         }
       }));
+    },
+
+    /**
+     * Verifica los permisos de geolocalización antes de capturar GPS
+     * Retorna el estado del permiso: 'granted', 'denied', 'prompt', 'unavailable'
+     */
+    checkGPSPermission: async (): Promise<'granted' | 'denied' | 'prompt' | 'unavailable'> => {
+      if (!isGeolocationAvailable()) {
+        return 'unavailable';
+      }
+      
+      try {
+        const status = await checkGeolocationPermission();
+        return status;
+      } catch (error) {
+        console.error('Error al verificar permisos GPS:', error);
+        return 'prompt';
+      }
     },
 
     /**
@@ -234,6 +258,8 @@ export const formProgress = derived(
 );
 
 // Verifica si el paso actual está completo
+// NOTA: Para el paso 3, la validación de fotos se hace en el componente padre
+// porque las fotos se manejan con bind:photoFiles fuera del store
 export const isCurrentStepValid = derived(
   visitaStore,
   $store => {
@@ -251,7 +277,8 @@ export const isCurrentStepValid = derived(
                !!data.coordenadas_gps;
       
       case 3:
-        // Paso 3: No es obligatorio tener fotos, pero el paso es válido siempre
+        // Paso 3: La validación de fotos se hace en el componente con photoFiles
+        // Por ahora siempre retornamos true, la validación real es en el submit
         return true;
       
       default:
