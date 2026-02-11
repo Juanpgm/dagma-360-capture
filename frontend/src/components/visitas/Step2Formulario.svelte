@@ -36,7 +36,8 @@
   // Recalcular distancia cuando cambien las coordenadas
   $: if (coordenadas && selectedParque?.geometry) {
     distanceToParque = calculateDistanceToGeometry(coordenadas, selectedParque.geometry);
-    showDistanceWarning = distanceToParque !== null && distanceToParque > 200;
+    // TEMPORAL: Deshabilitada validación de distancia de 200m
+    showDistanceWarning = false; // distanceToParque !== null && distanceToParque > 200;
   } else if (coordenadas && selectedParque?.lat && selectedParque?.lon) {
     // Fallback a lat/lon si no hay geometry
     const lat = parseFloat(selectedParque.lat);
@@ -54,7 +55,8 @@
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
       distanceToParque = R * c;
-      showDistanceWarning = distanceToParque > 200;
+      // TEMPORAL: Deshabilitada validación de distancia de 200m
+      showDistanceWarning = false; // distanceToParque > 200;
     }
   }
 
