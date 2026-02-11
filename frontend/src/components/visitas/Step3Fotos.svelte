@@ -77,7 +77,9 @@
       {#if photoFiles.length > 0}
         <div class="photo-counter">
           <span class="counter-icon">📸</span>
-          <span class="counter-text">{photoFiles.length} foto(s) agregada(s)</span>
+          <span class="counter-text"
+            >{photoFiles.length} foto(s) agregada(s)</span
+          >
         </div>
       {/if}
 
@@ -85,7 +87,11 @@
         <div class="photo-grid">
           {#each photoPreviewUrls as previewUrl, index}
             <div class="photo-item">
-              <img src={previewUrl} alt="Foto {index + 1}" class="photo-preview" />
+              <img
+                src={previewUrl}
+                alt="Foto {index + 1}"
+                class="photo-preview"
+              />
               <button
                 type="button"
                 class="btn-remove"
@@ -101,7 +107,10 @@
         <div class="empty-state">
           <div class="empty-icon">📸</div>
           <p class="empty-text">No hay fotos seleccionadas</p>
-          <p class="empty-hint"><strong>Debe agregar al menos una foto</strong> para documentar el estado del parque</p>
+          <p class="empty-hint">
+            <strong>Debe agregar al menos una foto</strong> para documentar el estado
+            del parque
+          </p>
         </div>
       {/if}
     </div>

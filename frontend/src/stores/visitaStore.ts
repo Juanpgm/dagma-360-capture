@@ -271,7 +271,7 @@ export const isCurrentStepValid = derived(
         return !!selectedParque;
       
       case 2:
-        // Paso 2: Formulario + GPS
+        // Paso 2: Formulario + GPS (direccion no validada aquí, se maneja en submit)
         return !!data.tipo_intervencion &&
                !!data.descripcion_intervencion &&
                !!data.coordenadas_gps;

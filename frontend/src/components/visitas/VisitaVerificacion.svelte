@@ -34,9 +34,10 @@
 
   // Suscripción al store
   $: state = $visitaStore;
-  $: canContinue = currentStep === 3 
-    ? photoFiles.length > 0  // En el paso 3, validar que haya fotos
-    : $isCurrentStepValid;    // En otros pasos, usar la validación del store
+  $: canContinue =
+    currentStep === 3
+      ? photoFiles.length > 0 // En el paso 3, validar que haya fotos
+      : $isCurrentStepValid; // En otros pasos, usar la validación del store
   $: currentStep = state.currentStep;
 
   onMount(() => {
@@ -73,29 +74,31 @@
     // Si estamos en el paso 1 y avanzamos al 2, verificar permisos GPS antes
     if (currentStep === 1) {
       const permissionStatus = await visitaStore.checkGPSPermission();
-      
-      if (permissionStatus === 'unavailable') {
+
+      if (permissionStatus === "unavailable") {
         // GPS no disponible en el navegador
         modalTitle = "GPS No Disponible";
-        modalMessage = "Tu navegador o dispositivo no soporta geolocalización. Necesitas un navegador moderno con capacidad GPS para registrar reconocimientos.";
+        modalMessage =
+          "Tu navegador o dispositivo no soporta geolocalización. Necesitas un navegador moderno con capacidad GPS para registrar reconocimientos.";
         modalType = "error";
         modalShowCancel = false;
         modalConfirmText = "Entendido";
         modalOpen = true;
         return;
       }
-      
-      if (permissionStatus === 'denied') {
+
+      if (permissionStatus === "denied") {
         // Permiso denegado - mostrar instrucciones
         modalTitle = "Permiso GPS Requerido";
-        modalMessage = "El acceso a la ubicación ha sido denegado. Por favor, habilita el permiso de ubicación en la configuración de tu navegador y recarga la página para continuar.";
+        modalMessage =
+          "El acceso a la ubicación ha sido denegado. Por favor, habilita el permiso de ubicación en la configuración de tu navegador y recarga la página para continuar.";
         modalType = "warning";
         modalShowCancel = false;
         modalConfirmText = "Entendido";
         modalOpen = true;
         return;
       }
-      
+
       // Si el permiso es 'prompt', el navegador pedirá permiso automáticamente cuando intentemos capturar
       // Si el permiso es 'granted', continuamos normalmente
     }
@@ -143,10 +146,11 @@
         !data.coordenadas_gps ||
         !data.tipo_intervencion ||
         !data.descripcion_intervencion ||
-        !data.direccion ||
         photoFiles.length === 0
       ) {
-        throw new Error("Faltan campos requeridos. Asegúrese de completar todos los pasos incluyendo al menos una foto.");
+        throw new Error(
+          "Faltan campos requeridos. Asegúrese de completar todos los pasos incluyendo al menos una foto.",
+        );
       }
 
       console.log("Enviando reconocimiento al servidor...", {
@@ -160,16 +164,27 @@
         upid: state.selectedParque.upid,
         tipo_intervencion: data.tipo_intervencion,
         descripcion_intervencion: data.descripcion_intervencion,
-        direccion: data.direccion,
+        direccion:
+          data.direccion ||
+          state.selectedParque.direccion ||
+          "Sin dirección registrada",
         observaciones: data.observaciones || "",
         coordenadas_gps: data.coordenadas_gps,
         // Usar las coordenadas GPS capturadas, no las del parque
         coordinates_type: data.coordinates_type || "Point",
-        coordinates_data: data.coordinates_data || JSON.stringify([data.coordenadas_gps.longitude, data.coordenadas_gps.latitude]),
+        coordinates_data:
+          data.coordinates_data ||
+          JSON.stringify([
+            data.coordenadas_gps.longitude,
+            data.coordenadas_gps.latitude,
+          ]),
       };
 
       // Enviar al backend usando el nuevo endpoint
-      const response = await registrarReconocimiento(reconocimiento, photoFiles);
+      const response = await registrarReconocimiento(
+        reconocimiento,
+        photoFiles,
+      );
 
       if (response.success) {
         submitSuccess = true;
@@ -177,7 +192,8 @@
 
         // Mostrar modal de éxito
         modalTitle = "¡Reconocimiento Registrado!";
-        modalMessage = "El reconocimiento del parque se ha guardado correctamente.";
+        modalMessage =
+          "El reconocimiento del parque se ha guardado correctamente.";
         modalType = "success";
         modalShowCancel = false;
         modalConfirmText = "Entendido";
@@ -186,11 +202,14 @@
     } catch (error) {
       console.error("Error al enviar reconocimiento:", error);
       submitError =
-        error instanceof Error ? error.message : "Error al registrar la verificación";
+        error instanceof Error
+          ? error.message
+          : "Error al registrar la verificación";
 
       // Mostrar modal de error
       modalTitle = "Error";
-      modalMessage = submitError || "Ocurrió un error al guardar el reconocimiento.";
+      modalMessage =
+        submitError || "Ocurrió un error al guardar el reconocimiento.";
       modalType = "error";
       modalShowCancel = false;
       modalConfirmText = "Entendido";
@@ -257,9 +276,7 @@
         isLoading={state.isLoading}
       />
     {:else if currentStep === 3}
-      <Step3Fotos
-        bind:photoFiles
-      />
+      <Step3Fotos bind:photoFiles />
     {/if}
 
     <!-- Error global -->

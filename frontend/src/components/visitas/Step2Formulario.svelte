@@ -1,13 +1,16 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import Input from '../ui/Input.svelte';
-  import Textarea from '../ui/Textarea.svelte';
-  import Select from '../ui/Select.svelte';
-  import Button from '../ui/Button.svelte';
-  import Card from '../ui/Card.svelte';
-  import type { Coordenadas, Parque } from '../../types/visitas';
-  import { formatCoordinates, calculateDistanceToGeometry } from '../../lib/geolocation';
-  
+  import { onMount } from "svelte";
+  import Input from "../ui/Input.svelte";
+  import Textarea from "../ui/Textarea.svelte";
+  import Select from "../ui/Select.svelte";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import type { Coordenadas, Parque } from "../../types/visitas";
+  import {
+    formatCoordinates,
+    calculateDistanceToGeometry,
+  } from "../../lib/geolocation";
+
   export let coordenadas: Coordenadas | undefined;
   export let tipoIntervencion: string | undefined;
   export let descripcionIntervencion: string | undefined;
@@ -16,7 +19,7 @@
   export let onCaptureGPS: () => Promise<void>;
   export let isLoading: boolean;
 
-  let gpsError = '';
+  let gpsError = "";
   let autoCaptureAttempted = false;
   let distanceToParque: number | null = null;
   let showDistanceWarning = false;
@@ -24,18 +27,21 @@
 
   // Tipos de intervención disponibles
   const tiposIntervencion = [
-    'Mantenimiento',
-    'Mejoramiento',
-    'Limpieza',
-    'Poda',
-    'Reparación',
-    'Inspección',
-    'Otro'
+    "Mantenimiento",
+    "Mejoramiento",
+    "Limpieza",
+    "Poda",
+    "Reparación",
+    "Inspección",
+    "Otro",
   ];
 
   // Recalcular distancia cuando cambien las coordenadas
   $: if (coordenadas && selectedParque?.geometry) {
-    distanceToParque = calculateDistanceToGeometry(coordenadas, selectedParque.geometry);
+    distanceToParque = calculateDistanceToGeometry(
+      coordenadas,
+      selectedParque.geometry,
+    );
     // TEMPORAL: Deshabilitada validación de distancia de 200m
     showDistanceWarning = false; // distanceToParque !== null && distanceToParque > 200;
   } else if (coordenadas && selectedParque?.lat && selectedParque?.lon) {
@@ -49,9 +55,9 @@
       const Δφ = ((lat - coordenadas.latitude) * Math.PI) / 180;
       const Δλ = ((lon - coordenadas.longitude) * Math.PI) / 180;
 
-      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
       distanceToParque = R * c;
@@ -71,12 +77,13 @@
   });
 
   async function handleCaptureGPS() {
-    gpsError = '';
-    
+    gpsError = "";
+
     try {
       await onCaptureGPS();
     } catch (error) {
-      gpsError = error instanceof Error ? error.message : 'Error al capturar GPS';
+      gpsError =
+        error instanceof Error ? error.message : "Error al capturar GPS";
     }
   }
 
@@ -103,12 +110,17 @@
         <div class="section-header">
           <h4>📍 Coordenadas GPS</h4>
           {#if coordenadas}
-            <Button size="sm" variant="outline" onClick={handleCaptureGPS} disabled={isLoading}>
-              {isLoading ? '...' : 'Actualizar'}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCaptureGPS}
+              disabled={isLoading}
+            >
+              {isLoading ? "..." : "Actualizar"}
             </Button>
           {:else if gpsError}
             <Button size="sm" onClick={handleCaptureGPS} disabled={isLoading}>
-              {isLoading ? '...' : 'Reintentar'}
+              {isLoading ? "..." : "Reintentar"}
             </Button>
           {/if}
         </div>
@@ -116,7 +128,11 @@
         {#if isLoading && !coordenadas}
           <div class="gps-loading">
             <div class="spinner"></div>
-            <p>{isAutoCaptureInProgress ? 'Capturando ubicación automáticamente...' : 'Obteniendo ubicación GPS...'}</p>
+            <p>
+              {isAutoCaptureInProgress
+                ? "Capturando ubicación automáticamente..."
+                : "Obteniendo ubicación GPS..."}
+            </p>
           </div>
         {:else if coordenadas}
           <div class="gps-info">
@@ -148,7 +164,8 @@
 
           {#if showDistanceWarning}
             <div class="warning-message">
-              ⚠️ Está a más de 200m del parque. Verifique que esté en la ubicación correcta.
+              ⚠️ Está a más de 200m del parque. Verifique que esté en la
+              ubicación correcta.
             </div>
           {/if}
         {/if}
@@ -158,7 +175,7 @@
             {gpsError}
             <div style="margin-top: 0.5rem;">
               <Button size="sm" onClick={handleCaptureGPS} disabled={isLoading}>
-                {isLoading ? 'Reintentando...' : 'Reintentar Captura'}
+                {isLoading ? "Reintentando..." : "Reintentar Captura"}
               </Button>
             </div>
           </div>
@@ -171,7 +188,7 @@
       <Select
         label="Tipo de Intervención"
         bind:value={tipoIntervencion}
-        options={tiposIntervencion.map(t => ({ value: t, label: t }))}
+        options={tiposIntervencion.map((t) => ({ value: t, label: t }))}
         placeholder="Seleccione el tipo de intervención"
         required={true}
       />
