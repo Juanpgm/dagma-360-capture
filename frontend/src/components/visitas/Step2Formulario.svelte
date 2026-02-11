@@ -1,8 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import Input from "../ui/Input.svelte";
-  import Textarea from "../ui/Textarea.svelte";
-  import Select from "../ui/Select.svelte";
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import type { Coordenadas, Parque } from "../../types/visitas";
@@ -96,118 +93,118 @@
 </script>
 
 <div class="step-container">
-  <div class="step-header">
-    <h2 class="step-title">Datos de Reconocimiento</h2>
-    <p class="step-description">
-      Registre la ubicación GPS y los datos del reconocimiento del parque
-    </p>
-  </div>
-
   <div class="step-content">
-    <!-- GPS -->
-    <Card variant="outlined" padding="sm">
-      <div class="gps-section">
-        <div class="section-header">
-          <h4>📍 Coordenadas GPS</h4>
-          {#if coordenadas}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCaptureGPS}
-              disabled={isLoading}
-            >
-              {isLoading ? "..." : "Actualizar"}
-            </Button>
-          {:else if gpsError}
-            <Button size="sm" onClick={handleCaptureGPS} disabled={isLoading}>
-              {isLoading ? "..." : "Reintentar"}
-            </Button>
-          {/if}
-        </div>
-
-        {#if isLoading && !coordenadas}
-          <div class="gps-loading">
-            <div class="spinner"></div>
-            <p>
-              {isAutoCaptureInProgress
-                ? "Capturando ubicación automáticamente..."
-                : "Obteniendo ubicación GPS..."}
-            </p>
-          </div>
-        {:else if coordenadas}
-          <div class="gps-info">
-            <div class="gps-grid">
-              <Input
-                label="Latitud"
-                value={coordenadas.latitude.toFixed(6)}
-                readonly={true}
-              />
-              <Input
-                label="Longitud"
-                value={coordenadas.longitude.toFixed(6)}
-                readonly={true}
-              />
-            </div>
-            <div class="gps-meta">
-              {#if coordenadas.accuracy}
-                <span class="gps-accuracy">
-                  Precisión: ±{coordenadas.accuracy.toFixed(0)}m
-                </span>
-              {/if}
-              {#if distanceToParque !== null}
-                <span class="gps-distance" class:warning={showDistanceWarning}>
-                  Distancia al parque: {formatDistance(distanceToParque)}
-                </span>
-              {/if}
-            </div>
-          </div>
-
-          {#if showDistanceWarning}
-            <div class="warning-message">
-              ⚠️ Está a más de 200m del parque. Verifique que esté en la
-              ubicación correcta.
-            </div>
-          {/if}
-        {/if}
-
-        {#if gpsError}
-          <div class="error-message">
-            {gpsError}
-            <div style="margin-top: 0.5rem;">
-              <Button size="sm" onClick={handleCaptureGPS} disabled={isLoading}>
-                {isLoading ? "Reintentando..." : "Reintentar Captura"}
-              </Button>
-            </div>
-          </div>
+    <!-- GPS Card -->
+    <Card padding="md">
+      <div class="card-header">
+        <h3 class="card-title">📍 Ubicación GPS</h3>
+        {#if coordenadas}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCaptureGPS}
+            disabled={isLoading}
+          >
+            {isLoading ? "Actualizando..." : "Actualizar"}
+          </Button>
         {/if}
       </div>
+
+      {#if isLoading && !coordenadas}
+        <div class="gps-loading">
+          <div class="spinner"></div>
+          <p class="loading-text">
+            {isAutoCaptureInProgress
+              ? "📍 Capturando ubicación automáticamente..."
+              : "📍 Obteniendo ubicación GPS..."}
+          </p>
+        </div>
+      {:else if coordenadas}
+        <div class="gps-success">
+          <div class="gps-grid">
+            <div class="gps-field">
+              <label>Latitud</label>
+              <input
+                type="text"
+                value={coordenadas.latitude.toFixed(6)}
+                readonly
+              />
+            </div>
+            <div class="gps-field">
+              <label>Longitud</label>
+              <input
+                type="text"
+                value={coordenadas.longitude.toFixed(6)}
+                readonly
+              />
+            </div>
+          </div>
+          <div class="gps-info-row">
+            {#if coordenadas.accuracy}
+              <span class="info-badge">
+                ✓ Precisión: ±{coordenadas.accuracy.toFixed(0)}m
+              </span>
+            {/if}
+            {#if distanceToParque !== null}
+              <span class="info-badge">
+                📏 Distancia: {formatDistance(distanceToParque)}
+              </span>
+            {/if}
+          </div>
+        </div>
+      {/if}
+
+      {#if gpsError}
+        <div class="error-box">
+          <p class="error-text">⚠️ {gpsError}</p>
+          <Button size="sm" onClick={handleCaptureGPS} disabled={isLoading}>
+            {isLoading ? "Reintentando..." : "📍 Reintentar"}
+          </Button>
+        </div>
+      {/if}
     </Card>
 
-    <!-- Formulario de Verificación -->
-    <div class="form-section">
-      <Select
-        label="Tipo de Intervención"
-        bind:value={tipoIntervencion}
-        options={tiposIntervencion.map((t) => ({ value: t, label: t }))}
-        placeholder="Seleccione el tipo de intervención"
-        required={true}
-      />
+    <!-- Formulario de Datos -->
+    <Card padding="md">
+      <h3 class="card-title">📝 Datos del Reconocimiento</h3>
 
-      <Textarea
-        label="Descripción de Intervención"
-        bind:value={descripcionIntervencion}
-        placeholder="Describa la intervención realizada o requerida..."
-        rows={4}
-        required={true}
-      />
+      <div class="form-fields">
+        <div class="field">
+          <label for="tipo">
+            Tipo de Intervención <span class="required">*</span>
+          </label>
+          <select id="tipo" bind:value={tipoIntervencion} required>
+            <option value="">Seleccione un tipo...</option>
+            {#each tiposIntervencion as tipo}
+              <option value={tipo}>{tipo}</option>
+            {/each}
+          </select>
+        </div>
 
-      <Textarea
-        label="Observaciones"
-        bind:value={observaciones}
-        placeholder="Observaciones adicionales (opcional)..."
-        rows={3}
-      />
-    </div>
+        <div class="field">
+          <label for="descripcion">
+            Descripción de Intervención <span class="required">*</span>
+          </label>
+          <textarea
+            id="descripcion"
+            bind:value={descripcionIntervencion}
+            placeholder="Describa en detalle la intervención realizada o requerida..."
+            rows="4"
+            required
+          ></textarea>
+        </div>
+
+        <div class="field">
+          <label for="observaciones">Observaciones</label>
+          <textarea
+            id="observaciones"
+            bind:value={observaciones}
+            placeholder="Observaciones adicionales (opcional)..."
+            rows="3"
+          ></textarea>
+        </div>
+      </div>
+    </Card>
   </div>
 </div>
 
@@ -215,67 +212,52 @@
   .step-container {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .step-header {
-    text-align: left;
-  }
-
-  .step-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #047857;
-    margin: 0 0 0.5rem 0;
-  }
-
-  .step-description {
-    color: #6b7280;
-    margin: 0;
-    font-size: 0.9375rem;
+    gap: 1rem;
   }
 
   .step-content {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .gps-section {
-    display: flex;
-    flex-direction: column;
     gap: 1rem;
   }
 
-  .section-header {
+  /* Card Header */
+  .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.75rem;
+    margin-bottom: 1rem;
   }
 
-  .section-header h4 {
+  .card-title {
     font-size: 1rem;
-    font-weight: 600;
-    color: #047857;
+    font-weight: 700;
+    color: #1e293b;
     margin: 0;
   }
 
+  /* GPS States */
   .gps-loading {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 2rem;
-    gap: 1rem;
+    padding: 2rem 1rem;
+    gap: 0.75rem;
+  }
+
+  .loading-text {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin: 0;
   }
 
   .spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid #e5e7eb;
-    border-top-color: #059669;
+    width: 36px;
+    height: 36px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #2563eb;
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: spin 0.8s linear infinite;
   }
 
   @keyframes spin {
@@ -284,12 +266,7 @@
     }
   }
 
-  .gps-loading p {
-    color: #6b7280;
-    margin: 0;
-  }
-
-  .gps-info {
+  .gps-success {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -298,58 +275,112 @@
   .gps-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
-  .gps-meta {
-    display: flex;
-    gap: 1.5rem;
-    flex-wrap: wrap;
-    font-size: 0.875rem;
+  .gps-field label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 0.25rem;
   }
 
-  .gps-accuracy {
-    color: #059669;
-    font-weight: 500;
-  }
-
-  .gps-distance {
-    color: #6b7280;
-    font-weight: 500;
-  }
-
-  .gps-distance.warning {
-    color: #d97706;
-  }
-
-  .warning-message {
-    background: #fef3c7;
-    border: 1px solid #fbbf24;
+  .gps-field input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e2e8f0;
     border-radius: 6px;
-    padding: 0.875rem;
-    color: #92400e;
     font-size: 0.875rem;
+    font-family: inherit;
+    background: #f8fafc;
+    color: #1e293b;
+  }
+
+  .gps-info-row {
     display: flex;
-    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .info-badge {
+    background: #f0f9ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .error-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
     gap: 0.5rem;
   }
 
-  .error-message {
-    background: #fef2f2;
-    border: 1px solid #fca5a5;
-    border-radius: 6px;
-    padding: 0.875rem;
+  .error-text {
     color: #991b1b;
     font-size: 0.875rem;
+    margin: 0;
   }
 
-  .form-section {
+  /* Form Fields */
+  .form-fields {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0.875rem;
+    margin-top: 0.75rem;
   }
 
-  @media (max-width: 768px) {
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .field label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .required {
+    color: #dc2626;
+  }
+
+  .field select,
+  .field textarea {
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-family: inherit;
+    color: #1e293b;
+    background: white;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  .field select:focus,
+  .field textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .field textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  @media (max-width: 640px) {
     .gps-grid {
       grid-template-columns: 1fr;
     }

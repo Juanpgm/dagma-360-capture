@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Card from "../ui/Card.svelte";
+
   export let photoFiles: File[] = [];
 
   let photoPreviewUrls: string[] = [];
@@ -35,53 +37,46 @@
 </script>
 
 <div class="step-container">
-  <div class="step-header">
-    <h2 class="step-title">Evidencia Fotográfica</h2>
-    <p class="step-description">Capture fotos del estado actual del parque</p>
-  </div>
-
   <div class="step-content">
-    <div class="photos-section">
-      <!-- Botón para tomar foto con cámara (móviles) -->
-      <div class="file-input-wrapper">
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          on:change={handleFileChange}
-          id="photo-camera"
-          class="file-input"
-        />
-        <label for="photo-camera" class="file-label camera">
-          <span class="file-icon">📷</span>
-          <span class="file-text">Tomar Foto</span>
-        </label>
-      </div>
+    <Card padding="md">
+      <h3 class="card-title">📸 Evidencia Fotográfica</h3>
+      <p class="card-subtitle">
+        Debe agregar al menos una foto del estado actual del parque
+      </p>
 
-      <!-- Botón para seleccionar de galería -->
-      <div class="file-input-wrapper">
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          on:change={handleFileChange}
-          id="photo-gallery"
-          class="file-input"
-        />
-        <label for="photo-gallery" class="file-label gallery">
-          <span class="file-icon">🖼️</span>
-          <span class="file-text">Seleccionar de Galería</span>
-        </label>
-      </div>
-
-      {#if photoFiles.length > 0}
-        <div class="photo-counter">
-          <span class="counter-icon">📸</span>
-          <span class="counter-text"
-            >{photoFiles.length} foto(s) agregada(s)</span
-          >
+      <div class="photo-actions">
+        <!-- Botón para tomar foto con cámara (móviles) -->
+        <div class="file-input-wrapper">
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            on:change={handleFileChange}
+            id="photo-camera"
+            class="file-input"
+          />
+          <label for="photo-camera" class="file-label">
+            <span class="file-icon">📷</span>
+            <span class="file-text">Tomar Foto</span>
+          </label>
         </div>
-      {/if}
+
+        <!-- Botón para seleccionar de galería -->
+        <div class="file-input-wrapper">
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            on:change={handleFileChange}
+            id="photo-gallery"
+            class="file-input"
+          />
+          <label for="photo-gallery" class="file-label">
+            <span class="file-icon">🖼️</span>
+            <span class="file-text">Galería</span>
+          </label>
+        </div>
+      </div>
 
       {#if photoPreviewUrls.length > 0}
         <div class="photo-grid">
@@ -103,17 +98,22 @@
             </div>
           {/each}
         </div>
+
+        <div class="photo-count">
+          <span class="count-badge">
+            ✓ {photoFiles.length} foto(s) agregada(s)
+          </span>
+        </div>
       {:else}
         <div class="empty-state">
           <div class="empty-icon">📸</div>
-          <p class="empty-text">No hay fotos seleccionadas</p>
+          <p class="empty-title">No hay fotos aún</p>
           <p class="empty-hint">
-            <strong>Debe agregar al menos una foto</strong> para documentar el estado
-            del parque
+            Agregue fotos para documentar el estado del parque
           </p>
         </div>
       {/if}
-    </div>
+    </Card>
   </div>
 </div>
 
@@ -121,36 +121,35 @@
   .step-container {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .step-header {
-    text-align: left;
-  }
-
-  .step-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #047857;
-    margin: 0 0 0.5rem 0;
-  }
-
-  .step-description {
-    color: #6b7280;
-    margin: 0;
-    font-size: 0.9375rem;
+    gap: 1rem;
   }
 
   .step-content {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
   }
 
-  .photos-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
+  /* Card */
+  .card-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 0.25rem 0;
+  }
+
+  .card-subtitle {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0 0 1rem 0;
+  }
+
+  /* Photo Actions */
+  .photo-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
   }
 
   .file-input-wrapper {
@@ -168,69 +167,45 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
-    padding: 1rem 1.5rem;
+    gap: 0.5rem;
+    padding: 0.875rem 1rem;
+    background: #2563eb;
     color: white;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
     font-weight: 600;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-size: 0.9375rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     border: none;
     -webkit-tap-highlight-color: transparent;
   }
 
-  .file-label.camera {
-    background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  }
-
-  .file-label.gallery {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  }
-
   .file-label:hover {
+    background: #1d4ed8;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
   }
 
   .file-label:active {
     transform: translateY(0);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
 
   .file-icon {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
+    line-height: 1;
   }
 
   .file-text {
-    font-size: 1rem;
+    font-size: 0.875rem;
   }
 
-  .photo-counter {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 6px;
-    color: #047857;
-    font-weight: 600;
-  }
-
-  .counter-icon {
-    font-size: 1.25rem;
-  }
-
-  .counter-text {
-    font-size: 0.9375rem;
-  }
-
+  /* Photo Grid */
   .photo-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     gap: 0.75rem;
+    margin-bottom: 0.75rem;
   }
 
   .photo-item {
@@ -238,12 +213,8 @@
     aspect-ratio: 1;
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s;
-  }
-
-  .photo-item:hover {
-    transform: scale(1.02);
+    background: #f1f5f9;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
   .photo-preview {
@@ -254,11 +225,11 @@
 
   .btn-remove {
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    width: 28px;
-    height: 28px;
-    background: rgba(220, 38, 38, 0.95);
+    top: 0.375rem;
+    right: 0.375rem;
+    width: 26px;
+    height: 26px;
+    background: rgba(220, 38, 38, 0.9);
     color: white;
     border: none;
     border-radius: 50%;
@@ -266,10 +237,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
-    font-weight: bold;
-    transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    font-size: 0.875rem;
+    font-weight: 700;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 
   .btn-remove:hover {
@@ -277,60 +248,69 @@
     transform: scale(1.1);
   }
 
+  .btn-remove:active {
+    transform: scale(0.95);
+  }
+
+  .photo-count {
+    display: flex;
+    justify-content: center;
+  }
+
+  .count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.875rem;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #047857;
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  /* Empty State */
   .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 3rem 1.5rem;
+    padding: 2.5rem 1.5rem;
     text-align: center;
-    background: #f9fafb;
-    border: 2px dashed #d1d5db;
+    background: #f8fafc;
+    border: 2px dashed #cbd5e1;
     border-radius: 8px;
   }
 
   .empty-icon {
     font-size: 3rem;
-    margin-bottom: 1rem;
-    opacity: 0.5;
+    margin-bottom: 0.75rem;
+    opacity: 0.4;
   }
 
-  .empty-text {
-    font-size: 1rem;
+  .empty-title {
+    font-size: 0.9375rem;
     font-weight: 600;
-    color: #374151;
-    margin: 0 0 0.5rem 0;
+    color: #475569;
+    margin: 0 0 0.375rem 0;
   }
 
   .empty-hint {
-    font-size: 0.875rem;
-    color: #6b7280;
+    font-size: 0.8125rem;
+    color: #64748b;
     margin: 0;
-    max-width: 400px;
+    max-width: 320px;
+    line-height: 1.5;
   }
 
   @media (max-width: 640px) {
-    .step-title {
-      font-size: 1.25rem;
-    }
-
-    .file-label {
-      padding: 1rem;
-      font-size: 0.9375rem;
-    }
-
-    .file-icon {
-      font-size: 1.75rem;
+    .photo-actions {
+      grid-template-columns: 1fr;
     }
 
     .photo-grid {
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
       gap: 0.5rem;
-    }
-
-    .btn-remove {
-      width: 32px;
-      height: 32px;
-      font-size: 1.125rem;
     }
   }
 </style>
