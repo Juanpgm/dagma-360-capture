@@ -1,13 +1,19 @@
 <script lang="ts">
-  export let variant: 'primary' | 'secondary' | 'outline' | 'danger' = 'primary';
-  export let size: 'sm' | 'md' | 'lg' = 'md';
+  export let variant: "primary" | "secondary" | "outline" | "danger" =
+    "primary";
+  export let size: "sm" | "md" | "lg" = "md";
   export let disabled = false;
   export let fullWidth = false;
-  export let type: 'button' | 'submit' | 'reset' = 'button';
+  export let type: "button" | "submit" | "reset" = "button";
   export let onClick: (() => void) | undefined = undefined;
 
-  const handleClick = () => {
-    if (onClick && !disabled) {
+  const handleClick = (event: MouseEvent) => {
+    if (disabled) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (onClick) {
       onClick();
     }
   };
@@ -19,6 +25,7 @@
   {type}
   {disabled}
   on:click={handleClick}
+  on:click
 >
   <slot />
 </button>

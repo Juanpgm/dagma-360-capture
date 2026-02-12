@@ -44,11 +44,9 @@
     currentStep === 3
       ? photoFiles.length > 0 // En el paso 3, validar que haya fotos
       : currentStep === 2
-        ? tipoIntervencion &&
-          descripcionIntervencion &&
-          direccion
-          // && state.data.coordenadas_gps // Ya no es bloqueante
-        : $isCurrentStepValid; // En paso 1, usar la validación del store
+        ? tipoIntervencion && descripcionIntervencion && direccion
+        : // && state.data.coordenadas_gps // Ya no es bloqueante
+          $isCurrentStepValid; // En paso 1, usar la validación del store
   $: currentStep = state.currentStep;
 
   onMount(() => {
@@ -206,54 +204,64 @@
 
         // Intentar usar lat/lon directos del parque
         if (parque.lat && parque.lon) {
-           const lat = parseFloat(parque.lat);
-           const lon = parseFloat(parque.lon);
-           if (!isNaN(lat) && !isNaN(lon)) {
-             finalCoordenadas = {
-               latitude: lat,
-               longitude: lon,
-               accuracy: 0,
-               timestamp: Date.now()
-             };
-             finalCoordinatesData = JSON.stringify([lon, lat]);
-             console.log("✅ Usando lat/lon del parque:", finalCoordenadas);
-           }
+          const lat = parseFloat(parque.lat);
+          const lon = parseFloat(parque.lon);
+          if (!isNaN(lat) && !isNaN(lon)) {
+            finalCoordenadas = {
+              latitude: lat,
+              longitude: lon,
+              accuracy: 0,
+              timestamp: Date.now(),
+            };
+            finalCoordinatesData = JSON.stringify([lon, lat]);
+            console.log("✅ Usando lat/lon del parque:", finalCoordenadas);
+          }
         }
-        
+
         // Si no funcionó lo anterior, intentar extraer de geometría
-        if (!finalCoordenadas && parque.geometry && parque.geometry.coordinates) {
-           // Simplificación: Tomar el primer punto disponible
-           // Idealmente calcularíamos el centroide, pero esto es un fallback
-           let coords: any = parque.geometry.coordinates;
-           
-           // Aplanar hasta encontrar un par de números [lon, lat]
-           // GeoJSON puede ser [num, num] o [[num, num], ...] etc
-           while (Array.isArray(coords) && Array.isArray(coords[0])) {
-             coords = coords[0];
-           }
-           
-           if (Array.isArray(coords) && coords.length >= 2) {
-             const lon = coords[0];
-             const lat = coords[1];
-             finalCoordenadas = {
-               latitude: lat,
-               longitude: lon,
-               accuracy: 0,
-               timestamp: Date.now()
-             };
-             finalCoordinatesData = JSON.stringify([lon, lat]);
-             console.log("✅ Usando geometría del parque:", finalCoordenadas);
-           }
+        if (
+          !finalCoordenadas &&
+          parque.geometry &&
+          parque.geometry.coordinates
+        ) {
+          // Simplificación: Tomar el primer punto disponible
+          // Idealmente calcularíamos el centroide, pero esto es un fallback
+          let coords: any = parque.geometry.coordinates;
+
+          // Aplanar hasta encontrar un par de números [lon, lat]
+          // GeoJSON puede ser [num, num] o [[num, num], ...] etc
+          while (Array.isArray(coords) && Array.isArray(coords[0])) {
+            coords = coords[0];
+          }
+
+          if (Array.isArray(coords) && coords.length >= 2) {
+            const lon = coords[0];
+            const lat = coords[1];
+            finalCoordenadas = {
+              latitude: lat,
+              longitude: lon,
+              accuracy: 0,
+              timestamp: Date.now(),
+            };
+            finalCoordinatesData = JSON.stringify([lon, lat]);
+            console.log("✅ Usando geometría del parque:", finalCoordenadas);
+          }
         }
       }
 
       // Validación final de coordenadas
       if (!finalCoordenadas) {
-         throw new Error("No se pudo obtener una ubicación válida. Por favor intente capturar el GPS nuevamente o seleccione un parque con ubicación registrada.");
+        throw new Error(
+          "No se pudo obtener una ubicación válida. Por favor intente capturar el GPS nuevamente o seleccione un parque con ubicación registrada.",
+        );
       }
 
       const reconocimiento = {
         upid: state.selectedParque.upid,
+        nombre_up:
+          state.selectedParque.nombre_up ||
+          data.nombre_up ||
+          "Parque sin nombre",
         tipo_intervencion: data.tipo_intervencion,
         descripcion_intervencion: data.descripcion_intervencion,
         direccion:

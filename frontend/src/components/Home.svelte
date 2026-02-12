@@ -2,56 +2,55 @@
   import { authStore } from "../stores/authStore";
   import VisitaVerificacion from "./visitas/VisitaVerificacion.svelte";
   import HistorialVisitas from "./visitas/HistorialVisitas.svelte";
-  import ReportesParques from "./visitas/ReportesParques.svelte";
+  import KanbanReportes from "./history/KanbanReportes.svelte";
   import MapaParques from "./visitas/MapaParques.svelte";
   import MapaReportes from "./visitas/MapaReportes.svelte";
 
-  type View = 'home' | 'visita' | 'historial' | 'reportes' | 'mapa-parques' | 'mapa-reportes';
-  let currentView: View = 'home';
+  type View =
+    | "home"
+    | "visita"
+    | "historial"
+    | "reportes"
+    | "mapa-parques"
+    | "mapa-reportes";
+  let currentView: View = "home";
 
   const handleLogout = async () => {
     await authStore.logout();
   };
 
   function openVisita() {
-    currentView = 'visita';
+    currentView = "visita";
   }
 
   function openHistorial() {
-    currentView = 'historial';
+    currentView = "historial";
   }
 
   function openReportes() {
-    currentView = 'reportes';
+    currentView = "reportes";
   }
 
   function openMapaParques() {
-    currentView = 'mapa-parques';
+    currentView = "mapa-parques";
   }
 
   function openMapaReportes() {
-    currentView = 'mapa-reportes';
+    currentView = "mapa-reportes";
   }
 
   function goHome() {
-    currentView = 'home';
+    currentView = "home";
   }
 </script>
 
-{#if currentView === 'visita'}
+{#if currentView === "visita"}
   <VisitaVerificacion onClose={goHome} />
-{:else if currentView === 'historial'}
+{:else if currentView === "historial"}
   <HistorialVisitas onClose={goHome} />
-{:else if currentView === 'reportes'}
-  <div class="view-container">
-    <header class="header">
-      <button class="btn-back" on:click={goHome}>← Volver</button>
-      <h1>DAGMA Parques</h1>
-      <button class="btn-logout" on:click={handleLogout}>Cerrar sesión</button>
-    </header>
-    <ReportesParques />
-  </div>
-{:else if currentView === 'mapa-parques'}
+{:else if currentView === "reportes"}
+  <KanbanReportes />
+{:else if currentView === "mapa-parques"}
   <div class="view-container">
     <header class="header">
       <button class="btn-back" on:click={goHome}>← Volver</button>
@@ -60,7 +59,7 @@
     </header>
     <MapaParques />
   </div>
-{:else if currentView === 'mapa-reportes'}
+{:else if currentView === "mapa-reportes"}
   <div class="view-container">
     <header class="header">
       <button class="btn-back" on:click={goHome}>← Volver</button>

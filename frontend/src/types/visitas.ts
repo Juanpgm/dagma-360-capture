@@ -194,10 +194,10 @@ export type StepValidation = {
 export interface Reporte {
   id: string;
   upid: string;
-  nombre_parque: string;
-  tipo_intervencion: string;
-  descripcion_intervencion: string;
-  direccion: string;
+  nombre_parque: string | null;
+  tipo_intervencion: string | null;
+  descripcion_intervencion: string | null;
+  direccion: string | null;
   observaciones?: string;
   coordinates: {
     type: string;

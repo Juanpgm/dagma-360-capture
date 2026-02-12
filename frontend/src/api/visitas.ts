@@ -341,6 +341,16 @@ export async function registrarReconocimiento(
     formData.append('coordinates_type', reconocimiento.coordinates_type || 'Point');
     formData.append('coordinates_data', reconocimiento.coordinates_data);
     
+    // Incluir nombre_parque/nombre_up si está disponible
+    if (reconocimiento.nombre_up) {
+      formData.append('nombre_parque', reconocimiento.nombre_up);
+    }
+    
+    // Incluir upid si está disponible
+    if (reconocimiento.upid) {
+      formData.append('upid', reconocimiento.upid);
+    }
+    
     // Campos opcionales
     if (reconocimiento.observaciones) {
       formData.append('observaciones', reconocimiento.observaciones);
