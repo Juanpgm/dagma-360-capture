@@ -41,7 +41,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/gestorproyectoapi-production\.up\.railway\.app\/.*/i,
+            urlPattern: /^https:\/\/web-production-2d737\.up\.railway\.app\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',

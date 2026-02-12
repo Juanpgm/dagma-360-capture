@@ -39,7 +39,7 @@ function createVisitaStore() {
 
   return {
     subscribe,
-    
+
     /**
      * Resetea el formulario al estado inicial
      */
@@ -63,13 +63,13 @@ function createVisitaStore() {
     nextStep: () => {
       update(state => {
         const nextStep = Math.min(state.currentStep + 1, 3) as StepNumber;
-        
+
         // Crear nuevo Set con el paso actual agregado (inmutabilidad)
         const newCompletedSteps = new Set(state.completedSteps);
         newCompletedSteps.add(state.currentStep);
-        
+
         console.log('nextStep - Agregando paso', state.currentStep, 'a completados. Nuevos completados:', Array.from(newCompletedSteps));
-        
+
         return {
           ...state,
           currentStep: nextStep,
@@ -129,7 +129,7 @@ function createVisitaStore() {
       if (!isGeolocationAvailable()) {
         return 'unavailable';
       }
-      
+
       try {
         const status = await checkGeolocationPermission();
         return status;
@@ -144,13 +144,13 @@ function createVisitaStore() {
      */
     captureGPS: async () => {
       update(state => ({ ...state, isLoading: true, error: null }));
-      
+
       try {
         const coords = await getCurrentPosition();
-        
+
         // Formatear coordenadas como JSON array string
         const coordinatesData = JSON.stringify([coords.longitude, coords.latitude]);
-        
+
         update(state => ({
           ...state,
           isLoading: false,
@@ -201,10 +201,10 @@ function createVisitaStore() {
      */
     loadParques: async () => {
       update(state => ({ ...state, isLoading: true, error: null }));
-      
+
       try {
         const parques = await getParques();
-        
+
         update(state => ({
           ...state,
           isLoading: false,
@@ -264,23 +264,23 @@ export const isCurrentStepValid = derived(
   visitaStore,
   $store => {
     const { currentStep, data, selectedParque } = $store;
-    
+
     switch (currentStep) {
       case 1:
         // Paso 1: Debe haber un parque seleccionado
         return !!selectedParque;
-      
+
       case 2:
         // Paso 2: Formulario + GPS (direccion no validada aquí, se maneja en submit)
         return !!data.tipo_intervencion &&
-               !!data.descripcion_intervencion &&
-               !!data.coordenadas_gps;
-      
+          !!data.descripcion_intervencion;
+      // !!data.coordenadas_gps; // GPS es opcional ahora, usaremos fallback del parque
+
       case 3:
         // Paso 3: La validación de fotos se hace en el componente con photoFiles
         // Por ahora siempre retornamos true, la validación real es en el submit
         return true;
-      
+
       default:
         return false;
     }
