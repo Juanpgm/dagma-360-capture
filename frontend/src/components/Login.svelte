@@ -13,10 +13,22 @@
     loading = true;
 
     try {
+      console.log("🔑 Starting login process for:", username);
       const response = await login({ username, password });
+      console.log("✅ Login response received:", {
+        hasToken: !!response.access_token,
+        hasUser: !!response.user,
+      });
       authStore.login(response.access_token, response.user || { username });
+      console.log("✅ Login completed successfully");
     } catch (err) {
+      console.error("❌ Login failed:", err);
       error = err instanceof Error ? err.message : "Error al iniciar sesión";
+
+      // Si el error es de Firebase, dar más contexto
+      if (error.includes("auth/")) {
+        error = `Error de Firebase: ${error}. Verifica que tu usuario esté registrado.`;
+      }
     } finally {
       loading = false;
     }

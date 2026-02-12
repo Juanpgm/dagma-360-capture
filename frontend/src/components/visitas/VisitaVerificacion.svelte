@@ -22,6 +22,12 @@
   let submitSuccess = false;
   let photoFiles: File[] = [];
 
+  // Variables locales para el formulario Step 2 (necesarias para bindings)
+  let tipoIntervencion = "";
+  let descripcionIntervencion = "";
+  let direccion = "";
+  let observaciones = "";
+
   // Estado del modal
   let modalOpen = false;
   let modalTitle = "";
@@ -37,12 +43,22 @@
   $: canContinue =
     currentStep === 3
       ? photoFiles.length > 0 // En el paso 3, validar que haya fotos
-      : $isCurrentStepValid; // En otros pasos, usar la validación del store
+      : currentStep === 2
+        ? tipoIntervencion &&
+          descripcionIntervencion &&
+          direccion &&
+          state.data.coordenadas_gps
+        : $isCurrentStepValid; // En paso 1, usar la validación del store
   $: currentStep = state.currentStep;
 
   onMount(() => {
     // Resetear formulario al montar
     visitaStore.reset();
+    // Resetear variables locales
+    tipoIntervencion = "";
+    descripcionIntervencion = "";
+    direccion = "";
+    observaciones = "";
   });
 
   // Handlers para Step 1
@@ -69,6 +85,16 @@
     if (currentStep === 1 && !state.selectedParque) {
       visitaStore.setError("Debe seleccionar un parque");
       return;
+    }
+
+    // Si estamos en paso 2, sincronizar datos locales al store antes de avanzar
+    if (currentStep === 2) {
+      visitaStore.updateData({
+        tipo_intervencion: tipoIntervencion,
+        descripcion_intervencion: descripcionIntervencion,
+        direccion: direccion,
+        observaciones: observaciones,
+      });
     }
 
     // Si estamos en el paso 1 y avanzamos al 2, verificar permisos GPS antes
@@ -138,14 +164,23 @@
     submitting = true;
 
     try {
+      // Sincronizar las variables locales al store antes del envío
+      visitaStore.updateData({
+        tipo_intervencion: tipoIntervencion,
+        descripcion_intervencion: descripcionIntervencion,
+        direccion: direccion,
+        observaciones: observaciones,
+      });
+
       // Validar que todos los campos requeridos estén completos
       const data = state.data;
 
       if (
         !state.selectedParque ||
         !data.coordenadas_gps ||
-        !data.tipo_intervencion ||
-        !data.descripcion_intervencion ||
+        !tipoIntervencion ||
+        !descripcionIntervencion ||
+        !direccion ||
         photoFiles.length === 0
       ) {
         throw new Error(
@@ -268,9 +303,10 @@
     {:else if currentStep === 2}
       <Step2Formulario
         coordenadas={state.data.coordenadas_gps}
-        bind:tipoIntervencion={state.data.tipo_intervencion}
-        bind:descripcionIntervencion={state.data.descripcion_intervencion}
-        bind:observaciones={state.data.observaciones}
+        bind:tipoIntervencion
+        bind:descripcionIntervencion
+        bind:direccion
+        bind:observaciones
         selectedParque={state.selectedParque ?? undefined}
         onCaptureGPS={handleCaptureGPS}
         isLoading={state.isLoading}

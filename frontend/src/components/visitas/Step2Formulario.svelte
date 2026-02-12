@@ -11,6 +11,7 @@
   export let coordenadas: Coordenadas | undefined;
   export let tipoIntervencion: string | undefined;
   export let descripcionIntervencion: string | undefined;
+  export let direccion: string | undefined;
   export let observaciones: string | undefined;
   export let selectedParque: Parque | undefined;
   export let onCaptureGPS: () => Promise<void>;
@@ -70,6 +71,11 @@
       isAutoCaptureInProgress = true;
       await handleCaptureGPS();
       isAutoCaptureInProgress = false;
+    }
+
+    // Auto-completar dirección desde el parque seleccionado si está disponible
+    if (selectedParque?.direccion && !direccion) {
+      direccion = selectedParque.direccion;
     }
   });
 
@@ -192,6 +198,28 @@
             rows="4"
             required
           ></textarea>
+        </div>
+
+        <div class="field">
+          <label for="direccion">
+            Dirección <span class="required">*</span>
+          </label>
+          <input
+            id="direccion"
+            type="text"
+            bind:value={direccion}
+            placeholder="Dirección del lugar de la intervención..."
+            required
+          />
+          {#if selectedParque?.direccion && direccion !== selectedParque.direccion}
+            <button
+              type="button"
+              class="btn-restore"
+              on:click={() => (direccion = selectedParque.direccion || "")}
+            >
+              📍 Usar dirección del parque
+            </button>
+          {/if}
         </div>
 
         <div class="field">
@@ -354,6 +382,7 @@
   }
 
   .field select,
+  .field input[type="text"],
   .field textarea {
     width: 100%;
     padding: 0.625rem 0.75rem;
@@ -369,6 +398,7 @@
   }
 
   .field select:focus,
+  .field input[type="text"]:focus,
   .field textarea:focus {
     outline: none;
     border-color: #2563eb;
@@ -378,6 +408,23 @@
   .field textarea {
     resize: vertical;
     min-height: 80px;
+  }
+
+  .btn-restore {
+    margin-top: 0.375rem;
+    padding: 0.375rem 0.625rem;
+    font-size: 0.8125rem;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-restore:hover {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
   }
 
   @media (max-width: 640px) {

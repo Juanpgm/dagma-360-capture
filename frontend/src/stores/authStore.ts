@@ -58,8 +58,16 @@ const createAuthStore = () => {
     init: () => {
       console.log('🔄 Initializing auth state...');
       
+      // Timeout de seguridad: si después de 3 segundos no hay respuesta, forzar loading=false
+      const timeoutId = setTimeout(() => {
+        console.warn('⚠️ Auth initialization timeout - forcing loading=false');
+        update(state => ({ ...state, loading: false }));
+      }, 3000);
+      
       // Escuchar cambios de autenticación de Firebase
       onAuthStateChanged(auth, async (firebaseUser) => {
+        clearTimeout(timeoutId); // Cancelar timeout si Firebase responde
+        
         if (firebaseUser) {
           console.log('✅ Firebase session restored:', firebaseUser.email);
           
@@ -137,6 +145,12 @@ const createAuthStore = () => {
           sessionStorage.removeItem('userData');
           set({ isAuthenticated: false, token: null, user: null, loading: false });
         }
+      }, (error) => {
+        // Manejar errores de Firebase en onAuthStateChanged
+        console.error('❌ Error in Firebase auth state listener:', error);
+        clearTimeout(timeoutId);
+        // Aún con error, permitir que se muestre el login
+        set({ isAuthenticated: false, token: null, user: null, loading: false });
       });
     },
     // Método para refrescar el token si es necesario
