@@ -10,12 +10,9 @@ import type { Reporte } from './visitas';
  * ============================================================ */
 export type EstadoReporte =
   | 'notificado'
-  | 'radicado'
-  | 'en-gestion'
   | 'asignado'
   | 'en-proceso'
-  | 'resuelto'
-  | 'cerrado';
+  | 'resuelto';
 
 export type PrioridadReporte = 'baja' | 'media' | 'alta' | 'urgente';
 
@@ -65,12 +62,9 @@ export interface KanbanColumnReporte {
 
 export const KANBAN_COLUMNS_REPORTES: KanbanColumnReporte[] = [
   { id: 'notificado', title: 'Notificados', color: '#6b7280', icon: '🔔' },
-  { id: 'radicado', title: 'Radicados', color: '#3b82f6', icon: '📋' },
-  { id: 'en-gestion', title: 'En Gestión', color: '#f59e0b', icon: '⚙️' },
   { id: 'asignado', title: 'Asignados', color: '#8b5cf6', icon: '👤' },
   { id: 'en-proceso', title: 'En Proceso', color: '#ec4899', icon: '🔄' },
   { id: 'resuelto', title: 'Resueltos', color: '#10b981', icon: '✅' },
-  { id: 'cerrado', title: 'Cerrados', color: '#64748b', icon: '🔒' },
 ];
 
 /* ============================================================

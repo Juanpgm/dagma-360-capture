@@ -25,13 +25,11 @@
 
   // Tipos de intervención disponibles
   const tiposIntervencion = [
-    "Mantenimiento",
-    "Mejoramiento",
-    "Limpieza",
-    "Poda",
-    "Reparación",
-    "Inspección",
-    "Otro",
+    "Intervención Arbórea",
+    "Siembra",
+    "IEC",
+    "Avanzada",
+    "Embellecimiento",
   ];
 
   // Recalcular distancia cuando cambien las coordenadas

@@ -18,7 +18,7 @@
 
   // Avance form
   let showAvanceForm = false;
-  let avanceNuevoEstado: EstadoReporte = "radicado";
+  let avanceNuevoEstado: EstadoReporte = "notificado";
   let avanceDescripcion = "";
   let avancePorcentaje = 0;
   let avanceEncargado = "";
@@ -37,12 +37,9 @@
   $: groupedByEstado = (() => {
     const grouped: Record<EstadoReporte, ReporteConSeguimiento[]> = {
       notificado: [],
-      radicado: [],
-      "en-gestion": [],
       asignado: [],
       "en-proceso": [],
       resuelto: [],
-      cerrado: [],
     };
     for (const reporte of allReportes) {
       grouped[reporte.estado].push(reporte);
@@ -80,12 +77,9 @@
   function getNextEstado(current: EstadoReporte): EstadoReporte {
     const order: EstadoReporte[] = [
       "notificado",
-      "radicado",
-      "en-gestion",
       "asignado",
       "en-proceso",
       "resuelto",
-      "cerrado",
     ];
     const idx = order.indexOf(current);
     return idx < order.length - 1 ? order[idx + 1] : current;
@@ -537,12 +531,9 @@
                 disabled={guardandoAvance}
               >
                 <option value="notificado">Notificado</option>
-                <option value="radicado">Radicado</option>
-                <option value="en-gestion">En Gestión</option>
                 <option value="asignado">Asignado</option>
                 <option value="en-proceso">En Proceso</option>
                 <option value="resuelto">Resuelto</option>
-                <option value="cerrado">Cerrado</option>
               </select>
             </div>
             <div class="field">

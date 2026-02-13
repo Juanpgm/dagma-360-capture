@@ -234,12 +234,9 @@ export const reportesStore = createReportesStore();
 export const reportesPorEstado = derived(reportesStore, ($store) => {
   const grouped: Record<EstadoReporte, ReporteConSeguimiento[]> = {
     notificado: [],
-    radicado: [],
-    'en-gestion': [],
     asignado: [],
     'en-proceso': [],
     resuelto: [],
-    cerrado: [],
   };
 
   for (const reporte of $store.reportes) {
@@ -250,10 +247,10 @@ export const reportesPorEstado = derived(reportesStore, ($store) => {
 });
 
 /**
- * Reportes activos (no cerrados)
+ * Reportes activos (no resueltos)
  */
 export const reportesActivos = derived(reportesStore, ($store) =>
-  $store.reportes.filter((r) => r.estado !== 'cerrado')
+  $store.reportes.filter((r) => r.estado !== 'resuelto')
 );
 
 /**
@@ -263,12 +260,9 @@ export const estadisticasReportes = derived(reportesStore, ($store) => {
   const total = $store.reportes.length;
   const porEstado = {
     notificado: 0,
-    radicado: 0,
-    'en-gestion': 0,
     asignado: 0,
     'en-proceso': 0,
     resuelto: 0,
-    cerrado: 0,
   };
 
   const porPrioridad = {
