@@ -437,13 +437,3 @@ export async function getReportes(): Promise<ReportesResponse> {
 export function preparePhotosForUpload(photos: (File | string)[]): File[] {
   return photos.filter((photo): photo is File => photo instanceof File);
 }
-
-// ============================================
-// FUNCIONES DE COMPATIBILIDAD (LEGACY)
-// ============================================
-
-// Alias para compatibilidad con código existente
-export const fetchUnidadesProyecto = getParques;
-export const fetchCentrosGestores = async () => [];
-export const createVisitaVerificacion = registrarReconocimiento;
-export const fetchHistorialVisitas = getReportes;

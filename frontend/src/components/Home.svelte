@@ -1,61 +1,76 @@
 <script lang="ts">
   import { authStore } from "../stores/authStore";
   import VisitaVerificacion from "./visitas/VisitaVerificacion.svelte";
-  import HistorialVisitas from "./visitas/HistorialVisitas.svelte";
   import KanbanReportes from "./history/KanbanReportes.svelte";
   import MapaParques from "./visitas/MapaParques.svelte";
   import MapaReportes from "./visitas/MapaReportes.svelte";
+  import Convocatorias from "./convocatorias/Convocatorias.svelte";
 
   type View =
     | "home"
     | "visita"
-    | "historial"
     | "reportes"
     | "mapa-parques"
-    | "mapa-reportes";
+    | "mapa-reportes"
+    | "convocatorias";
   let currentView: View = "home";
 
-  const handleLogout = async () => {
+  const handleLogout: () => Promise<void> = async () => {
     await authStore.logout();
   };
 
-  function openVisita() {
+  function openVisita(): void {
     currentView = "visita";
   }
 
-  function openHistorial() {
-    currentView = "historial";
-  }
-
-  function openReportes() {
+  function openReportes(): void {
     currentView = "reportes";
   }
 
-  function openMapaParques() {
+  function openMapaParques(): void {
     currentView = "mapa-parques";
   }
 
-  function openMapaReportes() {
+  function openMapaReportes(): void {
     currentView = "mapa-reportes";
   }
 
-  function goHome() {
+  function openConvocatorias(): void {
+    currentView = "convocatorias";
+  }
+
+  function goHome(): void {
     currentView = "home";
   }
 </script>
 
 {#if currentView === "visita"}
   <VisitaVerificacion onClose={goHome} />
-{:else if currentView === "historial"}
-  <HistorialVisitas onClose={goHome} />
 {:else if currentView === "reportes"}
   <KanbanReportes />
 {:else if currentView === "mapa-parques"}
   <div class="view-container">
     <header class="header">
       <button class="btn-back" on:click={goHome}>← Volver</button>
-      <h1>DAGMA Parques</h1>
-      <button class="btn-logout" on:click={handleLogout}>Cerrar sesión</button>
+      <div class="brand">DAGMA Parques</div>
+      <div class="header-right">
+        <div class="user-chip">
+          <div class="user-avatar">
+            {($authStore.user?.email?.[0] || "U").toUpperCase()}
+          </div>
+          <div class="user-meta">
+            <span class="user-name"
+              >{$authStore.user?.displayName ||
+                $authStore.user?.email ||
+                "Usuario"}</span
+            >
+            <span class="user-email">{$authStore.user?.email || ""}</span>
+          </div>
+        </div>
+        <button class="btn-logout" on:click={handleLogout}>
+          Cerrar sesion
+        </button>
+      </div>
     </header>
     <MapaParques />
   </div>
@@ -63,54 +78,93 @@
   <div class="view-container">
     <header class="header">
       <button class="btn-back" on:click={goHome}>← Volver</button>
-      <h1>DAGMA Parques</h1>
-      <button class="btn-logout" on:click={handleLogout}>Cerrar sesión</button>
+      <div class="brand">DAGMA Parques</div>
+      <div class="header-right">
+        <div class="user-chip">
+          <div class="user-avatar">
+            {($authStore.user?.email?.[0] || "U").toUpperCase()}
+          </div>
+          <div class="user-meta">
+            <span class="user-name"
+              >{$authStore.user?.displayName ||
+                $authStore.user?.email ||
+                "Usuario"}</span
+            >
+            <span class="user-email">{$authStore.user?.email || ""}</span>
+          </div>
+        </div>
+        <button class="btn-logout" on:click={handleLogout}>
+          Cerrar sesion
+        </button>
+      </div>
     </header>
     <MapaReportes />
   </div>
+{:else if currentView === "convocatorias"}
+  <div class="view-container">
+    <header class="header">
+      <button class="btn-back" on:click={goHome}>← Volver</button>
+      <div class="brand">DAGMA Parques</div>
+      <div class="header-right">
+        <div class="user-chip">
+          <div class="user-avatar">
+            {($authStore.user?.email?.[0] || "U").toUpperCase()}
+          </div>
+          <div class="user-meta">
+            <span class="user-name"
+              >{$authStore.user?.displayName ||
+                $authStore.user?.email ||
+                "Usuario"}</span
+            >
+            <span class="user-email">{$authStore.user?.email || ""}</span>
+          </div>
+        </div>
+        <button class="btn-logout" on:click={handleLogout}>
+          Cerrar sesion
+        </button>
+      </div>
+    </header>
+    <Convocatorias />
+  </div>
 {:else}
   <div class="home-container">
-    <header class="header">
-      <h1>DAGMA Parques</h1>
-      <button class="btn-logout" on:click={handleLogout}>Cerrar sesión</button>
+    <header class="header header-home">
+      <div class="brand">DAGMA Parques</div>
+      <div class="header-right">
+        <div class="user-chip">
+          <div class="user-avatar">
+            {($authStore.user?.email?.[0] || "U").toUpperCase()}
+          </div>
+          <div class="user-meta">
+            <span class="user-name"
+              >{$authStore.user?.displayName ||
+                $authStore.user?.email ||
+                "Usuario"}</span
+            >
+            <span class="user-email">{$authStore.user?.email || ""}</span>
+          </div>
+        </div>
+        <button class="btn-logout" on:click={handleLogout}>
+          Cerrar sesion
+        </button>
+      </div>
     </header>
+
+    <div class="convocatorias-banner">
+      <div class="banner-text">
+        <h3>Convocatorias - Plan Distrito Verde</h3>
+        <p>Consulta las actividades programadas y sus detalles</p>
+      </div>
+      <button class="btn-convocatorias" on:click={openConvocatorias}>
+        Ver Convocatorias
+      </button>
+    </div>
 
     <div class="content">
       <div class="welcome">
-        <h2>¡Bienvenido!</h2>
-        <p>Sistema de Información de Parques</p>
+        <h2>Bienvenido</h2>
+        <p>Sistema de Informacion de Parques</p>
 
-        <div class="user-card">
-          <div class="user-avatar">
-            {#if $authStore.user?.photoURL}
-              <img src={$authStore.user.photoURL} alt="Avatar" />
-            {:else}
-              <div class="avatar-placeholder">
-                {($authStore.user?.email?.[0] || "U").toUpperCase()}
-              </div>
-            {/if}
-          </div>
-
-          <div class="user-details">
-            <p class="user-name">
-              {$authStore.user?.displayName ||
-                $authStore.user?.email ||
-                "Usuario"}
-            </p>
-            <p class="user-email">{$authStore.user?.email}</p>
-
-            {#if $authStore.user?.roles?.length > 0}
-              <div class="user-roles">
-                <strong>Roles:</strong>
-                {#each $authStore.user.roles as role}
-                  <span class="badge">{role}</span>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        </div>
-
-        <!-- Menú de acciones -->
         <div class="actions-grid">
           <button class="action-card primary" on:click={openVisita}>
             <div class="action-icon">🌳</div>
@@ -135,12 +189,6 @@
             <h3 class="action-title">Mapa de Reportes</h3>
             <p class="action-description">Reconocimientos en mapa</p>
           </button>
-
-          <button class="action-card secondary" on:click={openHistorial}>
-            <div class="action-icon">📋</div>
-            <h3 class="action-title">Historial Legacy</h3>
-            <p class="action-description">Versión anterior</p>
-          </button>
         </div>
       </div>
     </div>
@@ -148,12 +196,7 @@
 {/if}
 
 <style>
-  .view-container {
-    min-height: 100vh;
-    min-height: 100dvh;
-    background-color: var(--surface);
-  }
-
+  .view-container,
   .home-container {
     min-height: 100vh;
     min-height: 100dvh;
@@ -167,12 +210,68 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 1rem;
   }
 
-  .header h1 {
+  .header-home {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .brand {
     color: var(--primary);
     font-size: 1.5rem;
     font-weight: 700;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .user-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--surface);
+    padding: 0.5rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+  }
+
+  .user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(
+      135deg,
+      var(--primary) 0%,
+      var(--primary-dark) 100%
+    );
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+  }
+
+  .user-meta {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  .user-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+  }
+
+  .user-email {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
   }
 
   .btn-back {
@@ -208,110 +307,78 @@
     color: white;
   }
 
+  .convocatorias-banner {
+    margin: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border-radius: 1rem;
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .banner-text h3 {
+    color: var(--primary-dark);
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .banner-text p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+
+  .btn-convocatorias {
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-convocatorias:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+  }
+
   .content {
-    padding: 2rem 1.5rem;
+    padding: 1rem 1.5rem 2.5rem;
     display: flex;
     justify-content: center;
-    align-items: center;
-    min-height: calc(100vh - 80px);
   }
 
   .welcome {
     text-align: center;
     background: white;
-    padding: 3rem;
+    padding: 2.5rem;
     border-radius: 1rem;
     box-shadow: 0 4px 6px var(--shadow);
-    max-width: 600px;
+    max-width: 900px;
     width: 100%;
   }
 
   .welcome h2 {
     color: var(--text-primary);
     font-size: 2rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
   }
 
   .welcome p {
     color: var(--text-secondary);
     font-size: 1rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .user-card {
-    margin-top: 2rem;
-    padding: 1.5rem;
-    background-color: var(--surface);
-    border-radius: 0.75rem;
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-  }
-
-  .user-avatar {
-    flex-shrink: 0;
-  }
-
-  .user-avatar img,
-  .avatar-placeholder {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-  }
-
-  .avatar-placeholder {
-    background: linear-gradient(
-      135deg,
-      var(--primary) 0%,
-      var(--primary-dark) 100%
-    );
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    font-weight: 700;
-  }
-
-  .user-details {
-    flex: 1;
-    text-align: left;
-  }
-
-  .user-name {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 0.25rem 0;
-  }
-
-  .user-email {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    margin: 0 0 0.5rem 0;
-  }
-
-  .user-roles {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  .badge {
-    background-color: var(--primary);
-    color: white;
-    padding: 0.25rem 0.75rem;
-    border-radius: 1rem;
-    font-size: 0.75rem;
-    font-weight: 500;
+    margin-bottom: 1.5rem;
   }
 
   .actions-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
-    margin-top: 2rem;
+    margin-top: 1rem;
   }
 
   .action-card {
@@ -330,23 +397,10 @@
     border-color: #059669;
   }
 
-  .action-card.secondary {
-    opacity: 0.7;
-  }
-
   .action-card:hover:not(:disabled) {
     transform: translateY(-4px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
     border-color: var(--primary);
-  }
-
-  .action-card:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  .action-card:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   .action-icon {
@@ -367,38 +421,25 @@
     margin: 0;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 768px) {
     .header {
-      padding: 1rem;
+      flex-direction: column;
+      align-items: stretch;
     }
 
-    .header h1 {
-      font-size: 1.25rem;
+    .header-right {
+      justify-content: space-between;
+      flex-wrap: wrap;
     }
 
-    .content {
-      padding: 1.5rem 1rem;
-    }
-
-    .welcome {
-      padding: 2rem 1.5rem;
-    }
-
-    .welcome h2 {
-      font-size: 1.5rem;
+    .convocatorias-banner {
+      flex-direction: column;
+      align-items: flex-start;
+      margin: 1rem;
     }
 
     .actions-grid {
       grid-template-columns: 1fr;
-    }
-
-    .user-card {
-      flex-direction: column;
-      text-align: center;
-    }
-
-    .user-details {
-      text-align: center;
     }
   }
 </style>
