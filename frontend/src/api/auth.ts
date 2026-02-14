@@ -15,6 +15,20 @@ interface LoginResponse {
   user?: any;
 }
 
+interface RegisterPayload {
+  email: string;
+  password: string;
+  full_name: string;
+  cellphone: string;
+  grupo: string;
+}
+
+interface RegisterResponse {
+  success?: boolean;
+  message?: string;
+  user?: any;
+}
+
 /**
  * Login directo con API (sin Firebase)
  * Flujo alternativo cuando Firebase no está configurado
@@ -229,6 +243,33 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
     return loginWithFirebase(credentials);
   }
   return loginWithAPI(credentials);
+};
+
+/**
+ * Registro de usuario via API
+ */
+export const registerUser = async (payload: RegisterPayload): Promise<RegisterResponse> => {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let error;
+    try {
+      error = JSON.parse(errorText);
+    } catch {
+      error = { detail: errorText || 'Error de registro' };
+    }
+    throw new Error(error.detail || `Error ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
 };
 
 /**
