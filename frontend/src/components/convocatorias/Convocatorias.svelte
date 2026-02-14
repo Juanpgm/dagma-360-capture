@@ -199,9 +199,10 @@
   <div class="convocatorias-content">
     <div class="header-section">
       <div>
-        <h1 class="page-title">Plan Distrito Verde</h1>
+        <h1 class="page-title">Convocatorias a Actividades</h1>
         <p class="page-subtitle">
-          Gestión de actividades y jornadas programadas
+          Gestión de actividades y jornadas programadas en el marco del Plan
+          Distrito Verde
         </p>
       </div>
       <div class="stats">
@@ -618,6 +619,7 @@
   .actividades-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
   }
 
   .actividades-table thead {
@@ -632,7 +634,7 @@
     font-size: 0.875rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .actividades-table tbody tr {
@@ -657,7 +659,7 @@
 
   /* Columna de información básica */
   .info-cell {
-    min-width: 250px;
+    min-width: 0;
     width: 18%;
   }
 
@@ -705,9 +707,11 @@
   /* Columna de objetivo - más ancha */
   .objetivo-cell {
     width: 50%;
-    min-width: 400px;
+    min-width: 0;
     line-height: 1.6;
     color: var(--text-primary);
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .objetivo-content {
@@ -719,6 +723,9 @@
   .objetivo-text {
     font-weight: 500;
     line-height: 1.6;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .observaciones-section {
@@ -747,8 +754,8 @@
   /* Columna de grupos */
   .grupos-cell {
     width: 1%;
-    min-width: 90px;
-    max-width: 140px;
+    min-width: 0;
+    max-width: 120px;
   }
 
   .grupos-container {
@@ -841,15 +848,7 @@
   /* Responsive */
   @media (max-width: 1200px) {
     .table-container {
-      overflow-x: auto;
-    }
-
-    .actividades-table {
-      min-width: 1000px;
-    }
-
-    .objetivo-cell {
-      min-width: 250px;
+      overflow-x: hidden;
     }
   }
 
@@ -868,6 +867,35 @@
 
     .filters-grid {
       grid-template-columns: 1fr;
+    }
+
+    .actividades-table thead {
+      display: none;
+    }
+
+    .actividades-table tbody tr {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+      padding: 0.75rem 0.5rem;
+    }
+
+    .actividades-table td {
+      padding: 0.5rem 0;
+    }
+
+    .info-cell {
+      order: 1;
+      width: auto;
+      min-width: 0;
+    }
+
+    .objetivo-cell {
+      order: 2;
+      width: auto;
+      min-width: 0;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
     }
 
     .actividades-table th:nth-child(3),
