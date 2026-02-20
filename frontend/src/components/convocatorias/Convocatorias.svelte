@@ -1636,7 +1636,7 @@
   }
 
   .convocatorias-content {
-    max-width: 1400px;
+    max-width: 2000px;
     margin: 0 auto;
   }
 
@@ -2013,7 +2013,7 @@
       display: grid;
       grid-template-columns: 1fr 400px;
       grid-template-rows: auto 1fr;
-      max-width: 1200px;
+      max-width: 1600px;
     }
 
     .card-header {
@@ -2381,6 +2381,22 @@
   @media (min-width: 1025px) {
     .map-section {
       display: flex; /* Visible en escritorio */
+    }
+  }
+
+  /* Pantallas muy anchas - Mayor ancho de mapa */
+  @media (min-width: 1600px) {
+    .actividad-card {
+      grid-template-columns: 1fr 500px;
+      max-width: 1800px;
+    }
+  }
+
+  /* Pantallas ultrawide - TV y monitores ultra anchos */
+  @media (min-width: 1920px) {
+    .actividad-card {
+      grid-template-columns: 1fr 600px;
+      max-width: 2000px;
     }
   }
 
