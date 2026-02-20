@@ -21,4 +21,5 @@ export const GRUPOS_DAGMA = [
   "Flora",
   "Fauna Silvestre",
   "Trámite",
+  "Cuadrilla",
 ] as const;

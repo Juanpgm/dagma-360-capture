@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, afterUpdate, tick } from "svelte";
   import {
     convocarActividad,
     eliminarActividadPlanDistritoVerde,
@@ -18,6 +18,10 @@
   let filteredActividades: ActividadPlanDistritoVerde[] = [];
   let loading = true;
   let error = "";
+
+  // Mapas de Leaflet
+  let leafletLoaded = false;
+  let initializedMaps = new Set<string>();
 
   // Filtros
   let searchQuery = "";
@@ -43,6 +47,7 @@
   let dateRangeRef: HTMLDivElement | null = null;
   let headerSectionElement: HTMLDivElement | null = null;
   let showBackToTopButton = false;
+  let timeNow = new Date(); // Variable reactiva para actualizar contadores
   const gruposCatalogo = [...new Set(GRUPOS_DAGMA)].sort((a, b) =>
     a.localeCompare(b, "es"),
   );
@@ -213,8 +218,14 @@
     const handleResize = () => updateBackToTopVisibility();
     window.addEventListener("resize", handleResize);
 
+    // Actualizar el contador de tiempo cada segundo
+    const timeInterval = setInterval(() => {
+      timeNow = new Date();
+    }, 1000);
+
     return () => {
       window.removeEventListener("resize", handleResize);
+      clearInterval(timeInterval);
     };
   });
 
@@ -419,6 +430,43 @@
     return `${day}/${month}/${year}`;
   }
 
+  function calculateTimeRemaining(
+    fechaActividad: string,
+    horaEncuentro: string,
+  ): string {
+    try {
+      // Convertir DD/MM/YYYY a YYYY-MM-DD
+      const [day, month, year] = fechaActividad.split("/");
+      const dateStr = `${year}-${month}-${day}`;
+
+      // Crear fecha de actividad
+      const actividadDate = new Date(`${dateStr}T${horaEncuentro}:00`);
+      const now = timeNow;
+
+      const diffMs = actividadDate.getTime() - now.getTime();
+
+      if (diffMs < 0) {
+        return "Actividad iniciada";
+      }
+
+      const diffSecs = Math.floor(diffMs / 1000);
+      const days = Math.floor(diffSecs / 86400);
+      const hours = Math.floor((diffSecs % 86400) / 3600);
+      const minutes = Math.floor((diffSecs % 3600) / 60);
+
+      if (days > 0) {
+        return `${days}d ${hours}h`;
+      } else if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      } else {
+        return `${minutes}m`;
+      }
+    } catch (err) {
+      console.error("Error calculando tiempo restante:", err);
+      return "-";
+    }
+  }
+
   function toggleDateRangePicker() {
     dateRangeOpen = !dateRangeOpen;
   }
@@ -462,6 +510,19 @@
     );
 
     return palette[hash % palette.length];
+  }
+
+  function getEstadoColorClass(estado?: string): string {
+    switch (estado) {
+      case "Programada":
+        return "estado-programada";
+      case "En ejecución":
+        return "estado-ejecucion";
+      case "Finalizada":
+        return "estado-finalizada";
+      default:
+        return "estado-programada"; // Por defecto, Programada
+    }
   }
 
   $: dateRangeSummary =
@@ -704,7 +765,158 @@
   function modificarActividad(actividad: ActividadPlanDistritoVerde) {
     openModificarActividadModal(actividad);
   }
+
+  // Inicializar un mapa individual
+  function initializeMap(actividad: ActividadPlanDistritoVerde) {
+    const mapId = `map-${actividad.id}`;
+
+    // Si ya fue inicializado, no hacer nada
+    if (initializedMaps.has(mapId)) {
+      return;
+    }
+
+    const mapElement = document.getElementById(mapId);
+
+    if (mapElement && actividad.punto_encuentro?.geometry?.coordinates) {
+      const [lng, lat] = actividad.punto_encuentro.geometry.coordinates;
+
+      try {
+        // Crear mapa
+        const map = (window as any).L.map(mapId, {
+          center: [lat, lng],
+          zoom: 16,
+          zoomControl: true,
+        });
+
+        // Capa base: CartoDB Positron
+        const positron = (window as any).L.tileLayer(
+          "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+          {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: "abcd",
+            maxZoom: 20,
+          },
+        );
+
+        // Capa satelital
+        const satellite = (window as any).L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          {
+            attribution:
+              "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
+            maxZoom: 20,
+          },
+        );
+
+        // Agregar capa por defecto
+        let currentLayer = "mapa";
+        positron.addTo(map);
+
+        // Control toggle personalizado
+        const ToggleControl = (window as any).L.Control.extend({
+          options: {
+            position: "topright",
+          },
+          onAdd: function (map: any) {
+            const container = (window as any).L.DomUtil.create(
+              "div",
+              "leaflet-bar leaflet-control leaflet-control-custom",
+            );
+            container.style.backgroundColor = "white";
+            container.style.width = "34px";
+            container.style.height = "34px";
+            container.style.cursor = "pointer";
+            container.style.display = "flex";
+            container.style.alignItems = "center";
+            container.style.justifyContent = "center";
+            container.style.fontSize = "18px";
+            container.innerHTML = "🗺️";
+            container.title = "Cambiar a vista satélite";
+
+            container.onclick = function () {
+              if (currentLayer === "mapa") {
+                map.removeLayer(positron);
+                satellite.addTo(map);
+                container.innerHTML = "🛰️";
+                container.title = "Cambiar a vista de mapa";
+                currentLayer = "satelite";
+              } else {
+                map.removeLayer(satellite);
+                positron.addTo(map);
+                container.innerHTML = "🗺️";
+                container.title = "Cambiar a vista satélite";
+                currentLayer = "mapa";
+              }
+            };
+
+            return container;
+          },
+        });
+
+        map.addControl(new ToggleControl());
+
+        // Agregar marcador
+        (window as any).L.marker([lat, lng])
+          .addTo(map)
+          .bindPopup(
+            `<b>${actividad.punto_encuentro.direccion || "Ubicación"}</b>`,
+          );
+
+        // Marcar como inicializado
+        initializedMaps.add(mapId);
+      } catch (error) {
+        console.error(`Error inicializando mapa ${mapId}:`, error);
+      }
+    }
+  }
+
+  // Inicializar todos los mapas visibles
+  function initializeMaps() {
+    if (!leafletLoaded || typeof (window as any).L === "undefined") {
+      return;
+    }
+
+    filteredActividades.forEach((actividad) => {
+      initializeMap(actividad);
+    });
+  }
+
+  // Detectar cuando Leaflet esté cargado
+  onMount(() => {
+    const checkLeaflet = () => {
+      if (typeof (window as any).L !== "undefined") {
+        leafletLoaded = true;
+        initializeMaps();
+      } else {
+        setTimeout(checkLeaflet, 100);
+      }
+    };
+    checkLeaflet();
+  });
+
+  // Reinicializar mapas después de actualizaciones
+  afterUpdate(async () => {
+    await tick();
+    if (leafletLoaded) {
+      initializeMaps();
+    }
+  });
 </script>
+
+<svelte:head>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+</svelte:head>
 
 <svelte:window
   on:click={closeDropdownsOnOutsideClick}
@@ -864,170 +1076,174 @@
         <p>Intenta ajustar los filtros de búsqueda</p>
       </div>
     {:else}
-      <!-- Tabla de actividades -->
-      <div class="table-container">
-        <table class="actividades-table">
-          <thead>
-            <tr>
-              <th>Información Básica</th>
-              <th>Objetivo</th>
-              <th>Grupos</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each filteredActividades as actividad}
-              <tr>
-                <td class="info-cell">
-                  <div class="info-stack">
-                    <div class="info-item">
-                      <span class="badge-tipo"
-                        >{actividad.tipo_jornada || "-"}</span
-                      >
-                    </div>
-                    <div class="info-item">
-                      <span class="info-text direccion"
-                        >{actividad.punto_encuentro?.direccion || "-"}</span
-                      >
-                    </div>
-                    <div class="info-item">
-                      <span class="info-label">Fecha Actividad:</span>
-                      <span class="info-text"
-                        >{formatDate(actividad.fecha_actividad)}</span
-                      >
-                    </div>
-                    <div class="info-item">
-                      <span class="info-label">Hora de encuentro:</span>
-                      <span class="info-text"
-                        >{actividad.hora_encuentro || "-"}</span
-                      >
-                    </div>
-                    <div class="info-item">
-                      <button
-                        class="btn-location-inline"
-                        on:click={() =>
-                          openGoogleMaps(actividad.punto_encuentro.geometry)}
-                        title="Ver ubicacion en Google Maps"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path
-                            d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
-                          ></path>
-                          <circle cx="12" cy="10" r="3"></circle>
-                        </svg>
-                        <span>Ver Ubicacion</span>
-                      </button>
-                    </div>
-                    <div class="info-item">
-                      <span class="info-label">Líder:</span>
-                      <span class="info-text"
-                        >{actividad.lider_actividad || "-"}</span
-                      >
-                    </div>
-                    <div class="info-item grupos-inline">
-                      <details class="grupos-disclosure">
-                        <summary>Grupos</summary>
-                        <div class="grupos-container grupos-compact">
-                          {#each actividad.grupos_requeridos || [] as grupo}
-                            <span class="badge-grupo">{grupo}</span>
-                          {/each}
-                        </div>
-                      </details>
-                    </div>
+      <!-- Contenedores de actividades -->
+      <div class="actividades-container">
+        {#each filteredActividades as actividad (actividad.id)}
+          <div class="actividad-card">
+            <!-- Contenido principal del card -->
+            <div class="card-header">
+              <div class="header-top">
+                <div class="type-and-state">
+                  <span class="badge-tipo">{actividad.tipo_jornada || "-"}</span
+                  >
+                  <span
+                    class={`badge-estado ${getEstadoColorClass(
+                      actividad.estado_actividad,
+                    )}`}
+                  >
+                    {actividad.estado_actividad || "Programada"}
+                  </span>
+                </div>
+                <div class="header-location-timer">
+                  <span class="header-timer">
+                    {calculateTimeRemaining(
+                      actividad.fecha_actividad,
+                      actividad.hora_encuentro,
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-body">
+              <!-- Sección información básica -->
+              <div class="info-section">
+                <button
+                  class="direccion-destaque"
+                  on:click={() =>
+                    openGoogleMaps(actividad.punto_encuentro.geometry)}
+                  title="Ver en Google Maps"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
+                    ></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  {actividad.punto_encuentro?.direccion || "Sin dirección"}
+                </button>
+                <h3 class="fecha-titulo">
+                  {formatDate(actividad.fecha_actividad)} a las{" "}
+                  {actividad.hora_encuentro || "-"}
+                </h3>
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="info-label">Duración:</span>
+                    <span class="info-text">
+                      {actividad.duracion_actividad
+                        ? `${actividad.duracion_actividad}h`
+                        : "-"}
+                    </span>
                   </div>
-                </td>
-                <td class="objetivo-cell">
-                  <div class="objetivo-content">
-                    <div class="objetivo-text">
-                      {actividad.objetivo_actividad || "-"}
-                    </div>
-                    <div class="observaciones-section">
-                      <span class="observaciones-label">Observaciones:</span>
-                      <span class="observaciones-text">
-                        {actividad.observaciones || "N/A"}
-                      </span>
-                    </div>
+                  <div class="info-item">
+                    <span class="info-label">Líder:</span>
+                    <span class="info-text"
+                      >{actividad.lider_actividad || "-"}</span
+                    >
                   </div>
-                </td>
-                <td class="grupos-cell">
+                </div>
+              </div>
+
+              <!-- Sección objetivo -->
+              <div class="objetivo-section">
+                <h4 class="section-title">Objetivo</h4>
+                <p class="objetivo-text">
+                  {actividad.objetivo_actividad || "-"}
+                </p>
+                {#if actividad.observaciones}
+                  <div class="observaciones-section">
+                    <span class="observaciones-label">Observaciones:</span>
+                    <p class="observaciones-text">{actividad.observaciones}</p>
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Sección grupos -->
+              {#if actividad.grupos_requeridos && actividad.grupos_requeridos.length > 0}
+                <div class="grupos-section">
+                  <h4 class="section-title">Grupos requeridos</h4>
                   <div class="grupos-container">
-                    {#each actividad.grupos_requeridos || [] as grupo}
+                    {#each actividad.grupos_requeridos as grupo}
                       <span class="badge-grupo">{grupo}</span>
                     {/each}
                   </div>
-                </td>
-                <td class="acciones-cell">
-                  <div class="acciones-buttons">
-                    <button
-                      type="button"
-                      class="btn-modificar-actividad"
-                      title="Modificar actividad"
-                      aria-label="Modificar actividad"
-                      disabled={modifyingActividadId === actividad.id}
-                      on:click={() => modificarActividad(actividad)}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="M12 20h9"></path><path
-                          d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"
-                        ></path>
-                      </svg>
-                      <span>Modificar</span>
-                    </button>
+                </div>
+              {/if}
 
-                    <button
-                      type="button"
-                      class="btn-delete-actividad"
-                      title="Eliminar actividad"
-                      aria-label="Eliminar actividad"
-                      disabled={deletingActividadId === actividad.id}
-                      on:click={() => eliminarActividad(actividad.id)}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
-                        ></path>
-                        <path d="M10 11v6"></path>
-                        <path d="M14 11v6"></path>
-                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-                      </svg>
-                      <span>Eliminar</span>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
+              <!-- Botones de acción -->
+              <div class="acciones-section">
+                <button
+                  type="button"
+                  class="btn-modificar-actividad"
+                  title="Modificar actividad"
+                  aria-label="Modificar actividad"
+                  disabled={modifyingActividadId === actividad.id}
+                  on:click={() => modificarActividad(actividad)}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 20h9"></path><path
+                      d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"
+                    ></path>
+                  </svg>
+                  <span>Modificar</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="btn-delete-actividad"
+                  title="Eliminar actividad"
+                  aria-label="Eliminar actividad"
+                  disabled={deletingActividadId === actividad.id}
+                  on:click={() => eliminarActividad(actividad.id)}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+                    ></path>
+                    <path d="M10 11v6"></path>
+                    <path d="M14 11v6"></path>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                  </svg>
+                  <span>Eliminar</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Sección de mapa (visible solo en pantalla ancha) -->
+            <div class="map-section">
+              <div class="map-container" id="map-{actividad.id}"></div>
+            </div>
+          </div>
+        {/each}
       </div>
     {/if}
   </div>
@@ -1735,124 +1951,223 @@
   }
 
   /* Tabla */
-  .table-container {
+  .actividades-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  @media (max-width: 768px) {
+    .actividades-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+  }
+
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .actividades-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      gap: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1025px) {
+    .actividad-card {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      grid-template-rows: auto 1fr;
+      max-width: 1200px;
+    }
+
+    .card-header {
+      grid-column: 1 / -1;
+    }
+
+    .card-body {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .map-section {
+      grid-column: 2;
+      grid-row: 2;
+      border-left: 2px solid var(--border);
+    }
+  }
+
+  .actividad-card {
     background: white;
     border-radius: 1rem;
     box-shadow: 0 2px 8px var(--shadow);
-    overflow: hidden;
     border: 2px solid var(--border);
-  }
-
-  .actividades-table {
+    overflow: hidden;
+    transition: all 0.3s ease;
     width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
+    box-sizing: border-box;
   }
 
-  .actividades-table thead {
+  .actividad-card:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .card-header {
     background: linear-gradient(135deg, var(--primary-dark), var(--primary));
-    color: white;
+    padding: 0.5rem 1rem;
+    overflow: hidden;
   }
 
-  .actividades-table th {
-    padding: 1rem 0.75rem;
-    text-align: left;
-    font-weight: 600;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    white-space: normal;
-  }
-
-  .actividades-table tbody tr {
-    border-bottom: 1px solid var(--border);
-    transition: background-color 0.2s;
-  }
-
-  .actividades-table tbody tr:hover {
-    background-color: var(--surface);
-  }
-
-  .actividades-table tbody tr:last-child {
-    border-bottom: none;
-  }
-
-  .actividades-table td {
-    padding: 1rem 0.75rem;
-    font-size: 0.875rem;
-    color: var(--text-primary);
-    vertical-align: top;
-  }
-
-  /* Columna de información básica */
-  .info-cell {
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
     min-width: 0;
-    width: 18%;
   }
 
-  .info-stack {
+  @media (max-width: 768px) {
+    .header-top {
+      gap: 0.3rem;
+    }
+  }
+
+  .type-and-state {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+  }
+
+  .header-location-timer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .header-timer {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    padding: 0.2rem 0.45rem;
+    border-radius: 0.25rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 768px) {
+    .header-timer {
+      padding: 0.15rem 0.35rem;
+      font-size: 0.6rem;
+    }
+  }
+
+  .type-and-state {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+  }
+
+  .card-body {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .info-section {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .direccion-destaque {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary);
+    text-align: left;
+    transition: all 0.2s;
+    margin-bottom: 0.25rem;
+  }
+
+  .direccion-destaque:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+  }
+
+  .direccion-destaque svg {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .fecha-titulo {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
   }
 
   .info-item {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 0.25rem;
   }
 
   .info-label {
     color: var(--text-secondary);
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    min-width: 50px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .info-text {
     color: var(--text-primary);
-    font-size: 0.875rem;
+    font-size: 0.9rem;
     line-height: 1.4;
+    font-weight: 500;
   }
 
-  .info-text.direccion {
-    font-weight: 700;
-    text-decoration: underline;
-  }
-
-  .badge-tipo {
-    display: inline-block;
-    padding: 0.375rem 0.75rem;
-    background: var(--primary-light);
-    color: white;
-    border-radius: 0.5rem;
-    font-weight: 600;
-    font-size: 0.75rem;
-    white-space: nowrap;
-  }
-
-  /* Columna de objetivo - más ancha */
-  .objetivo-cell {
-    width: 50%;
-    min-width: 0;
-    line-height: 1.6;
-    color: var(--text-primary);
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .objetivo-content {
+  .objetivo-section {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .section-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
   }
 
   .objetivo-text {
-    font-weight: 500;
+    font-size: 0.9rem;
     line-height: 1.6;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    color: var(--text-primary);
+    margin: 0;
   }
 
   .observaciones-section {
@@ -1865,7 +2180,7 @@
 
   .observaciones-label {
     color: var(--text-secondary);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1875,63 +2190,74 @@
     color: var(--text-secondary);
     font-style: italic;
     line-height: 1.5;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
+    margin: 0;
   }
 
-  /* Columna de grupos */
-  .grupos-cell {
-    width: 1%;
-    min-width: 0;
-    max-width: 120px;
+  .grupos-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
-  .acciones-cell {
-    width: 1%;
-    min-width: 220px;
-    text-align: right;
+  .grupos-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
   }
 
-  .acciones-buttons {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.45rem;
+  .badge-grupo {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    background: var(--text-secondary);
+    color: white;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .acciones-section {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
   }
 
   .btn-modificar-actividad,
   .btn-delete-actividad {
+    flex: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
     border-radius: 0.6rem;
-    height: 2.1rem;
-    padding: 0 0.65rem;
+    padding: 0.6rem 0.75rem;
     cursor: pointer;
     transition: all 0.2s;
     font-size: 0.8rem;
     font-weight: 700;
     background: white;
+    border: 1.5px solid;
+    min-height: 2.1rem;
   }
 
   .btn-modificar-actividad {
-    border: 1px solid var(--accent);
+    border-color: var(--accent);
     color: var(--accent);
   }
 
   .btn-modificar-actividad:hover {
-    border-color: var(--accent);
     background: rgba(146, 64, 14, 0.08);
     transform: translateY(-1px);
   }
 
   .btn-delete-actividad {
-    border: 1px solid var(--error);
+    border-color: var(--error);
     color: var(--error);
   }
 
   .btn-delete-actividad:hover {
-    border-color: var(--error);
     background: rgba(239, 68, 68, 0.05);
     transform: translateY(-1px);
   }
@@ -1949,47 +2275,118 @@
     height: 14px;
   }
 
-  .grupos-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
+  /* Footer eliminado */
+  .card-footer {
+    display: none;
   }
 
-  .badge-grupo {
+  .badge-tipo {
     display: inline-block;
-    padding: 0.2rem 0.5rem;
-    background: var(--text-secondary);
+    padding: 0.35rem 0.65rem;
+    background: var(--primary-light);
     color: white;
-    border-radius: 0.375rem;
+    border-radius: 0.4rem;
+    font-weight: 600;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .badge-estado {
+    display: inline-block;
+    padding: 0.35rem 0.65rem;
+    border-radius: 0.4rem;
+    font-weight: 600;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .badge-estado.estado-programada {
+    background: #ef4444;
+    color: white;
+  }
+
+  .badge-estado.estado-ejecucion {
+    background: #eab308;
+    color: #1a1a1a;
+  }
+
+  .badge-estado.estado-finalizada {
+    background: #10b981;
+    color: white;
+  }
+
+  .badge-estado-small {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.35rem;
     font-weight: 600;
     font-size: 0.65rem;
     white-space: nowrap;
   }
 
-  .grupos-inline {
-    display: none;
+  .badge-estado-small.estado-programada {
+    background: #ef4444;
+    color: white;
   }
 
-  .grupos-disclosure {
+  .badge-estado-small.estado-ejecucion {
+    background: #eab308;
+    color: #1a1a1a;
+  }
+
+  .badge-estado-small.estado-finalizada {
+    background: #10b981;
+    color: white;
+  }
+
+  .map-section {
+    display: none; /* Oculto por defecto (móvil) */
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.25rem;
+  }
+
+  @media (min-width: 1025px) {
+    .map-section {
+      display: flex; /* Visible en escritorio */
+    }
+  }
+
+  .map-container {
     width: 100%;
+    height: 100%;
+    min-height: 500px;
+    border-radius: 0.6rem;
+    overflow: hidden;
     border: 1px solid var(--border);
+    position: relative;
     background: var(--surface);
-    border-radius: 0.5rem;
-    padding: 0.35rem 0.5rem;
+    z-index: 1;
   }
 
-  .grupos-disclosure summary {
-    cursor: pointer;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    list-style: none;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  /* Estilos para Leaflet dentro del contenedor */
+  .map-container :global(.leaflet-container) {
+    height: 100%;
+    width: 100%;
+    border-radius: 0.6rem;
   }
 
-  .grupos-disclosure summary::marker {
+  .map-container :global(.leaflet-control-custom) {
+    border-radius: 0.4rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+  }
+
+  .map-container :global(.leaflet-control-custom):hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .map-container :global(.leaflet-popup-content-wrapper) {
+    border-radius: 0.4rem;
+  }
+
+  .map-container :global(.leaflet-control-attribution) {
     display: none;
   }
 
@@ -2572,6 +2969,153 @@
   .btn-secondary {
     background: var(--text-secondary);
     color: white;
+  }
+
+  /* Nuevos estilos para tabla restructurada */
+  .main-row {
+    border-bottom: 2px solid var(--primary);
+  }
+
+  .main-content-cell {
+    padding: 1rem 0.75rem !important;
+  }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 150px 150px;
+    gap: 1rem;
+  }
+
+  .info-section,
+  .objective-section,
+  .grupos-section,
+  .acciones-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .info-section .info-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .info-section .info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .info-section .info-label {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .info-section .info-text {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .objetivo-section {
+    min-height: 80px;
+  }
+
+  .grupos-section {
+    min-height: 80px;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+  }
+
+  .grupos-section .grupos-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .acciones-section {
+    min-height: 80px;
+    justify-content: center;
+  }
+
+  .acciones-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* Fila intermedia */
+  .info-row {
+    background-color: rgba(5, 150, 105, 0.05);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .info-row-content {
+    padding: 0.75rem 0.75rem !important;
+  }
+
+  .info-row-grid {
+    display: grid;
+    grid-template-columns: 1fr 200px 150px 120px;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .info-row-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .info-row-item.timer {
+    justify-content: flex-end;
+  }
+
+  .info-row-label {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+
+  .btn-location-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.25rem 0;
+    transition: color 0.2s;
+    text-align: left;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .btn-location-cell:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+  }
+
+  .btn-location-cell svg {
+    flex-shrink: 0;
+  }
+
+  .timer-value {
+    font-weight: 700;
+    color: var(--primary);
+    font-size: 0.9rem;
   }
 
   /* Responsive */

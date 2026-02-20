@@ -2,6 +2,8 @@
 
 export interface PuntoEncuentro {
   direccion: string;
+  comuna_corregimiento?: string;
+  barrio_vereda?: string;
   geometry: {
     type: string;
     coordinates: [number, number]; // [longitud, latitud]
@@ -22,6 +24,7 @@ export interface ActividadPlanDistritoVerde {
   observaciones: string;
   telefono?: string;
   marca_temporal?: string; // ISO 8601 timestamp
+  estado_actividad?: "Programada" | "En ejecución" | "Finalizada"; // Estado de la actividad
 }
 
 export interface ActividadesAPIResponse {
