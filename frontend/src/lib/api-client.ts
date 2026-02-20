@@ -8,6 +8,17 @@ const API_BASE_URL = import.meta.env.DEV
   ? '/api'
   : (import.meta.env.VITE_API_URL || 'https://web-production-2d737.up.railway.app');
 
+function resolveUrl(endpoint: string): string {
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
+  return `${API_BASE_URL}${endpoint}`;
+}
+
+interface ApiRequestOptions {
+  requireAuth?: boolean;
+}
+
 /**
  * Cliente HTTP con autenticación automática
  */
@@ -15,8 +26,15 @@ export class ApiClient {
   /**
    * Obtiene headers con autenticación
    */
-  private static async getHeaders(): Promise<HeadersInit> {
+  private static async getHeaders(requireAuth = true): Promise<HeadersInit> {
     const state = get(authStore);
+
+    if (!requireAuth) {
+      return {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+    }
     
     if (!state.token) {
       // Intentar refrescar token
@@ -41,12 +59,13 @@ export class ApiClient {
   /**
    * GET request
    */
-  static async get<T = any>(endpoint: string): Promise<T> {
+  static async get<T = any>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
     try {
-      const headers = await this.getHeaders();
-      console.log(`[API] GET ${API_BASE_URL}${endpoint}`);
+      const headers = await this.getHeaders(options.requireAuth ?? true);
+      const requestUrl = resolveUrl(endpoint);
+      console.log(`[API] GET ${requestUrl}`);
       
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const response = await fetch(requestUrl, {
         method: 'GET',
         headers
       });
@@ -71,9 +90,10 @@ export class ApiClient {
   /**
    * POST request
    */
-  static async post<T = any>(endpoint: string, data: any): Promise<T> {
-    const headers = await this.getHeaders();
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  static async post<T = any>(endpoint: string, data: any, options: ApiRequestOptions = {}): Promise<T> {
+    const headers = await this.getHeaders(options.requireAuth ?? true);
+    const requestUrl = resolveUrl(endpoint);
+    const response = await fetch(requestUrl, {
       method: 'POST',
       headers,
       body: JSON.stringify(data)
@@ -89,9 +109,10 @@ export class ApiClient {
   /**
    * PUT request
    */
-  static async put<T = any>(endpoint: string, data: any): Promise<T> {
-    const headers = await this.getHeaders();
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  static async put<T = any>(endpoint: string, data: any, options: ApiRequestOptions = {}): Promise<T> {
+    const headers = await this.getHeaders(options.requireAuth ?? true);
+    const requestUrl = resolveUrl(endpoint);
+    const response = await fetch(requestUrl, {
       method: 'PUT',
       headers,
       body: JSON.stringify(data)
@@ -107,9 +128,10 @@ export class ApiClient {
   /**
    * DELETE request
    */
-  static async delete<T = any>(endpoint: string): Promise<T> {
-    const headers = await this.getHeaders();
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  static async delete<T = any>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
+    const headers = await this.getHeaders(options.requireAuth ?? true);
+    const requestUrl = resolveUrl(endpoint);
+    const response = await fetch(requestUrl, {
       method: 'DELETE',
       headers
     });

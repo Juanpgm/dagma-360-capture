@@ -3,6 +3,7 @@
 ## ⚠️ PROBLEMA ACTUAL
 
 El proyecto en Vercel tiene configurado `frontend` como **Root Directory**, lo que causa el error:
+
 ```
 Error: The provided path "A:\programing_workspace\artefacto-calitrack-360\frontend\frontend" does not exist.
 ```
@@ -41,13 +42,51 @@ Verifica que estas variables estén configuradas en:
 **Project Settings → Environment Variables**
 
 ```bash
-VITE_API_URL=https://gestorproyectoapi-production.up.railway.app
-VITE_FIREBASE_API_KEY=AIzaSyAjDv54W4S2OYwAJhRHlojN-BFyj4LiHLU
-VITE_FIREBASE_AUTH_DOMAIN=gestorproyecto-37dbb.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=gestorproyecto-37dbb
-VITE_FIREBASE_STORAGE_BUCKET=gestorproyecto-37dbb.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=1045318606467
-VITE_FIREBASE_APP_ID=1:1045318606467:web:3fbca47dce07ad1c96d933
+VITE_API_URL=https://web-production-2d737.up.railway.app
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=dagma-85aad.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=dagma-85aad
+VITE_FIREBASE_STORAGE_BUCKET=dagma-85aad.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=716440297451
+VITE_FIREBASE_APP_ID=1:716440297451:web:6971b2bb4118f7ea3cc3ae
+
+# Secretos backend (Calendar/Firebase Admin)
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+```
+
+### Variable recomendada para Calendar (Vercel + Local)
+
+Para evitar el error:
+
+`calendar_event_error: [Errno 2] No such file or directory ...json`
+
+usa una variable de entorno en lugar de ruta a archivo:
+
+- Nombre: `FIREBASE_SERVICE_ACCOUNT_JSON`
+- Valor: JSON completo de la Service Account en una sola línea (escapando saltos de `private_key` con `\\n`).
+
+#### Configuración local (PowerShell)
+
+```powershell
+# Convertir archivo service-account.json a una sola línea
+$json = (Get-Content .\service-account.json -Raw | ConvertFrom-Json | ConvertTo-Json -Compress)
+
+# Guardar en .env.local
+Add-Content .\frontend\.env.local "FIREBASE_SERVICE_ACCOUNT_JSON=$json"
+```
+
+#### Configuración en Vercel (CLI)
+
+```powershell
+vercel env add FIREBASE_SERVICE_ACCOUNT_JSON production
+vercel env add FIREBASE_SERVICE_ACCOUNT_JSON preview
+vercel env add FIREBASE_SERVICE_ACCOUNT_JSON development
+```
+
+Luego redeploy:
+
+```powershell
+vercel --prod --yes
 ```
 
 ---
@@ -92,6 +131,7 @@ artefacto-calitrack-360/          # ← Raíz del repositorio
 ```
 
 El archivo `frontend/.vercel/project.json` ya está enlazado correctamente a:
+
 ```json
 {
   "projectId": "prj_3S69xXcyqW53Qruc97PRsaUJHiTZ",

@@ -21,6 +21,7 @@ interface RegisterPayload {
   full_name: string;
   cellphone: string;
   grupo: string;
+  rol: string;
 }
 
 interface RegisterResponse {
@@ -28,6 +29,44 @@ interface RegisterResponse {
   message?: string;
   user?: any;
 }
+
+const fetchAdminUserByEmail = async (
+  email: string,
+  token: string
+): Promise<Record<string, any> | null> => {
+  try {
+    const url = new URL(`${API_BASE_URL}/admin/users`);
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('email', email);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn('⚠️ /admin/users returned non-OK status:', response.status);
+      return null;
+    }
+
+    const payload = await response.json();
+    const rows = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload?.users)
+      ? payload.users
+      : [];
+
+    return rows.length > 0 ? (rows[0] as Record<string, any>) : null;
+  } catch (error) {
+    console.warn('⚠️ Unable to fetch user profile from /admin/users:', error);
+    return null;
+  }
+};
 
 /**
  * Login directo con API (sin Firebase)
@@ -88,6 +127,9 @@ const loginWithAPI = async (credentials: LoginCredentials): Promise<LoginRespons
 
     // Combinar datos
     const email = credentials.username;
+    const sessionToken = data.access_token || idToken;
+    const adminUser = await fetchAdminUserByEmail(email, sessionToken);
+
     const userData = {
       email: email,
       uid: firebaseAuth.user.uid,
@@ -95,6 +137,7 @@ const loginWithAPI = async (credentials: LoginCredentials): Promise<LoginRespons
       username: data.user?.username || data.user?.email?.split('@')[0] || email.split('@')[0],
       photoURL: data.user?.photo_url || null,
       ...data.user,
+      ...adminUser,
       roles: data.user?.roles || [],
       permissions: data.user?.permissions || []
     };
@@ -184,6 +227,10 @@ const loginWithFirebase = async (credentials: LoginCredentials): Promise<LoginRe
 
     // 4. Combinar datos de Firebase + Backend
     const email = userCredential.user.email || '';
+    const adminUser = email
+      ? await fetchAdminUserByEmail(email, idToken)
+      : null;
+
     const userData = {
       // Datos de Firebase
       email: email,
@@ -196,6 +243,7 @@ const loginWithFirebase = async (credentials: LoginCredentials): Promise<LoginRe
       
       // Datos del backend (pueden sobrescribir los anteriores si existen)
       ...backendData.user,
+      ...adminUser,
       
       // Roles y permisos
       roles: backendData.roles || [],

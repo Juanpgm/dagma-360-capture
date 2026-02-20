@@ -42,6 +42,26 @@
   function goHome(): void {
     currentView = "home";
   }
+
+  $: currentUser = $authStore.user;
+  $: userFullName =
+    currentUser?.full_name ||
+    currentUser?.nombre_completo ||
+    currentUser?.displayName ||
+    currentUser?.email ||
+    "Usuario";
+  $: userGrupo = currentUser?.grupo || "No asignado";
+  $: userRol =
+    currentUser?.rol ||
+    currentUser?.role ||
+    (Array.isArray(currentUser?.roles) && currentUser.roles.length > 0
+      ? currentUser.roles[0]
+      : "No asignado");
+  $: userAvatarLetter = (
+    userFullName?.[0] ||
+    currentUser?.email?.[0] ||
+    "U"
+  ).toUpperCase();
 </script>
 
 {#if currentView === "visita"}
@@ -56,15 +76,16 @@
       <div class="header-right">
         <div class="user-chip">
           <div class="user-avatar">
-            {($authStore.user?.email?.[0] || "U").toUpperCase()}
+            {userAvatarLetter}
           </div>
           <div class="user-meta">
-            <span class="user-name"
-              >{$authStore.user?.displayName ||
-                $authStore.user?.email ||
-                "Usuario"}</span
-            >
-            <span class="user-email">{$authStore.user?.email || ""}</span>
+            <span class="user-name">{userFullName}</span>
+            <div class="user-subline">
+              <span class="user-detail"
+                ><strong>Grupo:</strong> {userGrupo}</span
+              >
+              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
+            </div>
           </div>
         </div>
         <button class="btn-logout" on:click={handleLogout}>
@@ -82,15 +103,16 @@
       <div class="header-right">
         <div class="user-chip">
           <div class="user-avatar">
-            {($authStore.user?.email?.[0] || "U").toUpperCase()}
+            {userAvatarLetter}
           </div>
           <div class="user-meta">
-            <span class="user-name"
-              >{$authStore.user?.displayName ||
-                $authStore.user?.email ||
-                "Usuario"}</span
-            >
-            <span class="user-email">{$authStore.user?.email || ""}</span>
+            <span class="user-name">{userFullName}</span>
+            <div class="user-subline">
+              <span class="user-detail"
+                ><strong>Grupo:</strong> {userGrupo}</span
+              >
+              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
+            </div>
           </div>
         </div>
         <button class="btn-logout" on:click={handleLogout}>
@@ -108,15 +130,16 @@
       <div class="header-right">
         <div class="user-chip">
           <div class="user-avatar">
-            {($authStore.user?.email?.[0] || "U").toUpperCase()}
+            {userAvatarLetter}
           </div>
           <div class="user-meta">
-            <span class="user-name"
-              >{$authStore.user?.displayName ||
-                $authStore.user?.email ||
-                "Usuario"}</span
-            >
-            <span class="user-email">{$authStore.user?.email || ""}</span>
+            <span class="user-name">{userFullName}</span>
+            <div class="user-subline">
+              <span class="user-detail"
+                ><strong>Grupo:</strong> {userGrupo}</span
+              >
+              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
+            </div>
           </div>
         </div>
         <button class="btn-logout" on:click={handleLogout}>
@@ -133,15 +156,16 @@
       <div class="header-right">
         <div class="user-chip">
           <div class="user-avatar">
-            {($authStore.user?.email?.[0] || "U").toUpperCase()}
+            {userAvatarLetter}
           </div>
           <div class="user-meta">
-            <span class="user-name"
-              >{$authStore.user?.displayName ||
-                $authStore.user?.email ||
-                "Usuario"}</span
-            >
-            <span class="user-email">{$authStore.user?.email || ""}</span>
+            <span class="user-name">{userFullName}</span>
+            <div class="user-subline">
+              <span class="user-detail"
+                ><strong>Grupo:</strong> {userGrupo}</span
+              >
+              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
+            </div>
           </div>
         </div>
         <button class="btn-logout" on:click={handleLogout}>
@@ -152,11 +176,11 @@
 
     <div class="convocatorias-banner">
       <div class="banner-text">
-        <h3>Convocatorias - Plan Distrito Verde</h3>
+        <h3>Programación - Plan Distrito Verde</h3>
         <p>Consulta las actividades programadas y sus detalles</p>
       </div>
       <button class="btn-convocatorias" on:click={openConvocatorias}>
-        Ver Convocatorias
+        Ver Programación
       </button>
     </div>
 
@@ -233,11 +257,11 @@
 
   .user-chip {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.75rem;
     background: var(--surface);
     padding: 0.5rem 0.75rem;
-    border-radius: 999px;
+    border-radius: 0.9rem;
     border: 1px solid var(--border);
   }
 
@@ -260,18 +284,26 @@
   .user-meta {
     display: flex;
     flex-direction: column;
+    gap: 0.2rem;
     line-height: 1.2;
   }
 
   .user-name {
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-primary);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 
-  .user-email {
+  .user-detail {
     color: var(--text-secondary);
-    font-size: 0.75rem;
+    font-size: 0.74rem;
+  }
+
+  .user-subline {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
   }
 
   .btn-back {

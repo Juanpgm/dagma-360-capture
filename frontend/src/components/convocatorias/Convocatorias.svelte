@@ -1,9 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    convocarActividad,
+    eliminarActividadPlanDistritoVerde,
     getActividadesPlanDistritoVerde,
     getGoogleMapsUrl,
+    getLideresGrupo,
+    modificarActividadPlanDistritoVerde,
   } from "../../api/actividades";
+  import { GRUPOS_DAGMA } from "../../lib/grupos";
+  import { authStore } from "../../stores/authStore";
+  import type { LiderGrupoOption } from "../../api/actividades";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
 
   // Estado
@@ -19,11 +26,153 @@
   let selectedLider = "";
   let fechaDesde = "";
   let fechaHasta = "";
+  let filtrosVisibles = true;
 
   // Opciones para filtros
   let grupos: string[] = [];
   let tiposJornada: string[] = [];
   let lideres: string[] = [];
+  let lideresGrupoOptions: LiderGrupoOption[] = [];
+  let liderDropdownOpen = false;
+  let liderSearchQuery = "";
+  let liderDropdownRef: HTMLDivElement | null = null;
+  let gruposDropdownOpen = false;
+  let gruposSearchQuery = "";
+  let gruposDropdownRef: HTMLDivElement | null = null;
+  let dateRangeOpen = false;
+  let dateRangeRef: HTMLDivElement | null = null;
+  let headerSectionElement: HTMLDivElement | null = null;
+  let showBackToTopButton = false;
+  const gruposCatalogo = [...new Set(GRUPOS_DAGMA)].sort((a, b) =>
+    a.localeCompare(b, "es"),
+  );
+  const tiposJornadaDefault = [
+    "Jornada de Limpieza",
+    "Jornada de Siembra",
+    "Jornada de Mantenimiento",
+    "Jornada de Sensibilización",
+    "Jornada Comunitaria",
+  ];
+
+  // Estado modal convocar actividad
+  let isConvocatoriaModalOpen = false;
+  let pasoConvocatoria = 1;
+  let guardandoConvocatoria = false;
+  let convocatoriaError = "";
+  let convocatoriaFeedback = "";
+  let convocatoriaFeedbackType: "success" | "error" = "success";
+  let convocatoriaModalElement: HTMLDivElement | null = null;
+  let deletingActividadId: string | null = null;
+  let modifyingActividadId: string | null = null;
+  let isEditMode = false;
+  let editingActividadId: string | null = null;
+  let isConfirmModifyModalOpen = false;
+  let pendingModifyPayload: any = null;
+  let pendingModifyActividadId: string | null = null;
+
+  let tipoJornadaForm = "";
+  let fechaActividadForm = "";
+  let horaEncuentroForm = "";
+  let duracionHorasForm: string | number = "";
+  let gruposRequeridosForm: string[] = [];
+  let liderActividadForm = "";
+  let objetivoActividadForm = "";
+  let observacionesForm = "";
+
+  let direccionPuntoEncuentroForm = "";
+  let latitudPuntoEncuentroForm: string | number = "";
+  let longitudPuntoEncuentroForm: string | number = "";
+  let latitudPuntoEncuentroNumero = Number.NaN;
+  let longitudPuntoEncuentroNumero = Number.NaN;
+  let tiposJornadaDisponibles: string[] = [];
+
+  function normalizeSearchValue(value: string): string {
+    return value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  function normalizeTextInput(value: string | number): string {
+    return `${value ?? ""}`.trim();
+  }
+
+  function parseCoordinate(value: string | number): number {
+    const normalizedValue = normalizeTextInput(value).replace(",", ".");
+    return Number(normalizedValue);
+  }
+
+  function updateBackToTopVisibility(): void {
+    if (!headerSectionElement) {
+      showBackToTopButton = window.scrollY > 220;
+      return;
+    }
+
+    const headerRect = headerSectionElement.getBoundingClientRect();
+    showBackToTopButton = headerRect.bottom <= 0;
+  }
+
+  function handleWindowScroll(): void {
+    updateBackToTopVisibility();
+  }
+
+  function scrollToTop(): void {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  $: latitudPuntoEncuentroNumero = parseCoordinate(latitudPuntoEncuentroForm);
+  $: longitudPuntoEncuentroNumero = parseCoordinate(longitudPuntoEncuentroForm);
+
+  $: tiposJornadaDisponibles =
+    tiposJornada.length > 0 ? tiposJornada : tiposJornadaDefault;
+
+  $: filteredLideresGrupoOptions = lideresGrupoOptions.filter((lider) => {
+    const query = normalizeSearchValue(liderSearchQuery);
+    if (!query) return true;
+
+    return (
+      normalizeSearchValue(lider.nombre).includes(query) ||
+      normalizeSearchValue(lider.grupo).includes(query)
+    );
+  });
+
+  $: liderSeleccionado =
+    lideresGrupoOptions.find((lider) => lider.nombre === liderActividadForm) ||
+    null;
+
+  $: filteredGruposCatalogo = gruposCatalogo.filter((grupo) => {
+    const query = normalizeSearchValue(gruposSearchQuery);
+    if (!query) return true;
+    return normalizeSearchValue(grupo).includes(query);
+  });
+
+  $: currentUser = $authStore.user;
+  $: currentUserEmail = currentUser?.email || "";
+  $: currentUserTelefono =
+    currentUser?.cellphone ||
+    currentUser?.telefono ||
+    currentUser?.phone ||
+    "No registrado";
+
+  $: puedeContinuarPasoUno =
+    !!tipoJornadaForm &&
+    !!fechaActividadForm &&
+    !!horaEncuentroForm &&
+    !!normalizeTextInput(duracionHorasForm) &&
+    !Number.isNaN(Number(normalizeTextInput(duracionHorasForm))) &&
+    Number(normalizeTextInput(duracionHorasForm)) > 0 &&
+    gruposRequeridosForm.length > 0 &&
+    !!liderActividadForm.trim() &&
+    !!objetivoActividadForm.trim();
+
+  $: puedeConvocar =
+    puedeContinuarPasoUno &&
+    !!direccionPuntoEncuentroForm.trim() &&
+    !!normalizeTextInput(latitudPuntoEncuentroForm) &&
+    !!normalizeTextInput(longitudPuntoEncuentroForm) &&
+    !Number.isNaN(latitudPuntoEncuentroNumero) &&
+    !Number.isNaN(longitudPuntoEncuentroNumero);
 
   onMount(async () => {
     try {
@@ -46,6 +195,8 @@
         ...new Set(actividades.map((a) => a.lider_actividad).filter(Boolean)),
       ].sort();
 
+      lideresGrupoOptions = await getLideresGrupo();
+
       filteredActividades = actividades;
       console.log("[Convocatorias] Filtros configurados correctamente");
     } catch (err) {
@@ -54,6 +205,17 @@
     } finally {
       loading = false;
     }
+  });
+
+  onMount(() => {
+    updateBackToTopVisibility();
+
+    const handleResize = () => updateBackToTopVisibility();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
   });
 
   // Aplicar filtros
@@ -170,6 +332,325 @@
     fechaHasta = "";
   }
 
+  function formatDateToDDMMYYYY(dateInput: string): string {
+    const [year, month, day] = dateInput.split("-");
+    return `${day}/${month}/${year}`;
+  }
+
+  function formatDateToInput(dateValue: string): string {
+    if (!dateValue) return "";
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      return dateValue;
+    }
+
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
+      const [day, month, year] = dateValue.split("/");
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+
+    return "";
+  }
+
+  function resetConvocatoriaForm() {
+    pasoConvocatoria = 1;
+    guardandoConvocatoria = false;
+    convocatoriaError = "";
+
+    tipoJornadaForm = "";
+    fechaActividadForm = "";
+    horaEncuentroForm = "";
+    duracionHorasForm = "";
+    gruposRequeridosForm = [];
+    liderActividadForm = "";
+    objetivoActividadForm = "";
+    observacionesForm = "";
+
+    direccionPuntoEncuentroForm = "";
+    latitudPuntoEncuentroForm = "";
+    longitudPuntoEncuentroForm = "";
+    liderDropdownOpen = false;
+    liderSearchQuery = "";
+    gruposDropdownOpen = false;
+    gruposSearchQuery = "";
+  }
+
+  function toggleLiderDropdown() {
+    liderDropdownOpen = !liderDropdownOpen;
+    if (!liderDropdownOpen) {
+      liderSearchQuery = "";
+    }
+  }
+
+  function seleccionarLider(lider: LiderGrupoOption) {
+    liderActividadForm = lider.nombre;
+    liderDropdownOpen = false;
+    liderSearchQuery = "";
+  }
+
+  function toggleGruposDropdown() {
+    gruposDropdownOpen = !gruposDropdownOpen;
+    if (!gruposDropdownOpen) {
+      gruposSearchQuery = "";
+    }
+  }
+
+  function toggleGrupoRequerido(grupo: string) {
+    if (gruposRequeridosForm.includes(grupo)) {
+      gruposRequeridosForm = gruposRequeridosForm.filter(
+        (item) => item !== grupo,
+      );
+      return;
+    }
+
+    gruposRequeridosForm = [...gruposRequeridosForm, grupo];
+  }
+
+  function removeGrupoRequerido(grupo: string) {
+    gruposRequeridosForm = gruposRequeridosForm.filter(
+      (item) => item !== grupo,
+    );
+  }
+
+  function formatDateForDisplay(value: string): string {
+    if (!value) return "";
+    const [year, month, day] = value.split("-");
+    if (!year || !month || !day) return value;
+    return `${day}/${month}/${year}`;
+  }
+
+  function toggleDateRangePicker() {
+    dateRangeOpen = !dateRangeOpen;
+  }
+
+  function clearDateRange() {
+    fechaDesde = "";
+    fechaHasta = "";
+  }
+
+  function closeDropdownsOnOutsideClick(event: MouseEvent) {
+    if (liderDropdownRef && !liderDropdownRef.contains(event.target as Node)) {
+      liderDropdownOpen = false;
+    }
+
+    if (
+      gruposDropdownRef &&
+      !gruposDropdownRef.contains(event.target as Node)
+    ) {
+      gruposDropdownOpen = false;
+    }
+
+    if (dateRangeRef && !dateRangeRef.contains(event.target as Node)) {
+      dateRangeOpen = false;
+    }
+  }
+
+  function getGrupoColorClass(grupo: string): string {
+    const normalized = normalizeSearchValue(grupo);
+    const palette = [
+      "grupo-color-1",
+      "grupo-color-2",
+      "grupo-color-3",
+      "grupo-color-4",
+      "grupo-color-5",
+      "grupo-color-6",
+    ];
+
+    const hash = [...normalized].reduce(
+      (acc, char) => acc + char.charCodeAt(0),
+      0,
+    );
+
+    return palette[hash % palette.length];
+  }
+
+  $: dateRangeSummary =
+    fechaDesde || fechaHasta
+      ? `${formatDateForDisplay(fechaDesde) || "Inicio"} — ${formatDateForDisplay(fechaHasta) || "Fin"}`
+      : "Rango de fechas";
+
+  function openConvocatoriaModal() {
+    convocatoriaError = "";
+    resetConvocatoriaForm();
+    isEditMode = false;
+    editingActividadId = null;
+    isConvocatoriaModalOpen = true;
+  }
+
+  function openModificarActividadModal(actividad: ActividadPlanDistritoVerde) {
+    if (!actividad?.id) return;
+
+    convocatoriaError = "";
+    resetConvocatoriaForm();
+
+    isEditMode = true;
+    editingActividadId = actividad.id;
+
+    tipoJornadaForm = actividad.tipo_jornada || "";
+    fechaActividadForm = formatDateToInput(actividad.fecha_actividad || "");
+    horaEncuentroForm = (actividad.hora_encuentro || "").slice(0, 5);
+    duracionHorasForm = actividad.duracion_actividad
+      ? Number(actividad.duracion_actividad).toString()
+      : "";
+    gruposRequeridosForm = [...(actividad.grupos_requeridos || [])];
+    liderActividadForm = (actividad.lider_actividad || "").trim();
+    objetivoActividadForm = actividad.objetivo_actividad || "";
+    observacionesForm = actividad.observaciones || "";
+
+    direccionPuntoEncuentroForm = actividad.punto_encuentro?.direccion || "";
+    latitudPuntoEncuentroForm =
+      actividad.punto_encuentro?.geometry?.coordinates?.[1]?.toString() || "";
+    longitudPuntoEncuentroForm =
+      actividad.punto_encuentro?.geometry?.coordinates?.[0]?.toString() || "";
+
+    isConvocatoriaModalOpen = true;
+  }
+
+  function setConvocatoriaError(message: string) {
+    convocatoriaError = message;
+    convocatoriaModalElement?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function closeConvocatoriaModal() {
+    isConvocatoriaModalOpen = false;
+    convocatoriaError = "";
+    isEditMode = false;
+    editingActividadId = null;
+  }
+
+  function irAStepDos() {
+    if (!puedeContinuarPasoUno) {
+      setConvocatoriaError(
+        "Completa los datos obligatorios del paso 1 para continuar.",
+      );
+      return;
+    }
+    convocatoriaError = "";
+    pasoConvocatoria = 2;
+  }
+
+  function volverAStepUno() {
+    convocatoriaError = "";
+    pasoConvocatoria = 1;
+  }
+
+  async function enviarConvocatoria() {
+    if (!puedeConvocar) {
+      setConvocatoriaError(
+        "Completa la dirección y coordenadas del punto de encuentro para convocar.",
+      );
+      return;
+    }
+
+    if (!currentUserEmail) {
+      setConvocatoriaError(
+        "No fue posible obtener el email del usuario autenticado.",
+      );
+      return;
+    }
+
+    try {
+      const payload = {
+        tipo_jornada: tipoJornadaForm,
+        fecha_actividad: formatDateToDDMMYYYY(fechaActividadForm),
+        hora_encuentro: horaEncuentroForm,
+        duracion_actividad: duracionHorasForm ? Number(duracionHorasForm) : 0,
+        grupos_requeridos: gruposRequeridosForm,
+        lider_actividad: liderActividadForm.trim(),
+        objetivo_actividad: objetivoActividadForm.trim(),
+        observaciones: observacionesForm.trim(),
+        punto_encuentro: {
+          direccion: direccionPuntoEncuentroForm.trim(),
+          geometry: {
+            type: "Point" as const,
+            coordinates: [
+              longitudPuntoEncuentroNumero,
+              latitudPuntoEncuentroNumero,
+            ] as [number, number],
+          },
+        },
+        telefono: currentUserTelefono,
+        email: currentUserEmail,
+      };
+
+      if (isEditMode) {
+        if (!editingActividadId) {
+          throw new Error("No se encontró el id de la actividad a modificar.");
+        }
+
+        // Guardar payload pendiente y mostrar modal de confirmación
+        pendingModifyPayload = payload;
+        pendingModifyActividadId = editingActividadId;
+        isConfirmModifyModalOpen = true;
+        return;
+      }
+
+      guardandoConvocatoria = true;
+      convocatoriaError = "";
+      const response = await convocarActividad(payload);
+
+      convocatoriaFeedbackType = "success";
+      convocatoriaFeedback =
+        response.message || "Programación registrada exitosamente.";
+
+      closeConvocatoriaModal();
+      await retry();
+    } catch (err) {
+      console.error("[Convocatorias] Error al guardar actividad:", err);
+      convocatoriaError =
+        "No fue posible registrar la programación. Verifica la información e intenta de nuevo.";
+      convocatoriaFeedbackType = "error";
+      convocatoriaFeedback = convocatoriaError;
+    } finally {
+      guardandoConvocatoria = false;
+    }
+  }
+
+  async function confirmarModificacion() {
+    if (!pendingModifyPayload || !pendingModifyActividadId) {
+      return;
+    }
+
+    try {
+      guardandoConvocatoria = true;
+      convocatoriaError = "";
+
+      modifyingActividadId = pendingModifyActividadId;
+      const response = await modificarActividadPlanDistritoVerde(
+        pendingModifyActividadId,
+        pendingModifyPayload,
+      );
+
+      convocatoriaFeedbackType = "success";
+      convocatoriaFeedback =
+        (response as { message?: string })?.message ||
+        "Actividad modificada exitosamente.";
+
+      // Limpiar estados
+      pendingModifyPayload = null;
+      pendingModifyActividadId = null;
+      isConfirmModifyModalOpen = false;
+
+      closeConvocatoriaModal();
+      await retry();
+    } catch (err) {
+      console.error("[Convocatorias] Error al modificar actividad:", err);
+      convocatoriaError =
+        "No fue posible modificar la actividad. Verifica la información e intenta de nuevo.";
+      convocatoriaFeedbackType = "error";
+      convocatoriaFeedback = convocatoriaError;
+    } finally {
+      guardandoConvocatoria = false;
+      modifyingActividadId = null;
+    }
+  }
+
+  function cancelarModificacion() {
+    pendingModifyPayload = null;
+    pendingModifyActividadId = null;
+    isConfirmModifyModalOpen = false;
+  }
+
   async function retry() {
     loading = true;
     error = "";
@@ -185,6 +666,7 @@
       lideres = [
         ...new Set(actividades.map((a) => a.lider_actividad).filter(Boolean)),
       ].sort();
+      lideresGrupoOptions = await getLideresGrupo();
       filteredActividades = actividades;
     } catch (err) {
       console.error("[Convocatorias] Error al reintentar:", err);
@@ -193,67 +675,172 @@
       loading = false;
     }
   }
+
+  async function eliminarActividad(actividadId: string) {
+    if (!actividadId || deletingActividadId) return;
+
+    const shouldDelete = window.confirm(
+      "¿Deseas eliminar esta actividad de forma permanente?",
+    );
+
+    if (!shouldDelete) return;
+
+    try {
+      deletingActividadId = actividadId;
+      await eliminarActividadPlanDistritoVerde(actividadId);
+      convocatoriaFeedbackType = "success";
+      convocatoriaFeedback = "Actividad eliminada exitosamente.";
+      await retry();
+    } catch (err) {
+      console.error("[Convocatorias] Error al eliminar actividad:", err);
+      convocatoriaFeedbackType = "error";
+      convocatoriaFeedback =
+        "No fue posible eliminar la actividad. Intenta nuevamente.";
+    } finally {
+      deletingActividadId = null;
+    }
+  }
+
+  function modificarActividad(actividad: ActividadPlanDistritoVerde) {
+    openModificarActividadModal(actividad);
+  }
 </script>
+
+<svelte:window
+  on:click={closeDropdownsOnOutsideClick}
+  on:scroll={handleWindowScroll}
+/>
 
 <div class="convocatorias-container">
   <div class="convocatorias-content">
-    <div class="header-section">
+    <div class="header-section" bind:this={headerSectionElement}>
       <div>
-        <h1 class="page-title">Convocatorias a Actividades</h1>
+        <h1 class="page-title">Programación de Actividades</h1>
         <p class="page-subtitle">
           Gestión de actividades y jornadas programadas en el marco del Plan
           Distrito Verde
         </p>
       </div>
-      <div class="stats">
-        <div class="stat-item">
-          <span class="stat-value">{filteredActividades.length}</span>
-          <span class="stat-label">Actividades</span>
+      <div class="header-actions">
+        <div class="stats">
+          <div class="stat-item">
+            <span class="stat-value">{filteredActividades.length}</span>
+            <span class="stat-label">Actividades</span>
+          </div>
+        </div>
+
+        <div class="header-buttons">
+          <button
+            class="btn-programar-actividad"
+            type="button"
+            on:click={openConvocatoriaModal}
+          >
+            + Programar nueva actividad
+          </button>
+
+          <button
+            type="button"
+            class="btn-toggle-filtros"
+            on:click={() => (filtrosVisibles = !filtrosVisibles)}
+          >
+            {filtrosVisibles ? "Ocultar filtros" : "Mostrar filtros"}
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Controles de filtrado -->
-    <div class="filters-section">
-      <div class="search-bar">
-        <input
-          type="text"
-          placeholder="Buscar en todas las columnas..."
-          bind:value={searchQuery}
-        />
+    {#if filtrosVisibles}
+      <div class="filters-section">
+        <div class="search-bar">
+          <input
+            type="text"
+            placeholder="Buscar en todas las columnas..."
+            bind:value={searchQuery}
+          />
+        </div>
+
+        <div class="filters-grid">
+          <select bind:value={selectedGrupo}>
+            <option value="">Todos los grupos</option>
+            {#each grupos as grupo}
+              <option value={grupo}>{grupo}</option>
+            {/each}
+          </select>
+
+          <select bind:value={selectedTipoJornada}>
+            <option value="">Todos los tipos</option>
+            {#each tiposJornada as tipo}
+              <option value={tipo}>{tipo}</option>
+            {/each}
+          </select>
+
+          <select bind:value={selectedLider}>
+            <option value="">Todos los líderes</option>
+            {#each lideres as lider}
+              <option value={lider}>{lider}</option>
+            {/each}
+          </select>
+
+          <div class="date-range-picker" bind:this={dateRangeRef}>
+            <button
+              type="button"
+              class="date-range-trigger"
+              aria-haspopup="dialog"
+              aria-expanded={dateRangeOpen}
+              on:click={toggleDateRangePicker}
+            >
+              <span>{dateRangeSummary}</span>
+              <span class="date-range-arrow">▾</span>
+            </button>
+
+            {#if dateRangeOpen}
+              <div
+                class="date-range-panel"
+                role="dialog"
+                aria-label="Seleccionar rango de fechas"
+              >
+                <label>
+                  <span>Desde</span>
+                  <input
+                    type="date"
+                    bind:value={fechaDesde}
+                    aria-label="Fecha desde"
+                  />
+                </label>
+
+                <label>
+                  <span>Hasta</span>
+                  <input
+                    type="date"
+                    bind:value={fechaHasta}
+                    aria-label="Fecha hasta"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  class="date-range-clear"
+                  on:click={clearDateRange}
+                >
+                  Limpiar rango
+                </button>
+              </div>
+            {/if}
+          </div>
+
+          <button class="btn-reset" on:click={resetFilters}>
+            Limpiar filtros
+          </button>
+        </div>
       </div>
+    {/if}
 
-      <div class="filters-grid">
-        <select bind:value={selectedGrupo}>
-          <option value="">Todos los grupos</option>
-          {#each grupos as grupo}
-            <option value={grupo}>{grupo}</option>
-          {/each}
-        </select>
-
-        <select bind:value={selectedTipoJornada}>
-          <option value="">Todos los tipos</option>
-          {#each tiposJornada as tipo}
-            <option value={tipo}>{tipo}</option>
-          {/each}
-        </select>
-
-        <select bind:value={selectedLider}>
-          <option value="">Todos los líderes</option>
-          {#each lideres as lider}
-            <option value={lider}>{lider}</option>
-          {/each}
-        </select>
-
-        <input type="date" bind:value={fechaDesde} placeholder="Fecha desde" />
-
-        <input type="date" bind:value={fechaHasta} placeholder="Fecha hasta" />
-
-        <button class="btn-reset" on:click={resetFilters}>
-          Limpiar filtros
-        </button>
+    {#if convocatoriaFeedback}
+      <div class={`convocatoria-feedback ${convocatoriaFeedbackType}`}>
+        {convocatoriaFeedback}
       </div>
-    </div>
+    {/if}
 
     {#if loading}
       <div class="loading-state">
@@ -285,6 +872,7 @@
               <th>Información Básica</th>
               <th>Objetivo</th>
               <th>Grupos</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -378,6 +966,64 @@
                     {/each}
                   </div>
                 </td>
+                <td class="acciones-cell">
+                  <div class="acciones-buttons">
+                    <button
+                      type="button"
+                      class="btn-modificar-actividad"
+                      title="Modificar actividad"
+                      aria-label="Modificar actividad"
+                      disabled={modifyingActividadId === actividad.id}
+                      on:click={() => modificarActividad(actividad)}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M12 20h9"></path><path
+                          d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"
+                        ></path>
+                      </svg>
+                      <span>Modificar</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      class="btn-delete-actividad"
+                      title="Eliminar actividad"
+                      aria-label="Eliminar actividad"
+                      disabled={deletingActividadId === actividad.id}
+                      on:click={() => eliminarActividad(actividad.id)}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+                        ></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                      </svg>
+                      <span>Eliminar</span>
+                    </button>
+                  </div>
+                </td>
               </tr>
             {/each}
           </tbody>
@@ -386,6 +1032,353 @@
     {/if}
   </div>
 </div>
+
+{#if showBackToTopButton}
+  <button
+    type="button"
+    class="btn-back-to-top"
+    on:click={scrollToTop}
+    aria-label="Volver al inicio"
+    title="Volver al inicio"
+  >
+    ↑
+  </button>
+{/if}
+
+{#if isConvocatoriaModalOpen}
+  <div
+    class="convocatoria-modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-label={isEditMode
+      ? "Modificar programación de actividad"
+      : "Registrar programación de actividad"}
+  >
+    <div class="convocatoria-modal" bind:this={convocatoriaModalElement}>
+      <div class="convocatoria-modal-header">
+        <h2>
+          {isEditMode ? "Modificar Actividad" : "Programación de Actividad"}
+        </h2>
+        <p>Paso {pasoConvocatoria} de 2</p>
+      </div>
+
+      {#if convocatoriaError}
+        <div class="convocatoria-error">{convocatoriaError}</div>
+      {/if}
+
+      {#if pasoConvocatoria === 1}
+        <div class="convocatoria-form-grid">
+          <label>
+            <span>Tipo de jornada *</span>
+            <select bind:value={tipoJornadaForm}>
+              <option value="">Selecciona una opción</option>
+              {#each tiposJornadaDisponibles as tipo}
+                <option value={tipo}>{tipo}</option>
+              {/each}
+            </select>
+          </label>
+
+          <label>
+            <span>Fecha de actividad *</span>
+            <input type="date" bind:value={fechaActividadForm} />
+          </label>
+
+          <label>
+            <span>Hora de encuentro *</span>
+            <input type="time" bind:value={horaEncuentroForm} />
+          </label>
+
+          <label>
+            <span>Duración (horas) *</span>
+            <div class="duration-input-wrapper">
+              <input
+                class="duration-input"
+                type="number"
+                min="0.5"
+                step="0.5"
+                inputmode="decimal"
+                bind:value={duracionHorasForm}
+                placeholder="2"
+              />
+              <span class="duration-suffix">h</span>
+            </div>
+          </label>
+
+          <label>
+            <span>Líder de actividad *</span>
+            <div class="lider-dropdown" bind:this={liderDropdownRef}>
+              <button
+                type="button"
+                class="lider-dropdown-trigger"
+                class:open={liderDropdownOpen}
+                on:click={toggleLiderDropdown}
+              >
+                {#if liderSeleccionado}
+                  <span class="lider-name">{liderSeleccionado.nombre}</span>
+                  <span
+                    class={`lider-grupo-badge ${getGrupoColorClass(
+                      liderSeleccionado.grupo,
+                    )}`}
+                  >
+                    {liderSeleccionado.grupo}
+                  </span>
+                {:else}
+                  <span class="lider-placeholder">Selecciona un líder</span>
+                {/if}
+                <span class="lider-dropdown-arrow">▾</span>
+              </button>
+
+              {#if liderDropdownOpen}
+                <div class="lider-dropdown-panel">
+                  <input
+                    type="search"
+                    class="lider-search-input"
+                    bind:value={liderSearchQuery}
+                    placeholder="Buscar líder o grupo..."
+                  />
+
+                  <div class="lider-options-list">
+                    {#if filteredLideresGrupoOptions.length === 0}
+                      <div class="lider-empty-state">
+                        No se encontraron líderes.
+                      </div>
+                    {:else}
+                      {#each filteredLideresGrupoOptions as lider}
+                        <button
+                          type="button"
+                          class="lider-option-item"
+                          class:selected={lider.nombre === liderActividadForm}
+                          on:click={() => seleccionarLider(lider)}
+                        >
+                          <span class="lider-option-name">{lider.nombre}</span>
+                          <span
+                            class={`lider-grupo-badge ${getGrupoColorClass(
+                              lider.grupo,
+                            )}`}
+                          >
+                            {lider.grupo}
+                          </span>
+                        </button>
+                      {/each}
+                    {/if}
+                  </div>
+                </div>
+              {/if}
+            </div>
+          </label>
+
+          <label class="grupos-field grupos-required-field">
+            <span>Grupos requeridos *</span>
+            <div class="grupos-required-dropdown" bind:this={gruposDropdownRef}>
+              <button
+                type="button"
+                class="grupos-required-trigger"
+                class:open={gruposDropdownOpen}
+                on:click={toggleGruposDropdown}
+              >
+                {#if gruposRequeridosForm.length === 0}
+                  <span class="grupos-required-placeholder"
+                    >Selecciona uno o varios grupos</span
+                  >
+                {:else}
+                  <div class="grupos-selected-chips">
+                    {#each gruposRequeridosForm as grupoSeleccionado (grupoSeleccionado)}
+                      <span
+                        class={`lider-grupo-badge ${getGrupoColorClass(
+                          grupoSeleccionado,
+                        )}`}
+                      >
+                        {grupoSeleccionado}
+                      </span>
+                    {/each}
+                  </div>
+                {/if}
+                <span class="grupos-required-arrow">▾</span>
+              </button>
+
+              {#if gruposDropdownOpen}
+                <div class="grupos-required-panel">
+                  <input
+                    type="search"
+                    class="grupos-search-input"
+                    bind:value={gruposSearchQuery}
+                    placeholder="Buscar grupo..."
+                  />
+
+                  <div class="grupos-options-list">
+                    {#if filteredGruposCatalogo.length === 0}
+                      <div class="grupos-empty-state">
+                        No se encontraron grupos.
+                      </div>
+                    {:else}
+                      {#each filteredGruposCatalogo as grupoItem}
+                        <button
+                          type="button"
+                          class="grupos-option-item"
+                          class:selected={gruposRequeridosForm.includes(
+                            grupoItem,
+                          )}
+                          on:click={() => toggleGrupoRequerido(grupoItem)}
+                        >
+                          <span class="grupos-option-check"
+                            >{gruposRequeridosForm.includes(grupoItem)
+                              ? "✓"
+                              : ""}</span
+                          >
+                          <span
+                            class={`lider-grupo-badge ${getGrupoColorClass(grupoItem)}`}
+                            >{grupoItem}</span
+                          >
+                        </button>
+                      {/each}
+                    {/if}
+                  </div>
+
+                  {#if gruposRequeridosForm.length > 0}
+                    <div class="grupos-required-footer">
+                      {#each gruposRequeridosForm as grupoSeleccionado (grupoSeleccionado)}
+                        <button
+                          type="button"
+                          class="grupo-selected-pill"
+                          on:click={() =>
+                            removeGrupoRequerido(grupoSeleccionado)}
+                          title="Quitar grupo"
+                        >
+                          <span>{grupoSeleccionado}</span>
+                          <span>×</span>
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+            </div>
+          </label>
+
+          <label class="full-width">
+            <span>Objetivo de la actividad *</span>
+            <textarea
+              rows="4"
+              bind:value={objetivoActividadForm}
+              placeholder="Describe el objetivo de la actividad"
+            ></textarea>
+          </label>
+
+          <label class="full-width">
+            <span>Observaciones</span>
+            <textarea
+              rows="4"
+              bind:value={observacionesForm}
+              placeholder="Observaciones adicionales"
+            ></textarea>
+          </label>
+        </div>
+
+        <div class="convocatoria-actions">
+          <button
+            type="button"
+            class="btn-secondary"
+            on:click={closeConvocatoriaModal}
+          >
+            Cancelar
+          </button>
+          <button type="button" class="btn-primary" on:click={irAStepDos}>
+            Continuar
+          </button>
+        </div>
+      {:else}
+        <div class="convocatoria-form-grid">
+          <label class="full-width">
+            <span>Dirección del punto de encuentro *</span>
+            <input
+              type="text"
+              bind:value={direccionPuntoEncuentroForm}
+              placeholder="Dirección o referencia del punto de encuentro"
+            />
+          </label>
+
+          <label>
+            <span>Latitud *</span>
+            <input
+              type="text"
+              inputmode="decimal"
+              bind:value={latitudPuntoEncuentroForm}
+              placeholder="3.4516"
+            />
+          </label>
+
+          <label>
+            <span>Longitud *</span>
+            <input
+              type="text"
+              inputmode="decimal"
+              bind:value={longitudPuntoEncuentroForm}
+              placeholder="-76.5320"
+            />
+          </label>
+        </div>
+
+        <div class="convocatoria-actions">
+          <button type="button" class="btn-secondary" on:click={volverAStepUno}>
+            Atrás
+          </button>
+          <button
+            type="button"
+            class="btn-primary"
+            on:click={enviarConvocatoria}
+            disabled={guardandoConvocatoria}
+          >
+            {guardandoConvocatoria
+              ? isEditMode
+                ? "Modificando..."
+                : "Programando..."
+              : isEditMode
+                ? "Modificar"
+                : "Programar"}
+          </button>
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
+
+{#if isConfirmModifyModalOpen}
+  <div
+    class="confirm-modify-modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Confirmar cambios a la actividad"
+  >
+    <div class="confirm-modify-modal">
+      <div class="confirm-modify-header">
+        <h2>Confirmar Cambios</h2>
+      </div>
+
+      <div class="confirm-modify-content">
+        <p>¿Deseas aplicar los cambios a la actividad?</p>
+      </div>
+
+      <div class="confirm-modify-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          on:click={cancelarModificacion}
+          disabled={guardandoConvocatoria}
+        >
+          No, Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          on:click={confirmarModificacion}
+          disabled={guardandoConvocatoria}
+        >
+          {guardandoConvocatoria ? "Modificando..." : "Sí, Aplicar Cambios"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .convocatorias-container {
@@ -404,8 +1397,15 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
     gap: 2rem;
+  }
+
+  .header-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
   }
 
   .page-title {
@@ -423,6 +1423,13 @@
   .stats {
     display: flex;
     gap: 1.5rem;
+  }
+
+  .header-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
   }
 
   .stat-item {
@@ -447,6 +1454,23 @@
     font-size: 0.875rem;
     color: var(--text-secondary);
     margin-top: 0.25rem;
+  }
+
+  .btn-toggle-filtros {
+    border: 2px solid var(--border);
+    background: white;
+    color: var(--text-primary);
+    border-radius: 0.75rem;
+    padding: 0.65rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-toggle-filtros:hover {
+    border-color: var(--primary);
+    color: var(--primary-dark);
   }
 
   /* Filtros */
@@ -512,6 +1536,88 @@
     background: white;
   }
 
+  .date-range-picker {
+    position: relative;
+  }
+
+  .date-range-trigger {
+    width: 100%;
+    min-height: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--border);
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    background: var(--surface);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    text-align: left;
+  }
+
+  .date-range-trigger:hover,
+  .date-range-trigger:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+  }
+
+  .date-range-arrow {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .date-range-panel {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    width: min(320px, 92vw);
+    z-index: 80;
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 0.85rem;
+    box-shadow: 0 10px 24px var(--shadow);
+    padding: 0.75rem;
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .date-range-panel label {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .date-range-panel label span {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+
+  .date-range-panel input[type="date"] {
+    width: 100%;
+  }
+
+  .date-range-clear {
+    margin-top: 0.2rem;
+    border: none;
+    border-radius: 0.65rem;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-weight: 700;
+    padding: 0.55rem 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .date-range-clear:hover {
+    background: var(--border);
+    color: var(--text-primary);
+  }
+
   .btn-reset {
     padding: 0.75rem 1.5rem;
     background-color: var(--text-secondary);
@@ -526,6 +1632,27 @@
 
   .btn-reset:hover {
     background-color: var(--text-primary);
+    transform: translateY(-1px);
+  }
+
+  .btn-programar-actividad {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.8rem 1.15rem;
+    border: none;
+    border-radius: 0.75rem;
+    background: var(--primary);
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-programar-actividad:hover {
+    background: var(--primary-dark);
     transform: translateY(-1px);
   }
 
@@ -758,6 +1885,70 @@
     max-width: 120px;
   }
 
+  .acciones-cell {
+    width: 1%;
+    min-width: 220px;
+    text-align: right;
+  }
+
+  .acciones-buttons {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.45rem;
+  }
+
+  .btn-modificar-actividad,
+  .btn-delete-actividad {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    border-radius: 0.6rem;
+    height: 2.1rem;
+    padding: 0 0.65rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: white;
+  }
+
+  .btn-modificar-actividad {
+    border: 1px solid var(--accent);
+    color: var(--accent);
+  }
+
+  .btn-modificar-actividad:hover {
+    border-color: var(--accent);
+    background: rgba(146, 64, 14, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .btn-delete-actividad {
+    border: 1px solid var(--error);
+    color: var(--error);
+  }
+
+  .btn-delete-actividad:hover {
+    border-color: var(--error);
+    background: rgba(239, 68, 68, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .btn-modificar-actividad:disabled,
+  .btn-delete-actividad:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-modificar-actividad svg,
+  .btn-delete-actividad svg {
+    width: 14px;
+    height: 14px;
+  }
+
   .grupos-container {
     display: flex;
     flex-wrap: wrap;
@@ -845,6 +2036,544 @@
     box-shadow: 0 4px 10px rgba(5, 150, 105, 0.18);
   }
 
+  .convocatoria-feedback {
+    border-radius: 0.75rem;
+    padding: 0.875rem 1rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+  }
+
+  .convocatoria-feedback.success {
+    background: rgba(5, 150, 105, 0.12);
+    color: var(--primary-dark);
+    border: 1px solid rgba(5, 150, 105, 0.2);
+  }
+
+  .convocatoria-feedback.error {
+    background: rgba(220, 38, 38, 0.1);
+    color: #991b1b;
+    border: 1px solid rgba(220, 38, 38, 0.2);
+  }
+
+  .btn-back-to-top {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    width: 2.9rem;
+    height: 2.9rem;
+    border-radius: 999px;
+    border: none;
+    background: var(--primary);
+    color: white;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 10px 24px var(--shadow);
+    z-index: 220;
+    transition: all 0.2s;
+  }
+
+  .btn-back-to-top:hover {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+  }
+
+  .convocatoria-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+    z-index: 300;
+  }
+
+  .convocatoria-modal {
+    width: min(820px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: white;
+    border-radius: 1rem;
+    padding: 1.25rem;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
+  }
+
+  .confirm-modify-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+    z-index: 350;
+  }
+
+  .confirm-modify-modal {
+    width: min(500px, 100%);
+    background: white;
+    border-radius: 1.25rem;
+    padding: 1.75rem;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
+  }
+
+  .confirm-modify-header {
+    margin-bottom: 1rem;
+  }
+
+  .confirm-modify-header h2 {
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    margin: 0;
+  }
+
+  .confirm-modify-content {
+    margin-bottom: 1.5rem;
+  }
+
+  .confirm-modify-content p {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .confirm-modify-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  }
+
+  .confirm-modify-actions button {
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .convocatoria-modal-header h2 {
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .convocatoria-modal-header p {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+  }
+
+  .convocatoria-error {
+    margin-bottom: 1rem;
+    border-radius: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    background: rgba(220, 38, 38, 0.1);
+    color: #991b1b;
+    border: 1px solid rgba(220, 38, 38, 0.2);
+    font-weight: 600;
+  }
+
+  .convocatoria-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .convocatoria-form-grid label,
+  .grupos-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .convocatoria-form-grid label span {
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+
+  .convocatoria-form-grid input,
+  .convocatoria-form-grid select,
+  .convocatoria-form-grid textarea {
+    border: 2px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    font-size: 0.95rem;
+    background: var(--surface);
+  }
+
+  .duration-input-wrapper {
+    position: relative;
+  }
+
+  .duration-input {
+    width: 100%;
+    padding-right: 2.1rem;
+  }
+
+  .duration-suffix {
+    position: absolute;
+    right: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    pointer-events: none;
+  }
+
+  .lider-dropdown {
+    position: relative;
+  }
+
+  .grupos-required-dropdown {
+    position: relative;
+  }
+
+  .grupos-required-trigger {
+    width: 100%;
+    min-height: 48px;
+    border: 2px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--surface);
+    padding: 0.55rem 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .grupos-required-trigger.open,
+  .grupos-required-trigger:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+  }
+
+  .grupos-required-placeholder {
+    color: #6b7280;
+    text-align: left;
+    flex: 1;
+  }
+
+  .grupos-selected-chips {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .grupos-required-arrow {
+    margin-left: auto;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+  }
+
+  .grupos-required-panel {
+    position: absolute;
+    z-index: 35;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 0.8rem;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.2);
+    padding: 0.6rem;
+  }
+
+  .grupos-search-input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    background: #f8fffb;
+  }
+
+  .grupos-search-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+  }
+
+  .grupos-options-list {
+    max-height: 190px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .grupos-option-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    background: #f8fffb;
+    padding: 0.5rem 0.6rem;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .grupos-option-item:hover {
+    border-color: var(--border);
+    background: #effcf4;
+  }
+
+  .grupos-option-item.selected {
+    border-color: rgba(5, 150, 105, 0.4);
+    background: rgba(16, 185, 129, 0.12);
+  }
+
+  .grupos-option-check {
+    width: 1rem;
+    color: var(--primary-dark);
+    font-weight: 800;
+  }
+
+  .grupos-empty-state {
+    color: #6b7280;
+    font-size: 0.85rem;
+    padding: 0.45rem 0.35rem;
+  }
+
+  .grupos-required-footer {
+    margin-top: 0.6rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .grupo-selected-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid rgba(5, 150, 105, 0.35);
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.14);
+    color: var(--primary-dark);
+    padding: 0.25rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .grupo-selected-pill:hover {
+    background: rgba(16, 185, 129, 0.24);
+  }
+
+  .lider-dropdown-trigger {
+    width: 100%;
+    min-height: 48px;
+    border: 2px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--surface);
+    padding: 0.6rem 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+
+  .lider-dropdown-trigger.open,
+  .lider-dropdown-trigger:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+  }
+
+  .lider-placeholder {
+    color: #6b7280;
+    text-align: left;
+    flex: 1;
+  }
+
+  .lider-name {
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: left;
+    flex: 1;
+  }
+
+  .lider-dropdown-arrow {
+    color: var(--text-secondary);
+    margin-left: auto;
+    font-size: 0.85rem;
+  }
+
+  .lider-dropdown-panel {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 0.8rem;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.2);
+    padding: 0.6rem;
+  }
+
+  .lider-search-input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    background: #f8fffb;
+  }
+
+  .lider-search-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+  }
+
+  .lider-options-list {
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .lider-option-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    background: #f8fffb;
+    padding: 0.55rem 0.65rem;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .lider-option-item:hover {
+    border-color: var(--border);
+    background: #effcf4;
+  }
+
+  .lider-option-item.selected {
+    border-color: rgba(5, 150, 105, 0.4);
+    background: rgba(16, 185, 129, 0.12);
+  }
+
+  .lider-option-name {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+
+  .lider-empty-state {
+    color: #6b7280;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.35rem;
+  }
+
+  .lider-grupo-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  .grupo-color-1 {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .grupo-color-2 {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .grupo-color-3 {
+    background: #ede9fe;
+    color: #5b21b6;
+  }
+
+  .grupo-color-4 {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .grupo-color-5 {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .grupo-color-6 {
+    background: #cffafe;
+    color: #155e75;
+  }
+
+  .convocatoria-form-grid input:focus,
+  .convocatoria-form-grid select:focus,
+  .convocatoria-form-grid textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+  }
+
+  .full-width {
+    grid-column: 1 / -1;
+  }
+
+  .convocatoria-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    border: none;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: var(--primary-dark);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: var(--text-secondary);
+    color: white;
+  }
+
   /* Responsive */
   @media (max-width: 1200px) {
     .table-container {
@@ -859,14 +2588,35 @@
 
     .header-section {
       flex-direction: column;
+      gap: 1rem;
+    }
+
+    .header-actions {
+      width: 100%;
+      align-items: stretch;
+    }
+
+    .header-buttons {
+      width: 100%;
+      justify-content: stretch;
     }
 
     .page-title {
       font-size: 1.5rem;
     }
 
+    .btn-programar-actividad,
+    .btn-toggle-filtros {
+      width: 100%;
+    }
+
     .filters-grid {
       grid-template-columns: 1fr;
+    }
+
+    .date-range-panel {
+      width: 100%;
+      max-width: 100%;
     }
 
     .actividades-table thead {
@@ -903,8 +2653,56 @@
       display: none;
     }
 
+    .acciones-cell {
+      order: 3;
+      width: auto;
+      min-width: 0;
+      text-align: left;
+      padding-top: 0.25rem;
+    }
+
+    .acciones-buttons {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
     .grupos-inline {
       display: flex;
+    }
+
+    .convocatoria-form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .convocatoria-modal {
+      max-height: 92vh;
+      padding-bottom: 5.25rem;
+    }
+
+    .convocatoria-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 40;
+      margin-top: 0.75rem;
+      margin-left: -1.25rem;
+      margin-right: -1.25rem;
+      margin-bottom: -1.25rem;
+      padding: 0.75rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom));
+      background: white;
+      border-top: 1px solid var(--border);
+      box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.08);
+    }
+
+    .convocatoria-actions .btn-primary,
+    .convocatoria-actions .btn-secondary {
+      min-height: 44px;
+    }
+
+    .btn-back-to-top {
+      right: 1rem;
+      bottom: 1rem;
+      width: 2.75rem;
+      height: 2.75rem;
     }
   }
 
