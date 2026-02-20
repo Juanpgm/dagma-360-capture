@@ -1636,7 +1636,7 @@
   }
 
   .convocatorias-content {
-    max-width: 2000px;
+    max-width: 3200px;
     margin: 0 auto;
   }
 
@@ -2005,6 +2005,30 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
       gap: 1.5rem;
+    }
+  }
+
+  /* Mayor espacio entre cards en pantallas 2K */
+  @media (min-width: 2560px) {
+    .actividades-container {
+      gap: 2rem;
+    }
+
+    .filters-section {
+      padding: 2rem;
+      margin-bottom: 2.5rem;
+    }
+  }
+
+  /* Mayor espacio entre cards en pantallas 4K */
+  @media (min-width: 3840px) {
+    .actividades-container {
+      gap: 2.5rem;
+    }
+
+    .filters-section {
+      padding: 2.5rem;
+      margin-bottom: 3rem;
     }
   }
 
@@ -2397,6 +2421,173 @@
     .actividad-card {
       grid-template-columns: 1fr 600px;
       max-width: 2000px;
+    }
+  }
+
+  /* Pantallas 2K (2560x1440) */
+  @media (min-width: 2560px) {
+    .convocatorias-container {
+      padding: 2.5rem 3rem;
+    }
+
+    .actividad-card {
+      grid-template-columns: 1fr 700px;
+      max-width: 2400px;
+    }
+
+    .map-container {
+      min-height: 650px;
+    }
+
+    .map-section {
+      padding: 1.5rem;
+    }
+
+    .page-title {
+      font-size: 2.5rem;
+    }
+
+    .page-subtitle {
+      font-size: 1.125rem;
+    }
+
+    .card-header {
+      padding: 1.5rem 1.75rem;
+    }
+
+    .card-body {
+      padding: 1.75rem;
+    }
+
+    .direccion-destaque {
+      font-size: 1.125rem;
+    }
+
+    .direccion-destaque svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .fecha-titulo {
+      font-size: 1.05rem;
+    }
+
+    .info-label {
+      font-size: 0.875rem;
+    }
+
+    .info-text {
+      font-size: 1rem;
+    }
+
+    .badge-grupo,
+    .badge-tipo,
+    .badge-estado {
+      font-size: 0.8rem;
+      padding: 0.4rem 0.75rem;
+    }
+
+    .objetivo-text {
+      font-size: 1rem;
+    }
+
+    .section-title {
+      font-size: 0.95rem;
+    }
+  }
+
+  /* Pantallas 4K (3840x2160) */
+  @media (min-width: 3840px) {
+    .convocatorias-container {
+      padding: 3rem 4rem;
+    }
+
+    .actividad-card {
+      grid-template-columns: 1fr 900px;
+      max-width: 3200px;
+    }
+
+    .map-container {
+      min-height: 800px;
+    }
+
+    .map-section {
+      padding: 2rem;
+    }
+
+    .page-title {
+      font-size: 3rem;
+    }
+
+    .page-subtitle {
+      font-size: 1.25rem;
+    }
+
+    .card-header {
+      padding: 1.75rem 2rem;
+    }
+
+    .card-body {
+      padding: 2rem;
+    }
+
+    .direccion-destaque {
+      font-size: 1.25rem;
+    }
+
+    .direccion-destaque svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .fecha-titulo {
+      font-size: 1.15rem;
+    }
+
+    .info-row {
+      font-size: 1.125rem;
+    }
+
+    .info-label {
+      font-size: 1rem;
+    }
+
+    .info-text {
+      font-size: 1.125rem;
+    }
+
+    .badge-grupo,
+    .badge-tipo,
+    .badge-estado {
+      font-size: 0.9rem;
+      padding: 0.45rem 0.85rem;
+    }
+
+    .objetivo-text {
+      font-size: 1.125rem;
+      line-height: 1.7;
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+    }
+
+    .observaciones-text {
+      font-size: 1rem;
+    }
+
+    .btn-modificar-actividad,
+    .btn-delete-actividad {
+      font-size: 0.95rem;
+      padding: 0.75rem 1rem;
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+    }
+
+    .stat-label {
+      font-size: 1rem;
     }
   }
 
