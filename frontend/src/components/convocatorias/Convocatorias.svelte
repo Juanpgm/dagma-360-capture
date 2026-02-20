@@ -830,21 +830,20 @@
             container.style.display = "flex";
             container.style.alignItems = "center";
             container.style.justifyContent = "center";
-            container.style.fontSize = "18px";
-            container.innerHTML = "🗺️";
+            container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7M3 3v5M3 3h5M21 3l-7 7M21 3v5M21 3h-5M3 21l7-7M3 21v-5M3 21h5M21 21l-7-7M21 21v-5M21 21h-5"/></svg>`;
             container.title = "Cambiar a vista satélite";
 
             container.onclick = function () {
               if (currentLayer === "mapa") {
                 map.removeLayer(positron);
                 satellite.addTo(map);
-                container.innerHTML = "🛰️";
+                container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
                 container.title = "Cambiar a vista de mapa";
                 currentLayer = "satelite";
               } else {
                 map.removeLayer(satellite);
                 positron.addTo(map);
-                container.innerHTML = "🗺️";
+                container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7M3 3v5M3 3h5M21 3l-7 7M21 3v5M21 3h-5M3 21l7-7M3 21v-5M3 21h5M21 21l-7-7M21 21v-5M21 21h-5"/></svg>`;
                 container.title = "Cambiar a vista satélite";
                 currentLayer = "mapa";
               }
@@ -855,6 +854,39 @@
         });
 
         map.addControl(new ToggleControl());
+
+        // Control de centrar mapa
+        const CenterControl = (window as any).L.Control.extend({
+          options: {
+            position: "bottomleft",
+          },
+          onAdd: function (map: any) {
+            const container = (window as any).L.DomUtil.create(
+              "div",
+              "leaflet-bar leaflet-control leaflet-control-custom",
+            );
+            container.style.backgroundColor = "white";
+            container.style.width = "34px";
+            container.style.height = "34px";
+            container.style.cursor = "pointer";
+            container.style.display = "flex";
+            container.style.alignItems = "center";
+            container.style.justifyContent = "center";
+            container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>`;
+            container.title = "Centrar mapa en la ubicación";
+
+            container.onclick = function () {
+              map.setView([lat, lng], 16, {
+                animate: true,
+                duration: 0.5,
+              });
+            };
+
+            return container;
+          },
+        });
+
+        map.addControl(new CenterControl());
 
         // Agregar marcador
         (window as any).L.marker([lat, lng])
