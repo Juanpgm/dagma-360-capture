@@ -830,20 +830,20 @@
             container.style.display = "flex";
             container.style.alignItems = "center";
             container.style.justifyContent = "center";
-            container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7M3 3v5M3 3h5M21 3l-7 7M21 3v5M21 3h-5M3 21l7-7M3 21v-5M3 21h5M21 21l-7-7M21 21v-5M21 21h-5"/></svg>`;
+            container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`;
             container.title = "Cambiar a vista satélite";
 
             container.onclick = function () {
               if (currentLayer === "mapa") {
                 map.removeLayer(positron);
                 satellite.addTo(map);
-                container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+                container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
                 container.title = "Cambiar a vista de mapa";
                 currentLayer = "satelite";
               } else {
                 map.removeLayer(satellite);
                 positron.addTo(map);
-                container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7M3 3v5M3 3h5M21 3l-7 7M21 3v5M21 3h-5M3 21l7-7M3 21v-5M3 21h5M21 21l-7-7M21 21v-5M21 21h-5"/></svg>`;
+                container.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`;
                 container.title = "Cambiar a vista satélite";
                 currentLayer = "mapa";
               }
