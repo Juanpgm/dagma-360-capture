@@ -1,0 +1,516 @@
+{
+  "success": true,
+  "total": 22,
+  "data": [
+    {
+      "barrio_vereda": "Guillermo Valencia",
+      "grupo": "Equipo de Mantenimiento 1",
+      "comuna_corregimiento": "COMUNA 04",
+      "tipo_arbol": null,
+      "observaciones": "Observación #2: Intervención exitosa",
+      "numero_individuos_intervenidos": 29,
+      "id_actividad": "ACT-2026-9045",
+      "descripcion_intervencion": "Intervención #2: Operación completada",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.51,
+          3.472
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "2c4349d2-eb02-4e08-9466-f4775486d155",
+      "registrado_por": "Patricia Díaz",
+      "tipo_intervencion": "Remoción de residuos",
+      "timestamp": "2026-02-23T00:31:34.626314-05:00"
+    },
+    {
+      "barrio_vereda": "Barrio Obrero",
+      "grupo": "Grupo Operativo Norte",
+      "comuna_corregimiento": "COMUNA 09",
+      "tipo_arbol": "Samán",
+      "observaciones": "Observación #18: Intervención exitosa",
+      "numero_individuos_intervenidos": 9,
+      "id_actividad": "ACT-2026-2199",
+      "descripcion_intervencion": "Intervención #18: Operación completada",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.5225,
+          3.4516
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "328ea0a1-22e1-486b-97d1-f0dd75f84578",
+      "registrado_por": "Roberto Castro",
+      "tipo_intervencion": "Plantación de árboles",
+      "timestamp": "2026-02-23T00:32:16.359137-05:00"
+    },
+    {
+      "barrio_vereda": "El Guabal",
+      "grupo": "Cuadrilla de Poda C",
+      "comuna_corregimiento": "COMUNA 10",
+      "tipo_arbol": "Samán",
+      "observaciones": "Observación #19: Intervención exitosa",
+      "numero_individuos_intervenidos": null,
+      "id_actividad": "ACT-2026-3335",
+      "descripcion_intervencion": "Intervención #19: Trabajo realizado con éxito",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.528,
+          3.418
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "3fec9c75-9cef-4f58-a485-90f489874ad8",
+      "registrado_por": "Luis González",
+      "tipo_intervencion": "Plantación de árboles",
+      "timestamp": "2026-02-23T00:32:18.559258-05:00"
+    },
+    {
+      "barrio_vereda": "La Hacienda",
+      "grupo": null,
+      "comuna_corregimiento": "COMUNA 17",
+      "tipo_arbol": null,
+      "observaciones": "",
+      "numero_individuos_intervenidos": null,
+      "id_actividad": "ACT-2026-6983",
+      "descripcion_intervencion": null,
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.532,
+          3.395
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "43504207-1f6b-419b-b1a7-70eee8c7bf06",
+      "registrado_por": null,
+      "tipo_intervencion": "Plantación de árboles",
+      "timestamp": "2026-02-23T00:31:54.016422-05:00"
+    },
+    {
+      "barrio_vereda": "Chapinero",
+      "grupo": "Equipo Verde Sur",
+      "comuna_corregimiento": "COMUNA 08",
+      "tipo_arbol": "Chiminango",
+      "observaciones": "Observación #4: Requiere seguimiento",
+      "numero_individuos_intervenidos": 16,
+      "id_actividad": null,
+      "descripcion_intervencion": null,
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.498,
+          3.445
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "449b119f-41ab-4847-912b-5b90f6f160c7",
+      "registrado_por": "Patricia Díaz",
+      "tipo_intervencion": "Riego de áreas verdes",
+      "timestamp": "2026-02-23T00:31:39.073357-05:00"
+    },
+    {
+      "barrio_vereda": "La Hacienda",
+      "grupo": "Cuadrilla de Testing",
+      "comuna_corregimiento": "COMUNA 17",
+      "tipo_arbol": null,
+      "observaciones": "Reporte de control sin fotos adjuntas",
+      "numero_individuos_intervenidos": null,
+      "id_actividad": null,
+      "descripcion_intervencion": "Test sin fotos",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.532,
+          3.395
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "4e4c0b75-af0a-40b5-8e4e-2b44892eb7c3",
+      "registrado_por": "Usuario de prueba",
+      "tipo_intervencion": "Limpieza de parque",
+      "timestamp": "2026-02-23T00:57:28.81941-05:00"
+    },
+    {
+      "barrio_vereda": "El Guabal",
+      "grupo": "Grupo Operativo Norte",
+      "comuna_corregimiento": "COMUNA 10",
+      "tipo_arbol": "Ceiba",
+      "observaciones": "Observación #5: Intervención exitosa",
+      "numero_individuos_intervenidos": 30,
+      "id_actividad": null,
+      "descripcion_intervencion": null,
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.528,
+          3.418
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "5c1fa30f-9e1f-40e6-aaab-ce1fada45e0a",
+      "registrado_por": "Alejandra Ruiz",
+      "tipo_intervencion": null,
+      "timestamp": "2026-02-23T00:31:41.28993-05:00"
+    },
+    {
+      "barrio_vereda": "Barrio Obrero",
+      "grupo": "Cuadrilla de Testing",
+      "comuna_corregimiento": "COMUNA 09",
+      "tipo_arbol": "Guayacán",
+      "observaciones": "Test de validación de fotos con S3",
+      "numero_individuos_intervenidos": 5,
+      "id_actividad": "TEST-2026-0001",
+      "descripcion_intervencion": "Test de subida de fotos a S3",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.5225,
+          3.4516
+        ]
+      },
+      "photos_uploaded": 3,
+      "photosUrl": [
+        "https://360-dagma-photos.s3.amazonaws.com/reportes_intervenciones_grupo_cuadrilla/6607927e-392b-46cc-906e-0e8edd105432/20260223_055724_0_test_foto_1.jpg",
+        "https://360-dagma-photos.s3.amazonaws.com/reportes_intervenciones_grupo_cuadrilla/6607927e-392b-46cc-906e-0e8edd105432/20260223_055725_1_test_foto_2.jpg",
+        "https://360-dagma-photos.s3.amazonaws.com/reportes_intervenciones_grupo_cuadrilla/6607927e-392b-46cc-906e-0e8edd105432/20260223_055725_2_test_foto_3.jpg"
+      ],
+      "id": "6607927e-392b-46cc-906e-0e8edd105432",
+      "registrado_por": "Usuario de prueba",
+      "tipo_intervencion": "Poda de árboles",
+      "timestamp": "20260223_055725"
+    },
+    {
+      "barrio_vereda": "Santa Anita - La Selva",
+      "grupo": "Equipo Verde Sur",
+      "comuna_corregimiento": "COMUNA 17",
+      "tipo_arbol": "Oití",
+      "observaciones": "",
+      "numero_individuos_intervenidos": 8,
+      "id_actividad": "ACT-2026-4371",
+      "descripcion_intervencion": "Intervención #15: Actividad ejecutada correctamente",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.539,
+          3.408
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "6e4e451e-55f1-4a91-b231-928db80b5b02",
+      "registrado_por": "Sandra Ramírez",
+      "tipo_intervencion": "Mantenimiento de zonas verdes",
+      "timestamp": "2026-02-23T00:32:09.693718-05:00"
+    },
+    {
+      "barrio_vereda": "Santa Anita - La Selva",
+      "grupo": null,
+      "comuna_corregimiento": "COMUNA 17",
+      "tipo_arbol": "Acacia",
+      "observaciones": "Observación #9: Sin novedades",
+      "numero_individuos_intervenidos": null,
+      "id_actividad": "ACT-2026-6805",
+      "descripcion_intervencion": null,
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.539,
+          3.408
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "8a2eca69-7d36-4c99-a27f-ef68eb0b487f",
+      "registrado_por": "Fernando Vargas",
+      "tipo_intervencion": "Recolección de hojas",
+      "timestamp": "2026-02-23T00:31:56.254138-05:00"
+    },
+    {
+      "barrio_vereda": "Santa Anita - La Selva",
+      "grupo": "Cuadrilla Verde A",
+      "comuna_corregimiento": "COMUNA 17",
+      "tipo_arbol": "Samán",
+      "observaciones": "Observación #13: Intervención exitosa",
+      "numero_individuos_intervenidos": 13,
+      "id_actividad": "ACT-2026-1598",
+      "descripcion_intervencion": "Intervención #13: Actividad ejecutada correctamente",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.539,
+          3.408
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "9b2ae9d8-e056-4a39-a197-0326d18f1f4b",
+      "registrado_por": "Roberto Castro",
+      "tipo_intervencion": "Recolección de hojas",
+      "timestamp": "2026-02-23T00:32:05.166761-05:00"
+    },
+    {
+      "barrio_vereda": "El Guabal",
+      "grupo": "Cuadrilla Verde A",
+      "comuna_corregimiento": "COMUNA 10",
+      "tipo_arbol": "Ceiba",
+      "observaciones": "Observación #3: Intervención exitosa",
+      "numero_individuos_intervenidos": 13,
+      "id_actividad": null,
+      "descripcion_intervencion": "Intervención #3: Actividad ejecutada correctamente",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.528,
+          3.418
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "a40dcebb-849b-4b26-bcb4-7ad1ccb78d09",
+      "registrado_por": "Sandra Ramírez",
+      "tipo_intervencion": "Remoción de residuos",
+      "timestamp": "2026-02-23T00:31:36.832505-05:00"
+    },
+    {
+      "barrio_vereda": null,
+      "grupo": null,
+      "comuna_corregimiento": null,
+      "tipo_arbol": null,
+      "observaciones": "Observación #7: Requiere seguimiento",
+      "numero_individuos_intervenidos": 50,
+      "id_actividad": null,
+      "descripcion_intervencion": null,
+      "coordinates": null,
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "abee7467-6479-4393-a614-80273a49468f",
+      "registrado_por": "Luis González",
+      "tipo_intervencion": "Limpieza de parques",
+      "timestamp": "2026-02-23T00:31:50.875679-05:00"
+    },
+    {
+      "barrio_vereda": "Santa Anita - La Selva",
+      "grupo": "Brigada Ambiental B",
+      "comuna_corregimiento": "COMUNA 17",
+      "tipo_arbol": "Oití",
+      "observaciones": "Observación #17: Intervención exitosa",
+      "numero_individuos_intervenidos": 11,
+      "id_actividad": "ACT-2026-1787",
+      "descripcion_intervencion": "Intervención #17: Operación completada",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.539,
+          3.408
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "b2eb27c6-3c54-4552-90af-399ba0346e14",
+      "registrado_por": "Roberto Castro",
+      "tipo_intervencion": null,
+      "timestamp": "2026-02-23T00:32:14.146847-05:00"
+    },
+    {
+      "barrio_vereda": "Guillermo Valencia",
+      "grupo": "Grupo Operativo Norte",
+      "comuna_corregimiento": "COMUNA 04",
+      "tipo_arbol": "Caucho",
+      "observaciones": "Observación #10: Trabajo completado satisfactoriamente",
+      "numero_individuos_intervenidos": 42,
+      "id_actividad": null,
+      "descripcion_intervencion": null,
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.51,
+          3.472
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "b392fbd5-dab3-48b4-a73c-f5fd0da748dc",
+      "registrado_por": "Alejandra Ruiz",
+      "tipo_intervencion": "Control de plagas",
+      "timestamp": "2026-02-23T00:31:58.485415-05:00"
+    },
+    {
+      "barrio_vereda": "El Guabal",
+      "grupo": "Grupo Operativo Norte",
+      "comuna_corregimiento": "COMUNA 10",
+      "tipo_arbol": "Palma",
+      "observaciones": "Observación #6: Intervención exitosa",
+      "numero_individuos_intervenidos": null,
+      "id_actividad": "ACT-2026-7911",
+      "descripcion_intervencion": "Intervención #6: Actividad ejecutada correctamente",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.528,
+          3.418
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "b45747d7-c241-4c9a-ab5e-f6371901881a",
+      "registrado_por": "Alejandra Ruiz",
+      "tipo_intervencion": null,
+      "timestamp": "2026-02-23T00:31:43.520804-05:00"
+    },
+    {
+      "barrio_vereda": "La Hacienda",
+      "grupo": "Brigada Ambiental B",
+      "comuna_corregimiento": "COMUNA 17",
+      "tipo_arbol": null,
+      "observaciones": "Observación #1: Trabajo completado satisfactoriamente",
+      "numero_individuos_intervenidos": 38,
+      "id_actividad": null,
+      "descripcion_intervencion": "Intervención #1: Labor finalizada",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.532,
+          3.395
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "c1003fa9-a0b9-42fb-9c34-1f9b9a82bb33",
+      "registrado_por": "Luis González",
+      "tipo_intervencion": null,
+      "timestamp": "2026-02-23T00:31:31.306589-05:00"
+    },
+    {
+      "barrio_vereda": "La Hacienda",
+      "grupo": "Cuadrilla Verde A",
+      "comuna_corregimiento": "COMUNA 17",
+      "tipo_arbol": null,
+      "observaciones": "Observación #12: Requiere seguimiento",
+      "numero_individuos_intervenidos": 48,
+      "id_actividad": "ACT-2026-6067",
+      "descripcion_intervencion": "Intervención #12: Labor finalizada",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.532,
+          3.395
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "c8d0f685-340b-432d-90f6-3c7c54a69a52",
+      "registrado_por": "Patricia Díaz",
+      "tipo_intervencion": "Fertilización",
+      "timestamp": "2026-02-23T00:32:02.901136-05:00"
+    },
+    {
+      "barrio_vereda": "La Hacienda",
+      "grupo": null,
+      "comuna_corregimiento": "COMUNA 17",
+      "tipo_arbol": "Chiminango",
+      "observaciones": "Observación #16: Intervención exitosa",
+      "numero_individuos_intervenidos": null,
+      "id_actividad": "ACT-2026-2498",
+      "descripcion_intervencion": "Intervención #16: Actividad ejecutada correctamente",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.532,
+          3.395
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "e436e8e6-1b32-493f-b208-679bb96341c4",
+      "registrado_por": null,
+      "tipo_intervencion": null,
+      "timestamp": "2026-02-23T00:32:11.916868-05:00"
+    },
+    {
+      "barrio_vereda": "El Guabal",
+      "grupo": "Cuadrilla Verde A",
+      "comuna_corregimiento": "COMUNA 10",
+      "tipo_arbol": null,
+      "observaciones": "",
+      "numero_individuos_intervenidos": 21,
+      "id_actividad": "ACT-2026-8827",
+      "descripcion_intervencion": "Intervención #11: Actividad ejecutada correctamente",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.528,
+          3.418
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "f3595d28-766d-448b-b558-6b50a48692e1",
+      "registrado_por": "Sandra Ramírez",
+      "tipo_intervencion": "Limpieza de parques",
+      "timestamp": "2026-02-23T00:32:00.681239-05:00"
+    },
+    {
+      "barrio_vereda": "El Guabal",
+      "grupo": "Equipo Verde Sur",
+      "comuna_corregimiento": "COMUNA 10",
+      "tipo_arbol": "Oití",
+      "observaciones": "Observación #20: Sin novedades",
+      "numero_individuos_intervenidos": 48,
+      "id_actividad": null,
+      "descripcion_intervencion": "Intervención #20: Labor finalizada",
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.528,
+          3.418
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "f716b782-1f81-4c50-b290-b0655862b005",
+      "registrado_por": "Alejandra Ruiz",
+      "tipo_intervencion": "Control de plagas",
+      "timestamp": "2026-02-23T00:32:20.772367-05:00"
+    },
+    {
+      "barrio_vereda": "3 de Julio",
+      "grupo": "Equipo Verde Sur",
+      "comuna_corregimiento": "COMUNA 19",
+      "tipo_arbol": null,
+      "observaciones": "",
+      "numero_individuos_intervenidos": 10,
+      "id_actividad": "ACT-2026-6049",
+      "descripcion_intervencion": null,
+      "coordinates": {
+        "type": "Point",
+        "coordinates": [
+          -76.541,
+          3.432
+        ]
+      },
+      "photos_uploaded": 0,
+      "photosUrl": [],
+      "id": "fb984dbe-fed9-4070-9233-ca07a05e13ca",
+      "registrado_por": "Patricia Díaz",
+      "tipo_intervencion": "Recolección de hojas",
+      "timestamp": "2026-02-23T00:32:07.468123-05:00"
+    }
+  ],
+  "filters": {
+    "id": null,
+    "id_actividad": null,
+    "grupo": null
+  },
+  "timestamp": "2026-02-23T01:32:57.772893-05:00"
+}

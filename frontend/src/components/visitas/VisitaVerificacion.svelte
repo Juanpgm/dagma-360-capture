@@ -6,14 +6,17 @@
     isCurrentStepValid,
   } from "../../stores/visitaStore";
   import { authStore } from "../../stores/authStore";
-  import { registrarReconocimiento, getParques } from "../../api/visitas";
+  import {
+    registrarReconocimiento,
+    registrarIntervencionCuadrilla,
+  } from "../../api/visitas";
+  import type { ActividadPlanDistritoVerde } from "../../types/actividades";
   import Stepper from "../ui/Stepper.svelte";
   import Button from "../ui/Button.svelte";
   import Modal from "../ui/Modal.svelte";
   import Step1SeleccionUP from "./Step1SeleccionUP.svelte";
   import Step2Formulario from "./Step2Formulario.svelte";
   import Step3Fotos from "./Step3Fotos.svelte";
-  import type { Parque } from "../../types/visitas";
 
   export let onClose: () => void;
 
@@ -28,6 +31,11 @@
   let direccion = "";
   let observaciones = "";
 
+  // Variables CUADRILLA
+  let individuosIntervenidos: number | undefined = undefined;
+  let nombreCientifico: string | undefined = undefined;
+  let nombreComun: string | undefined = undefined;
+
   // Estado del modal
   let modalOpen = false;
   let modalTitle = "";
@@ -38,13 +46,61 @@
   let modalCancelText = "Cancelar";
   let modalOnConfirm: (() => void) | null = null;
 
+  const extractUserGroups = (user: any): string[] => {
+    const groups: string[] = [];
+
+    const addValue = (value: any) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach(addValue);
+        return;
+      }
+      if (typeof value === "string" || typeof value === "number") {
+        groups.push(String(value));
+        return;
+      }
+      if (typeof value === "object") {
+        const nested =
+          value.grupo ||
+          value.nombre ||
+          value.nombre_grupo ||
+          value.name ||
+          value.label;
+        if (nested) {
+          addValue(nested);
+        }
+      }
+    };
+
+    addValue(
+      user?.grupo ||
+        user?.group ||
+        user?.grupo_nombre ||
+        user?.grupoName ||
+        user?.nombre_grupo,
+    );
+    addValue(user?.grupos);
+    addValue(user?.grupos_requeridos);
+
+    return groups.filter(Boolean);
+  };
+
   // Suscripción al store
   $: state = $visitaStore;
+  $: currentUser = $authStore.user;
+  $: userGrupo = extractUserGroups(currentUser);
+  $: isCuadrilla = userGrupo.some((g) => g.toLowerCase().includes("cuadrilla"));
   $: canContinue =
     currentStep === 3
       ? photoFiles.length > 0 // En el paso 3, validar que haya fotos
       : currentStep === 2
-        ? tipoIntervencion && descripcionIntervencion && direccion
+        ? tipoIntervencion &&
+          descripcionIntervencion &&
+          (isCuadrilla || direccion) && // Direccion solo requerida para NO-CUADRILLA
+          (!isCuadrilla ||
+            (individuosIntervenidos != null &&
+              individuosIntervenidos > 0 &&
+              nombreCientifico))
         : // && state.data.coordenadas_gps // Ya no es bloqueante
           $isCurrentStepValid; // En paso 1, usar la validación del store
   $: currentStep = state.currentStep;
@@ -57,17 +113,26 @@
     descripcionIntervencion = "";
     direccion = "";
     observaciones = "";
+    individuosIntervenidos = undefined;
+    nombreCientifico = undefined;
+    nombreComun = undefined;
   });
 
   // Handlers para Step 1
-  function handleParqueSelect(parque: Parque) {
-    visitaStore.selectParque(parque);
+  function handleActividadSelect(actividad: ActividadPlanDistritoVerde) {
+    visitaStore.selectActividad(actividad);
+    // Para CUADRILLA, el tipo se elige manualmente en Step2
+    if (!isCuadrilla) {
+      tipoIntervencion = actividad.tipo_jornada || "Sin especificar";
+    }
+    direccion =
+      actividad.punto_encuentro?.direccion || "Sin dirección registrada";
     // Avanzar automáticamente al siguiente paso después de seleccionar
     visitaStore.nextStep();
   }
 
-  async function handleLoadParques() {
-    await visitaStore.loadParques();
+  async function handleLoadActividades() {
+    await visitaStore.loadActividades();
   }
 
   // Handlers para Step 2
@@ -80,19 +145,34 @@
     if (!canContinue) return;
 
     // Validaciones específicas por paso antes de continuar
-    if (currentStep === 1 && !state.selectedParque) {
-      visitaStore.setError("Debe seleccionar un parque");
+    if (currentStep === 1 && !state.selectedActividad) {
+      visitaStore.setError("Debe seleccionar una actividad");
       return;
     }
 
     // Si estamos en paso 2, sincronizar datos locales al store antes de avanzar
     if (currentStep === 2) {
-      visitaStore.updateData({
+      if (state.selectedActividad && !isCuadrilla) {
+        tipoIntervencion ||=
+          state.selectedActividad.tipo_jornada || "Sin especificar";
+      }
+      if (state.selectedActividad) {
+        direccion ||=
+          state.selectedActividad.punto_encuentro?.direccion ||
+          "Sin dirección registrada";
+      }
+      const updatePayload: Record<string, any> = {
         tipo_intervencion: tipoIntervencion,
         descripcion_intervencion: descripcionIntervencion,
         direccion: direccion,
         observaciones: observaciones,
-      });
+      };
+      if (isCuadrilla) {
+        updatePayload.individuos_intervenidos = individuosIntervenidos;
+        updatePayload.nombre_cientifico = nombreCientifico;
+        updatePayload.nombre_comun = nombreComun;
+      }
+      visitaStore.updateData(updatePayload);
     }
 
     // Si estamos en el paso 1 y avanzamos al 2, verificar permisos GPS antes
@@ -163,22 +243,36 @@
 
     try {
       // Sincronizar las variables locales al store antes del envío
-      visitaStore.updateData({
+      if (state.selectedActividad && !isCuadrilla) {
+        tipoIntervencion ||=
+          state.selectedActividad.tipo_jornada || "Sin especificar";
+      }
+      if (state.selectedActividad) {
+        direccion ||=
+          state.selectedActividad.punto_encuentro?.direccion ||
+          "Sin dirección registrada";
+      }
+
+      const updatePayload: Record<string, any> = {
         tipo_intervencion: tipoIntervencion,
         descripcion_intervencion: descripcionIntervencion,
         direccion: direccion,
         observaciones: observaciones,
-      });
+      };
+      if (isCuadrilla) {
+        updatePayload.individuos_intervenidos = individuosIntervenidos;
+        updatePayload.nombre_cientifico = nombreCientifico;
+        updatePayload.nombre_comun = nombreComun;
+      }
+      visitaStore.updateData(updatePayload);
 
       // Validar que todos los campos requeridos estén completos
       const data = state.data;
 
       if (
-        !state.selectedParque ||
-        // !data.coordenadas_gps || // Validamos coordenadas más abajo con la lógica de fallback
+        !state.selectedActividad ||
         !tipoIntervencion ||
         !descripcionIntervencion ||
-        !direccion ||
         photoFiles.length === 0
       ) {
         throw new Error(
@@ -186,104 +280,123 @@
         );
       }
 
+      // Validación adicional para NO-CUADRILLA
+      if (!isCuadrilla && !direccion) {
+        throw new Error("La dirección es requerida");
+      }
+
       console.log("Enviando reconocimiento al servidor...", {
-        parque: state.selectedParque.nombre_up,
+        actividad: state.selectedActividad.objetivo_actividad,
         tipo: data.tipo_intervencion,
         direccion: data.direccion,
       });
 
-      // Preparar coordenadas: Usar GPS capturado O fallback a coordenadas del parque
+      // Preparar coordenadas: Usar GPS capturado O fallback al punto de encuentro
       let finalCoordenadas = data.coordenadas_gps;
       let finalCoordinatesData = data.coordinates_data;
       let finalCoordinatesType = data.coordinates_type || "Point";
 
-      // Si no hay GPS capturado, usar ubicación del parque
-      if (!finalCoordenadas && state.selectedParque) {
-        console.log("⚠️ No hay GPS capturado, usando ubicación del parque...");
-        const parque = state.selectedParque;
+      // Si no hay GPS capturado, usar ubicación de la actividad
+      if (!finalCoordenadas && state.selectedActividad) {
+        console.log(
+          "⚠️ No hay GPS capturado, usando punto de encuentro de la actividad...",
+        );
+        const actividad = state.selectedActividad;
+        const geometry = actividad.punto_encuentro?.geometry;
 
-        // Intentar usar lat/lon directos del parque
-        if (parque.lat && parque.lon) {
-          const lat = parseFloat(parque.lat);
-          const lon = parseFloat(parque.lon);
-          if (!isNaN(lat) && !isNaN(lon)) {
-            finalCoordenadas = {
-              latitude: lat,
-              longitude: lon,
-              accuracy: 0,
-              timestamp: Date.now(),
-            };
-            finalCoordinatesData = JSON.stringify([lon, lat]);
-            console.log("✅ Usando lat/lon del parque:", finalCoordenadas);
-          }
-        }
-
-        // Si no funcionó lo anterior, intentar extraer de geometría
-        if (
-          !finalCoordenadas &&
-          parque.geometry &&
-          parque.geometry.coordinates
-        ) {
-          // Simplificación: Tomar el primer punto disponible
-          // Idealmente calcularíamos el centroide, pero esto es un fallback
-          let coords: any = parque.geometry.coordinates;
-
-          // Aplanar hasta encontrar un par de números [lon, lat]
-          // GeoJSON puede ser [num, num] o [[num, num], ...] etc
-          while (Array.isArray(coords) && Array.isArray(coords[0])) {
-            coords = coords[0];
-          }
-
-          if (Array.isArray(coords) && coords.length >= 2) {
-            const lon = coords[0];
-            const lat = coords[1];
-            finalCoordenadas = {
-              latitude: lat,
-              longitude: lon,
-              accuracy: 0,
-              timestamp: Date.now(),
-            };
-            finalCoordinatesData = JSON.stringify([lon, lat]);
-            console.log("✅ Usando geometría del parque:", finalCoordenadas);
-          }
+        if (geometry?.coordinates && geometry.coordinates.length >= 2) {
+          const [lon, lat] = geometry.coordinates;
+          finalCoordenadas = {
+            latitude: lat,
+            longitude: lon,
+            accuracy: 0,
+            timestamp: Date.now(),
+          };
+          finalCoordinatesType = geometry.type || "Point";
+          finalCoordinatesData = JSON.stringify([lon, lat]);
+          console.log("✅ Usando punto de encuentro:", finalCoordenadas);
         }
       }
 
       // Validación final de coordenadas
       if (!finalCoordenadas) {
         throw new Error(
-          "No se pudo obtener una ubicación válida. Por favor intente capturar el GPS nuevamente o seleccione un parque con ubicación registrada.",
+          "No se pudo obtener una ubicación válida. Por favor intente capturar el GPS nuevamente o seleccione una actividad con ubicación registrada.",
         );
       }
 
-      const reconocimiento = {
-        upid: state.selectedParque.upid,
-        nombre_up:
-          state.selectedParque.nombre_up ||
-          data.nombre_up ||
-          "Parque sin nombre",
-        tipo_intervencion: data.tipo_intervencion,
-        descripcion_intervencion: data.descripcion_intervencion,
-        direccion:
-          data.direccion ||
-          state.selectedParque.direccion ||
-          "Sin dirección registrada",
-        observaciones: data.observaciones || "",
-        coordenadas_gps: finalCoordenadas,
-        coordinates_type: finalCoordinatesType,
-        coordinates_data:
-          finalCoordinatesData ||
-          JSON.stringify([
-            finalCoordenadas.longitude,
-            finalCoordenadas.latitude,
-          ]),
-      };
+      let response;
 
-      // Enviar al backend usando el nuevo endpoint
-      const response = await registrarReconocimiento(
-        reconocimiento,
-        photoFiles,
-      );
+      // ── Flujo CUADRILLA ──
+      if (isCuadrilla) {
+        // Validaciones específicas para CUADRILLA
+        if (!nombreComun || !nombreCientifico) {
+          throw new Error("Debe seleccionar una especie de árbol");
+        }
+        if (!individuosIntervenidos || individuosIntervenidos < 1) {
+          throw new Error("Debe indicar el número de individuos intervenidos");
+        }
+        if (!state.selectedActividad?.id) {
+          throw new Error("ID de actividad no disponible");
+        }
+
+        // Construir el objeto para el endpoint de CUADRILLA
+        const dataCuadrilla = {
+          tipo_arbol: `${nombreComun} (${nombreCientifico})`,
+          registrado_por:
+            currentUser?.nombre_completo ||
+            currentUser?.displayName ||
+            currentUser?.email ||
+            "Usuario",
+          grupo: currentUser?.grupo || userGrupo[0] || "CUADRILLA",
+          observaciones: observaciones || "",
+          numero_individuos_intervenidos: individuosIntervenidos,
+          coordinates_data:
+            finalCoordinatesData ||
+            JSON.stringify([
+              finalCoordenadas.longitude,
+              finalCoordenadas.latitude,
+            ]),
+          tipo_intervencion: tipoIntervencion,
+          id_actividad: state.selectedActividad.id,
+          descripcion_intervencion: descripcionIntervencion,
+          coordinates_type: finalCoordinatesType,
+        };
+
+        console.log("📤 Enviando intervención CUADRILLA:", dataCuadrilla);
+        console.log("📸 Número de fotos:", photoFiles.length);
+        response = await registrarIntervencionCuadrilla(
+          dataCuadrilla,
+          photoFiles,
+        );
+      }
+      // ── Flujo estándar (grupo operativo) ──
+      else {
+        const reconocimiento: Record<string, any> = {
+          upid: state.selectedActividad.id,
+          nombre_up:
+            state.selectedActividad.objetivo_actividad ||
+            state.data.nombre_up ||
+            "Actividad sin objetivo",
+          tipo_intervencion: tipoIntervencion,
+          descripcion_intervencion: descripcionIntervencion,
+          direccion:
+            direccion ||
+            state.selectedActividad.punto_encuentro?.direccion ||
+            "Sin dirección registrada",
+          observaciones: observaciones || "",
+          coordenadas_gps: finalCoordenadas,
+          coordinates_type: finalCoordinatesType,
+          coordinates_data:
+            finalCoordinatesData ||
+            JSON.stringify([
+              finalCoordenadas.longitude,
+              finalCoordenadas.latitude,
+            ]),
+        };
+
+        response = await registrarReconocimiento(reconocimiento, photoFiles);
+      }
 
       if (response.success) {
         submitSuccess = true;
@@ -292,7 +405,7 @@
         // Mostrar modal de éxito
         modalTitle = "¡Reconocimiento Registrado!";
         modalMessage =
-          "El reconocimiento del parque se ha guardado correctamente.";
+          "El reconocimiento de la actividad se ha guardado correctamente.";
         modalType = "success";
         modalShowCancel = false;
         modalConfirmText = "Entendido";
@@ -300,15 +413,30 @@
       }
     } catch (error) {
       console.error("Error al enviar reconocimiento:", error);
-      submitError =
-        error instanceof Error
-          ? error.message
-          : "Error al registrar la verificación";
+
+      // Extraer mensaje de error de diferentes formatos
+      let errorMessage = "Error al registrar la verificación";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      } else if (error && typeof error === "object") {
+        // Intentar extraer mensaje de diferentes propiedades comunes
+        const errorObj = error as any;
+        errorMessage =
+          errorObj.message ||
+          errorObj.error ||
+          errorObj.detail ||
+          errorObj.msg ||
+          JSON.stringify(error);
+      }
+
+      submitError = errorMessage;
 
       // Mostrar modal de error
       modalTitle = "Error";
-      modalMessage =
-        submitError || "Ocurrió un error al guardar el reconocimiento.";
+      modalMessage = errorMessage;
       modalType = "error";
       modalShowCancel = false;
       modalConfirmText = "Entendido";
@@ -340,7 +468,7 @@
       <button class="back-btn" on:click={handleCancel}>
         <span class="back-icon">←</span>
       </button>
-      <h1 class="header-title">Reconocimiento de Parque</h1>
+      <h1 class="header-title">Reconocimiento de Actividad</h1>
     </div>
   </div>
 
@@ -358,11 +486,12 @@
   <div class="step-content">
     {#if currentStep === 1}
       <Step1SeleccionUP
-        parques={state.parques}
-        selectedParque={state.selectedParque}
-        onSelect={handleParqueSelect}
-        onLoadParques={handleLoadParques}
+        actividades={state.actividades}
+        selectedActividad={state.selectedActividad}
+        onSelect={handleActividadSelect}
+        onLoadActividades={handleLoadActividades}
         isLoading={state.isLoading}
+        {userGrupo}
       />
     {:else if currentStep === 2}
       <Step2Formulario
@@ -371,9 +500,13 @@
         bind:descripcionIntervencion
         bind:direccion
         bind:observaciones
-        selectedParque={state.selectedParque ?? undefined}
+        selectedActividad={state.selectedActividad ?? undefined}
         onCaptureGPS={handleCaptureGPS}
         isLoading={state.isLoading}
+        {isCuadrilla}
+        bind:individuosIntervenidos
+        bind:nombreCientifico
+        bind:nombreComun
       />
     {:else if currentStep === 3}
       <Step3Fotos bind:photoFiles />

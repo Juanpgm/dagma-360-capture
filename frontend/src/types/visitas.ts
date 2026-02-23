@@ -2,6 +2,8 @@
  * Tipos y estructuras de datos para el Sistema de Verificación de Parques DAGMA
  */
 
+import type { ActividadPlanDistritoVerde } from './actividades';
+
 // ============================================
 // 1. TIPOS PARA DATOS DE LA API
 // ============================================
@@ -128,11 +130,6 @@ export interface ReconocimientoParque {
   usuario_id?: string;
 }
 
-// Alias para compatibilidad
-export type VisitaVerificacion = ReconocimientoParque;
-export type TipoVisita = 'verificacion' | 'comunicaciones'; // Mantener por compatibilidad
-export type Estado360 = 'Antes' | 'Durante' | 'Después'; // Mantener por compatibilidad
-
 // ============================================
 // 3. ESTADO DEL STEPPER (3 PASOS)
 // ============================================
@@ -155,10 +152,10 @@ export interface FormularioState {
   // Estado de carga
   isLoading: boolean;
   error: string | null;
-  
+
   // Datos auxiliares cargados
-  parques: Parque[];
-  selectedParque: Parque | null;
+  actividades: ActividadPlanDistritoVerde[];
+  selectedActividad: ActividadPlanDistritoVerde | null;
 }
 
 // ============================================

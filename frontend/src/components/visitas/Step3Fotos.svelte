@@ -41,7 +41,7 @@
     <Card padding="md">
       <h3 class="card-title">📸 Evidencia Fotográfica</h3>
       <p class="card-subtitle">
-        Debe agregar al menos una foto del estado actual del parque
+        Debe agregar al menos una foto del estado actual de la actividad
       </p>
 
       <div class="photo-actions">
@@ -109,7 +109,7 @@
           <div class="empty-icon">📸</div>
           <p class="empty-title">No hay fotos aún</p>
           <p class="empty-hint">
-            Agregue fotos para documentar el estado del parque
+            Agregue fotos para documentar el estado de la actividad
           </p>
         </div>
       {/if}

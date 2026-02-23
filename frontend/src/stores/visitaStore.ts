@@ -1,16 +1,16 @@
 /**
- * Store Svelte para gestionar el estado del formulario de Reconocimientos de Parques DAGMA
+ * Store Svelte para gestionar el estado del formulario de Reconocimientos DAGMA
  */
 
 import { writable, derived, get } from 'svelte/store';
 import type {
   FormularioState,
   ReconocimientoParque,
-  StepNumber,
-  Parque
+  StepNumber
 } from '../types/visitas';
 import { getCurrentPosition, checkGeolocationPermission, isGeolocationAvailable } from '../lib/geolocation';
-import { getParques } from '../api/visitas';
+import type { ActividadPlanDistritoVerde } from '../types/actividades';
+import { getActividadesPlanDistritoVerde } from '../api/actividades';
 
 /**
  * Estado inicial del formulario
@@ -27,8 +27,8 @@ const initialState: FormularioState = {
   },
   isLoading: false,
   error: null,
-  parques: [],
-  selectedParque: null
+  actividades: [],
+  selectedActividad: null
 };
 
 /**
@@ -106,17 +106,21 @@ function createVisitaStore() {
     },
 
     /**
-     * Selecciona un Parque
+     * Selecciona una Actividad
      */
-    selectParque: (parque: Parque) => {
+    selectActividad: (actividad: ActividadPlanDistritoVerde) => {
+      const direccion = actividad.punto_encuentro?.direccion || '';
+      const nombreActividad =
+        actividad.objetivo_actividad || actividad.lider_actividad || 'Actividad sin nombre';
+
       update(state => ({
         ...state,
-        selectedParque: parque,
+        selectedActividad: actividad,
         data: {
           ...state.data,
-          upid: parque.upid,
-          nombre_up: parque.nombre_up,
-          direccion: parque.direccion || ''
+          upid: actividad.id,
+          nombre_up: nombreActividad,
+          direccion
         }
       }));
     },
@@ -171,59 +175,33 @@ function createVisitaStore() {
     },
 
     /**
-     * Agrega fotos al reconocimiento
+     * Carga la lista de actividades desde el API
      */
-    addPhotos: (files: File[]) => {
-      update(state => ({
-        ...state,
-        data: {
-          ...state.data,
-          photos: [...(state.data.photos || []), ...files]
-        }
-      }));
-    },
-
-    /**
-     * Elimina una foto por índice
-     */
-    removePhoto: (index: number) => {
-      update(state => ({
-        ...state,
-        data: {
-          ...state.data,
-          photos: (state.data.photos || []).filter((_, i) => i !== index)
-        }
-      }));
-    },
-
-    /**
-     * Carga la lista de parques desde el API
-     */
-    loadParques: async () => {
+    loadActividades: async () => {
       update(state => ({ ...state, isLoading: true, error: null }));
 
       try {
-        const parques = await getParques();
+        const actividades = await getActividadesPlanDistritoVerde();
 
         update(state => ({
           ...state,
           isLoading: false,
-          parques
+          actividades
         }));
       } catch (error) {
         update(state => ({
           ...state,
           isLoading: false,
-          error: error instanceof Error ? error.message : 'Error al cargar parques'
+          error: error instanceof Error ? error.message : 'Error al cargar actividades'
         }));
       }
     },
 
     /**
-     * Establece la lista de parques
+     * Establece la lista de actividades
      */
-    setParques: (parques: Parque[]) => {
-      update(state => ({ ...state, parques }));
+    setActividades: (actividades: ActividadPlanDistritoVerde[]) => {
+      update(state => ({ ...state, actividades }));
     },
 
     /**
@@ -263,18 +241,18 @@ export const formProgress = derived(
 export const isCurrentStepValid = derived(
   visitaStore,
   $store => {
-    const { currentStep, data, selectedParque } = $store;
+    const { currentStep, data, selectedActividad } = $store;
 
     switch (currentStep) {
       case 1:
-        // Paso 1: Debe haber un parque seleccionado
-        return !!selectedParque;
+        // Paso 1: Debe haber una actividad seleccionada
+        return !!selectedActividad;
 
       case 2:
         // Paso 2: Formulario + GPS (direccion no validada aquí, se maneja en submit)
         return !!data.tipo_intervencion &&
           !!data.descripcion_intervencion;
-      // !!data.coordenadas_gps; // GPS es opcional ahora, usaremos fallback del parque
+      // !!data.coordenadas_gps; // GPS es opcional ahora, usaremos fallback de la actividad
 
       case 3:
         // Paso 3: La validación de fotos se hace en el componente con photoFiles
@@ -289,7 +267,7 @@ export const isCurrentStepValid = derived(
 
 // Nombres de los pasos para el stepper UI (3 pasos)
 export const stepNames = [
-  'Selección de Parque',
+  'Selección de Actividad',
   'Datos y GPS',
   'Evidencia Fotográfica'
 ];

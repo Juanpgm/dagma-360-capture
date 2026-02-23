@@ -74,6 +74,12 @@
   let isConfirmModifyModalOpen = false;
   let pendingModifyPayload: any = null;
   let pendingModifyActividadId: string | null = null;
+  let isAsignarPersonalModalOpen = false;
+  let actividadAsignacionActual: ActividadPlanDistritoVerde | null = null;
+  let asignacionDropdownOpen = false;
+  let asignacionSearchQuery = "";
+  let personalSeleccionadoAsignacion: PersonalGrupoItem[] = [];
+  let personalAsignadoPorActividad: Record<string, PersonalGrupoItem[]> = {};
 
   let tipoJornadaForm = "";
   let fechaActividadForm = "";
@@ -90,6 +96,71 @@
   let latitudPuntoEncuentroNumero = Number.NaN;
   let longitudPuntoEncuentroNumero = Number.NaN;
   let tiposJornadaDisponibles: string[] = [];
+
+  interface PersonalGrupoItem {
+    id: string;
+    nombreCompleto: string;
+    telefono: string;
+    grupo: string;
+  }
+
+  interface PersonalGrupoApiItem {
+    id?: string;
+    nombre_completo?: string;
+    telefono?: string;
+    grupo?: string;
+  }
+
+  const personalDummyCatalogo: PersonalGrupoItem[] = [
+    {
+      id: "reaccion-1",
+      nombreCompleto: "Laura Camila Rojas",
+      telefono: "3001234501",
+      grupo: "REACCIÓN",
+    },
+    {
+      id: "reaccion-2",
+      nombreCompleto: "Julián Andrés Peña",
+      telefono: "3001234502",
+      grupo: "REACCIÓN",
+    },
+    {
+      id: "iec-1",
+      nombreCompleto: "Mónica Andrea Cardona",
+      telefono: "3001234503",
+      grupo: "IEC-Gobernanza",
+    },
+    {
+      id: "iec-2",
+      nombreCompleto: "Santiago López Mejía",
+      telefono: "3001234504",
+      grupo: "IEC-Gobernanza",
+    },
+    {
+      id: "cuadrilla-1",
+      nombreCompleto: "Diana Marcela Arboleda",
+      telefono: "3001234505",
+      grupo: "CUADRILLA",
+    },
+    {
+      id: "cuadrilla-2",
+      nombreCompleto: "Carlos Eduardo Benítez",
+      telefono: "3001234506",
+      grupo: "CUADRILLA",
+    },
+    {
+      id: "hidrico-1",
+      nombreCompleto: "Natalia Gómez Ruiz",
+      telefono: "3001234507",
+      grupo: "HIDRICO",
+    },
+    {
+      id: "hidrico-2",
+      nombreCompleto: "Felipe Andrés Vásquez",
+      telefono: "3001234508",
+      grupo: "HIDRICO",
+    },
+  ];
 
   function normalizeSearchValue(value: string): string {
     return value
@@ -159,6 +230,28 @@
     currentUser?.telefono ||
     currentUser?.phone ||
     "No registrado";
+
+  $: gruposActividadAsignacion =
+    actividadAsignacionActual?.grupos_requeridos?.filter(Boolean) || [];
+
+  $: personalDisponibleAsignacion = personalDummyCatalogo.filter((persona) =>
+    gruposActividadAsignacion.includes(persona.grupo),
+  );
+
+  $: filteredPersonalAsignacion = personalDisponibleAsignacion.filter(
+    (persona) => {
+      const query = normalizeSearchValue(asignacionSearchQuery);
+      if (!query) return true;
+
+      return (
+        normalizeSearchValue(persona.nombreCompleto).includes(query) ||
+        normalizeSearchValue(persona.telefono).includes(query) ||
+        normalizeSearchValue(persona.grupo).includes(query)
+      );
+    },
+  );
+
+  $: totalIntegrantesAsignados = personalSeleccionadoAsignacion.length;
 
   $: puedeContinuarPasoUno =
     !!tipoJornadaForm &&
@@ -491,6 +584,74 @@
     if (dateRangeRef && !dateRangeRef.contains(event.target as Node)) {
       dateRangeOpen = false;
     }
+
+    if (isAsignarPersonalModalOpen) {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".asignacion-dropdown")) {
+        asignacionDropdownOpen = false;
+      }
+    }
+  }
+
+  function openAsignarPersonalModal(actividad: ActividadPlanDistritoVerde) {
+    if (!actividad?.id) return;
+
+    actividadAsignacionActual = actividad;
+    isAsignarPersonalModalOpen = true;
+    asignacionDropdownOpen = false;
+    asignacionSearchQuery = "";
+    personalSeleccionadoAsignacion = [
+      ...getPersonalAsignadoActividad(actividad.id),
+    ];
+  }
+
+  function closeAsignarPersonalModal() {
+    isAsignarPersonalModalOpen = false;
+    actividadAsignacionActual = null;
+    asignacionDropdownOpen = false;
+    asignacionSearchQuery = "";
+    personalSeleccionadoAsignacion = [];
+  }
+
+  function toggleAsignacionDropdown() {
+    asignacionDropdownOpen = !asignacionDropdownOpen;
+
+    if (!asignacionDropdownOpen) {
+      asignacionSearchQuery = "";
+    }
+  }
+
+  function toggleIntegranteAsignacion(persona: PersonalGrupoItem) {
+    const exists = personalSeleccionadoAsignacion.some(
+      (item) => item.id === persona.id,
+    );
+
+    personalSeleccionadoAsignacion = exists
+      ? personalSeleccionadoAsignacion.filter((item) => item.id !== persona.id)
+      : [...personalSeleccionadoAsignacion, persona];
+  }
+
+  function removeIntegranteAsignado(personaId: string) {
+    personalSeleccionadoAsignacion = personalSeleccionadoAsignacion.filter(
+      (item) => item.id !== personaId,
+    );
+  }
+
+  function confirmarAsignacionPersonal() {
+    if (actividadAsignacionActual?.id) {
+      personalAsignadoPorActividad = {
+        ...personalAsignadoPorActividad,
+        [actividadAsignacionActual.id]: [...personalSeleccionadoAsignacion],
+      };
+    }
+
+    convocatoriaFeedbackType = "success";
+    convocatoriaFeedback =
+      totalIntegrantesAsignados > 0
+        ? `Se asignaron ${totalIntegrantesAsignados} integrante(s) a la actividad ${actividadAsignacionActual?.tipo_jornada || "seleccionada"}. (Datos dummy)`
+        : "No se seleccionaron integrantes.";
+
+    closeAsignarPersonalModal();
   }
 
   function getGrupoColorClass(grupo: string): string {
@@ -510,6 +671,55 @@
     );
 
     return palette[hash % palette.length];
+  }
+
+  function getPersonalAsignadoActividad(
+    actividadId: string | undefined,
+  ): PersonalGrupoItem[] {
+    if (!actividadId) return [];
+
+    if (personalAsignadoPorActividad[actividadId]) {
+      return personalAsignadoPorActividad[actividadId] || [];
+    }
+
+    const actividad = actividades.find((item) => item.id === actividadId);
+    const grupoApi = (actividad?.grupo || []) as PersonalGrupoApiItem[];
+
+    return grupoApi
+      .filter((item) => item.nombre_completo && item.grupo)
+      .map((item, index) => ({
+        id: item.id || `${actividadId}-${index}`,
+        nombreCompleto: item.nombre_completo || "-",
+        telefono: item.telefono || "No registrado",
+        grupo: item.grupo || "-",
+      }));
+  }
+
+  function getPersonalAsignadoPorGrupo(
+    actividadId: string | undefined,
+    grupo: string,
+  ): PersonalGrupoItem[] {
+    return getPersonalAsignadoActividad(actividadId).filter(
+      (persona) => persona.grupo === grupo,
+    );
+  }
+
+  function getTotalPersonalAsignadoActividad(
+    actividadId: string | undefined,
+  ): number {
+    return getPersonalAsignadoActividad(actividadId).length;
+  }
+
+  function getGruposAsignadosActividad(
+    actividadId: string | undefined,
+  ): string[] {
+    const gruposSet = new Set(
+      getPersonalAsignadoActividad(actividadId)
+        .map((persona) => persona.grupo)
+        .filter(Boolean),
+    );
+
+    return Array.from(gruposSet).sort((a, b) => a.localeCompare(b, "es"));
   }
 
   function getEstadoColorClass(estado?: string): string {
@@ -1208,6 +1418,58 @@
                       <span class="badge-grupo">{grupo}</span>
                     {/each}
                   </div>
+
+                  <details class="grupos-disclosure">
+                    <summary>
+                      <span class="grupos-disclosure-title"
+                        >Personal de apoyo asignado</span
+                      >
+                      <span class="grupos-disclosure-count"
+                        >{getTotalPersonalAsignadoActividad(actividad.id)}</span
+                      >
+                    </summary>
+
+                    {#if getPersonalAsignadoActividad(actividad.id).length === 0}
+                      <p class="personal-asignado-empty">
+                        No se ha asignado aún personal de apoyo para ésta
+                        actividad, por favor asígnelo antes del comienzo de la
+                        misma
+                      </p>
+                    {:else}
+                      <div class="personal-grupos-container">
+                        {#each getGruposAsignadosActividad(actividad.id) as grupo}
+                          <div class="personal-grupo-item">
+                            <span
+                              class={`lider-grupo-badge ${getGrupoColorClass(grupo)}`}
+                            >
+                              {grupo}
+                            </span>
+
+                            <div class="personal-listado">
+                              {#each getPersonalAsignadoPorGrupo(actividad.id, grupo) as personaAsignada}
+                                <div class="personal-item">
+                                  <div class="personal-item-row">
+                                    <span class="personal-label"
+                                      >nombre_completo:</span
+                                    >
+                                    <span class="personal-value"
+                                      >{personaAsignada.nombreCompleto}</span
+                                    >
+                                  </div>
+                                  <div class="personal-item-row">
+                                    <span class="personal-label">grupo:</span>
+                                    <span class="personal-value"
+                                      >{personaAsignada.grupo}</span
+                                    >
+                                  </div>
+                                </div>
+                              {/each}
+                            </div>
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
+                  </details>
                 </div>
               {/if}
 
@@ -1215,11 +1477,10 @@
               <div class="acciones-section">
                 <button
                   type="button"
-                  class="btn-modificar-actividad"
-                  title="Modificar actividad"
-                  aria-label="Modificar actividad"
-                  disabled={modifyingActividadId === actividad.id}
-                  on:click={() => modificarActividad(actividad)}
+                  class="btn-asignar-personal"
+                  title="Asignar personal a la actividad"
+                  aria-label="Asignar personal"
+                  on:click={() => openAsignarPersonalModal(actividad)}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -1232,41 +1493,70 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                   >
-                    <path d="M12 20h9"></path><path
-                      d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"
-                    ></path>
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <line x1="19" y1="8" x2="19" y2="14"></line>
+                    <line x1="22" y1="11" x2="16" y2="11"></line>
                   </svg>
-                  <span>Modificar</span>
+                  <span>Asignar Personal</span>
                 </button>
 
-                <button
-                  type="button"
-                  class="btn-delete-actividad"
-                  title="Eliminar actividad"
-                  aria-label="Eliminar actividad"
-                  disabled={deletingActividadId === actividad.id}
-                  on:click={() => eliminarActividad(actividad.id)}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                <div class="acciones-row">
+                  <button
+                    type="button"
+                    class="btn-modificar-actividad"
+                    title="Modificar actividad"
+                    aria-label="Modificar actividad"
+                    disabled={modifyingActividadId === actividad.id}
+                    on:click={() => modificarActividad(actividad)}
                   >
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
-                    ></path>
-                    <path d="M10 11v6"></path>
-                    <path d="M14 11v6"></path>
-                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-                  </svg>
-                  <span>Eliminar</span>
-                </button>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M12 20h9"></path><path
+                        d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"
+                      ></path>
+                    </svg>
+                    <span>Modificar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn-delete-actividad"
+                    title="Eliminar actividad"
+                    aria-label="Eliminar actividad"
+                    disabled={deletingActividadId === actividad.id}
+                    on:click={() => eliminarActividad(actividad.id)}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+                      ></path>
+                      <path d="M10 11v6"></path>
+                      <path d="M14 11v6"></path>
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                    </svg>
+                    <span>Eliminar</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1622,6 +1912,151 @@
           disabled={guardandoConvocatoria}
         >
           {guardandoConvocatoria ? "Modificando..." : "Sí, Aplicar Cambios"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if isAsignarPersonalModalOpen}
+  <div
+    class="asignar-personal-modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Asignar personal a la actividad"
+  >
+    <div
+      class="asignar-personal-modal"
+      class:dropdown-open={asignacionDropdownOpen}
+    >
+      <div class="asignar-personal-header">
+        <h2>Asignar Personal</h2>
+        <p>
+          {actividadAsignacionActual?.tipo_jornada || "Actividad"} ·
+          {formatDate(actividadAsignacionActual?.fecha_actividad || "")}
+        </p>
+      </div>
+
+      {#if gruposActividadAsignacion.length === 0}
+        <div class="asignacion-empty-groups">
+          Esta actividad no tiene grupos requeridos para asignar personal.
+        </div>
+      {:else}
+        <div class="asignacion-grupos-resumen">
+          {#each gruposActividadAsignacion as grupoActividad}
+            <span
+              class={`lider-grupo-badge ${getGrupoColorClass(grupoActividad)}`}
+            >
+              {grupoActividad}
+            </span>
+          {/each}
+        </div>
+
+        <div class="asignacion-dropdown">
+          <button
+            type="button"
+            class="asignacion-dropdown-trigger"
+            class:open={asignacionDropdownOpen}
+            on:click={toggleAsignacionDropdown}
+          >
+            <span class="asignacion-dropdown-label"
+              >Seleccionar integrantes</span
+            >
+            <span class="asignacion-dropdown-arrow">▾</span>
+          </button>
+
+          {#if asignacionDropdownOpen}
+            <div class="asignacion-dropdown-panel">
+              <input
+                type="search"
+                class="asignacion-search-input"
+                bind:value={asignacionSearchQuery}
+                placeholder="Buscar por nombre, teléfono o grupo..."
+              />
+
+              <div class="asignacion-options-list">
+                {#if filteredPersonalAsignacion.length === 0}
+                  <div class="asignacion-empty-state">
+                    No hay personas disponibles para los grupos requeridos.
+                  </div>
+                {:else}
+                  {#each filteredPersonalAsignacion as persona}
+                    <button
+                      type="button"
+                      class="asignacion-option-item"
+                      class:selected={personalSeleccionadoAsignacion.some(
+                        (item) => item.id === persona.id,
+                      )}
+                      on:click={() => toggleIntegranteAsignacion(persona)}
+                    >
+                      <span class="asignacion-option-check"
+                        >{personalSeleccionadoAsignacion.some(
+                          (item) => item.id === persona.id,
+                        )
+                          ? "✓"
+                          : ""}</span
+                      >
+                      <div class="asignacion-option-content">
+                        <span class="asignacion-option-name"
+                          >{persona.nombreCompleto}</span
+                        >
+                        <span class="asignacion-option-phone"
+                          >{persona.telefono}</span
+                        >
+                      </div>
+                      <span
+                        class={`lider-grupo-badge ${getGrupoColorClass(persona.grupo)}`}
+                      >
+                        {persona.grupo}
+                      </span>
+                    </button>
+                  {/each}
+                {/if}
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        {#if personalSeleccionadoAsignacion.length > 0}
+          <div class="asignacion-selected-list">
+            {#each personalSeleccionadoAsignacion as personaSel}
+              <button
+                type="button"
+                class="asignacion-selected-pill"
+                on:click={() => removeIntegranteAsignado(personaSel.id)}
+                title="Quitar integrante"
+              >
+                <span class="asignacion-pill-name"
+                  >{personaSel.nombreCompleto}</span
+                >
+                <span class="asignacion-pill-phone">{personaSel.telefono}</span>
+                <span
+                  class={`lider-grupo-badge ${getGrupoColorClass(personaSel.grupo)}`}
+                >
+                  {personaSel.grupo}
+                </span>
+                <span class="asignacion-pill-remove">×</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      {/if}
+
+      <div class="asignar-personal-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          on:click={closeAsignarPersonalModal}
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          on:click={confirmarAsignacionPersonal}
+          disabled={totalIntegrantesAsignados === 0}
+        >
+          Asignar
         </button>
       </div>
     </div>
@@ -2275,13 +2710,20 @@
 
   .acciones-section {
     display: flex;
+    flex-direction: column;
     gap: 0.5rem;
     padding-top: 0.75rem;
     border-top: 1px solid var(--border);
   }
 
+  .acciones-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+
   .btn-modificar-actividad,
-  .btn-delete-actividad {
+  .btn-delete-actividad,
+  .btn-asignar-personal {
     flex: 1;
     display: inline-flex;
     align-items: center;
@@ -2296,6 +2738,28 @@
     background: white;
     border: 1.5px solid;
     min-height: 2.1rem;
+  }
+
+  .btn-asignar-personal {
+    border-color: var(--secondary);
+    color: var(--secondary);
+    width: 100%;
+  }
+
+  .btn-asignar-personal:hover {
+    background: rgba(2, 132, 199, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .btn-asignar-personal:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-asignar-personal svg {
+    width: 14px;
+    height: 14px;
   }
 
   .btn-modificar-actividad {
@@ -2639,6 +3103,125 @@
     content: "^";
   }
 
+  .grupos-disclosure {
+    margin-top: 0.6rem;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 0.8rem;
+    background: white;
+    padding: 0.6rem 0.7rem;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+
+  .grupos-disclosure summary {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    list-style: none;
+    padding: 0.15rem 0;
+  }
+
+  .grupos-disclosure-title {
+    color: var(--text-secondary);
+    font-weight: 800;
+  }
+
+  .grupos-disclosure-count {
+    min-width: 1.65rem;
+    height: 1.65rem;
+    border-radius: 999px;
+    border: 1px solid rgba(2, 132, 199, 0.25);
+    background: rgba(2, 132, 199, 0.1);
+    color: var(--secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .grupos-disclosure summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .personal-asignado-empty {
+    margin-top: 0.65rem;
+    color: var(--text-secondary);
+    font-size: 0.84rem;
+    line-height: 1.4;
+    border: 1px dashed var(--border);
+    border-radius: 0.65rem;
+    background: var(--surface);
+    padding: 0.7rem 0.8rem;
+  }
+
+  .personal-grupos-container {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .personal-grupo-item {
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.65rem 0.7rem;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .personal-grupo-empty {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-style: italic;
+  }
+
+  .personal-listado {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .personal-item {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 0.65rem;
+    background: white;
+    padding: 0.5rem 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.82rem;
+  }
+
+  .personal-item-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .personal-label {
+    color: var(--text-secondary);
+    font-weight: 700;
+  }
+
+  .personal-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    margin-right: 0.45rem;
+  }
+
   .grupos-compact {
     margin-top: 0.4rem;
   }
@@ -2745,6 +3328,248 @@
     align-items: center;
     padding: 1rem;
     z-index: 350;
+  }
+
+  .asignar-personal-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+    z-index: 360;
+  }
+
+  .asignar-personal-modal {
+    width: min(1100px, 96vw);
+    max-height: 94vh;
+    overflow-y: auto;
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
+    transition:
+      width 0.2s ease,
+      max-height 0.2s ease,
+      padding 0.2s ease;
+  }
+
+  .asignar-personal-modal.dropdown-open {
+    width: min(1400px, 99vw);
+    max-height: 98vh;
+    padding: 1.75rem;
+  }
+
+  .asignar-personal-header h2 {
+    color: var(--text-primary);
+    font-size: 1.45rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .asignar-personal-header p {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    font-size: 0.92rem;
+  }
+
+  .asignacion-empty-groups {
+    border: 1px dashed var(--border);
+    border-radius: 0.8rem;
+    padding: 1rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    background: #f8fffb;
+  }
+
+  .asignacion-grupos-resumen {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.7rem;
+  }
+
+  .asignacion-dropdown {
+    position: relative;
+  }
+
+  .asignacion-dropdown-trigger {
+    width: 100%;
+    min-height: 44px;
+    border: 2px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--surface);
+    padding: 0.55rem 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .asignacion-dropdown-trigger.open,
+  .asignacion-dropdown-trigger:focus {
+    outline: none;
+    border-color: var(--secondary);
+    background: white;
+  }
+
+  .asignacion-dropdown-label {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  .asignacion-dropdown-arrow {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+  }
+
+  .asignacion-dropdown-panel {
+    position: absolute;
+    z-index: 42;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 0.8rem;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.2);
+    padding: 0.6rem;
+  }
+
+  .asignar-personal-modal.dropdown-open .asignacion-dropdown-panel {
+    position: relative;
+    margin-top: 0.35rem;
+  }
+
+  .asignacion-search-input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.88rem;
+    margin-bottom: 0.5rem;
+    background: #f8fffb;
+  }
+
+  .asignacion-search-input:focus {
+    outline: none;
+    border-color: var(--secondary);
+    background: white;
+  }
+
+  .asignacion-options-list {
+    max-height: 340px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .asignar-personal-modal.dropdown-open .asignacion-options-list {
+    max-height: 62vh;
+  }
+
+  .asignacion-option-item {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1rem 1fr auto;
+    gap: 0.5rem;
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    background: #f8fffb;
+    padding: 0.5rem 0.6rem;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .asignacion-option-item:hover {
+    border-color: var(--border);
+    background: #effcf4;
+  }
+
+  .asignacion-option-item.selected {
+    border-color: rgba(2, 132, 199, 0.35);
+    background: rgba(2, 132, 199, 0.1);
+  }
+
+  .asignacion-option-check {
+    width: 1rem;
+    color: var(--secondary);
+    font-weight: 800;
+  }
+
+  .asignacion-option-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .asignacion-option-name {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.88rem;
+    line-height: 1.3;
+  }
+
+  .asignacion-option-phone {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+  }
+
+  .asignacion-empty-state {
+    color: #6b7280;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.35rem;
+  }
+
+  .asignacion-selected-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .asignacion-selected-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid rgba(2, 132, 199, 0.35);
+    border-radius: 999px;
+    background: rgba(2, 132, 199, 0.1);
+    color: var(--secondary);
+    padding: 0.25rem 0.55rem;
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .asignacion-selected-pill:hover {
+    background: rgba(2, 132, 199, 0.18);
+  }
+
+  .asignacion-pill-name {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+
+  .asignacion-pill-phone {
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .asignacion-pill-remove {
+    color: var(--secondary);
+    font-weight: 800;
+  }
+
+  .asignar-personal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1rem;
   }
 
   .confirm-modify-modal {

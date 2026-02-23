@@ -1,209 +1,136 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import Button from '../ui/Button.svelte';
-  import type { Parque } from '../../types/visitas';
-  import { getCurrentPosition, calculateDistanceToGeometry } from '../../lib/geolocation';
-  import type { Coordenadas } from '../../types/visitas';
-  
-  export let parques: Parque[];
-  export let selectedParque: Parque | null;
-  export let onSelect: (parque: Parque) => void;
-  export let onLoadParques: () => Promise<void>;
-  export let isLoading: boolean;
+  import { onMount } from "svelte";
+  import type { ActividadPlanDistritoVerde } from "../../types/actividades";
+  import { getGoogleMapsUrl } from "../../api/actividades";
 
-  let searchTerm = '';
-  let showColumnSelector = false;
-  let currentLocation: Coordenadas | null = null;
-  let capturingLocation = false;
-  let sortByDistance = true; // Por defecto ordenar por distancia
-  
-  // Paginación
+  export let actividades: ActividadPlanDistritoVerde[];
+  export let selectedActividad: ActividadPlanDistritoVerde | null;
+  export let onSelect: (actividad: ActividadPlanDistritoVerde) => void;
+  export let onLoadActividades: () => Promise<void>;
+  export let isLoading: boolean;
+  export let userGrupo: string | string[] | null = null;
+
+  let searchTerm = "";
+
+  // Paginacion
   let currentPage = 1;
   let itemsPerPage = 10;
 
-  // Columnas disponibles para parques
-  interface ColumnConfig {
-    key: keyof Parque | 'distancia' | 'estado_intervencion';
-    label: string;
-    visible: boolean;
-    width?: string;
-  }
+  type ColumnKey =
+    | "tipo_direccion"
+    | "lider_actividad"
+    | "objetivo_actividad"
+    | "fecha_hora"
+    | "observaciones";
 
-  let columns: ColumnConfig[] = [
-    { key: 'distancia', label: 'Distancia', visible: true, width: '100px' },
-    { key: 'upid', label: 'ID', visible: true, width: '100px' },
-    { key: 'nombre_up', label: 'Nombre del Parque', visible: true, width: '250px' },
-    { key: 'identificador', label: 'Tipo', visible: true, width: '120px' },
-    { key: 'barrio_vereda', label: 'Barrio', visible: true, width: '150px' },
-    { key: 'comuna_corregimiento', label: 'Comuna', visible: true, width: '120px' },
-    { key: 'direccion', label: 'Dirección', visible: true, width: '200px' },
-    { key: 'estado_intervencion', label: 'Estado', visible: true, width: '130px' },
-    { key: 'tipo_equipamiento', label: 'Equipamiento', visible: false, width: '150px' },
-    { key: 'avance_obra', label: 'Avance %', visible: false, width: '90px' },
+  const columns: { key: ColumnKey; label: string; width?: string }[] = [
+    { key: "tipo_direccion", label: "Tipo / Direccion", width: "220px" },
+    { key: "lider_actividad", label: "Lider", width: "180px" },
+    { key: "objetivo_actividad", label: "Objetivo", width: "260px" },
+    { key: "fecha_hora", label: "Fecha / Hora", width: "160px" },
+    { key: "observaciones", label: "Observaciones", width: "260px" },
   ];
 
-  $: visibleColumns = columns.filter(col => col.visible);
+  const normalizeGroupValue = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
 
-  // Filtrar parques por búsqueda
-  $: filteredParques = parques.filter(parque => {
+  const splitGroupValue = (value: string) =>
+    value
+      .split(/[;,/|]/g)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const toGroupStrings = (value: unknown): string[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => toGroupStrings(item));
+    }
+    if (typeof value === "string" || typeof value === "number") {
+      return splitGroupValue(String(value));
+    }
+    if (typeof value === "object") {
+      const nested =
+        (value as { grupo?: string; nombre?: string; name?: string }).grupo ||
+        (value as { nombre?: string }).nombre ||
+        (value as { name?: string }).name ||
+        "";
+      return nested ? splitGroupValue(String(nested)) : [];
+    }
+    return [];
+  };
+
+  $: normalizedUserGroups = toGroupStrings(userGrupo)
+    .map((grupo) => normalizeGroupValue(grupo))
+    .filter(Boolean);
+
+  $: actividadesPorGrupo = normalizedUserGroups.length
+    ? actividades.filter((actividad) => {
+        const normalizedActivityGroups = toGroupStrings(
+          actividad.grupos_requeridos || [],
+        ).map((grupo) => normalizeGroupValue(grupo));
+        return normalizedActivityGroups.some((grupo) =>
+          normalizedUserGroups.includes(grupo),
+        );
+      })
+    : [];
+
+  $: filteredActividades = actividadesPorGrupo.filter((actividad) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
+    const direccion = actividad.punto_encuentro?.direccion || "";
+
     return (
-      parque.upid?.toLowerCase().includes(term) ||
-      parque.nombre_up?.toLowerCase().includes(term) ||
-      parque.identificador?.toLowerCase().includes(term) ||
-      parque.barrio_vereda?.toLowerCase().includes(term) ||
-      parque.comuna_corregimiento?.toLowerCase().includes(term) ||
-      parque.direccion?.toLowerCase().includes(term) ||
-      parque.tipo_equipamiento?.toLowerCase().includes(term)
+      actividad.tipo_jornada?.toLowerCase().includes(term) ||
+      direccion.toLowerCase().includes(term) ||
+      actividad.lider_actividad?.toLowerCase().includes(term) ||
+      actividad.objetivo_actividad?.toLowerCase().includes(term) ||
+      actividad.fecha_actividad?.toLowerCase().includes(term) ||
+      actividad.hora_encuentro?.toLowerCase().includes(term) ||
+      actividad.observaciones?.toLowerCase().includes(term)
     );
   });
 
-  // Ordenar por distancia si hay ubicación actual
-  $: sortedParques = sortByDistance && currentLocation 
-    ? [...filteredParques].sort((a, b) => {
-        const distA = calculateParqueDistance(a);
-        const distB = calculateParqueDistance(b);
-        return distA - distB;
-      })
-    : filteredParques;
-
-  // Paginación
-  $: totalPages = Math.ceil(sortedParques.length / itemsPerPage);
-  $: paginatedParques = sortedParques.slice(
+  $: totalPages = Math.ceil(filteredActividades.length / itemsPerPage);
+  $: paginatedActividades = filteredActividades.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
-  
-  // Resetear a página 1 cuando cambie la búsqueda
+
   $: if (searchTerm) {
     currentPage = 1;
   }
 
-  // Función para calcular distancia a un parque
-  function calculateParqueDistance(parque: Parque): number {
-    if (!currentLocation) {
-      return Infinity;
-    }
-    
-    // Intentar usar geometry primero
-    if (parque.geometry && parque.geometry.coordinates) {
-      try {
-        return calculateDistanceToGeometry(currentLocation, parque.geometry);
-      } catch (error) {
-        console.error('Error calculando distancia desde geometry:', error);
-      }
-    }
-    
-    // Fallback a lat/lon si existen
-    if (parque.lat && parque.lon) {
-      try {
-        const lat = parseFloat(parque.lat);
-        const lon = parseFloat(parque.lon);
-        if (!isNaN(lat) && !isNaN(lon)) {
-          return calculateDistanceToGeometry(currentLocation, {
-            type: 'Point',
-            coordinates: [lon, lat]
-          });
-        }
-      } catch (error) {
-        console.error('Error calculando distancia desde lat/lon:', error);
-      }
-    }
-    
-    return Infinity;
-  }
-
-  // Formatear distancia para mostrar
-  function formatDistance(distance: number): string {
-    if (distance === Infinity || isNaN(distance)) {
-      return 'N/A';
-    }
-    
-    if (distance < 1000) {
-      return `${Math.round(distance)}m`;
-    } else {
-      return `${(distance / 1000).toFixed(1)}km`;
-    }
-  }
-
-  // Capturar ubicación GPS automáticamente
-  async function captureLocation() {
-    capturingLocation = true;
-    try {
-      currentLocation = await getCurrentPosition();
-      console.log('Ubicación capturada:', currentLocation);
-    } catch (error) {
-      console.error('Error capturando ubicación:', error);
-      currentLocation = null;
-    } finally {
-      capturingLocation = false;
-    }
-  }
-
   onMount(async () => {
-    if (parques.length === 0) {
-      await onLoadParques();
+    if (actividades.length === 0) {
+      await onLoadActividades();
     }
-    // Capturar ubicación automáticamente al montar
-    await captureLocation();
   });
 
-  function handleSelectParque(parque: Parque) {
-    console.log('Parque seleccionado:', parque);
-    onSelect(parque);
+  function openGoogleMaps(actividad: ActividadPlanDistritoVerde) {
+    const geometry = actividad.punto_encuentro?.geometry;
+
+    if (!geometry?.coordinates || geometry.coordinates.length < 2) {
+      alert("La actividad no tiene coordenadas registradas.");
+      return;
+    }
+
+    const url = getGoogleMapsUrl({
+      coordinates: geometry.coordinates as [number, number],
+    });
+    window.open(url, "_blank");
   }
 
-  function openGoogleMaps(parque: Parque) {
-    console.log('openGoogleMaps llamado para parque:', parque.nombre_up);
-    
-    let lat: number, lng: number;
+  function handleSelectActividad(actividad: ActividadPlanDistritoVerde) {
+    onSelect(actividad);
+  }
 
-    try {
-      // Intentar usar geometry primero
-      if (parque.geometry && parque.geometry.coordinates) {
-        const coords = parque.geometry.coordinates;
-        
-        if (parque.geometry.type === 'Point') {
-          [lng, lat] = coords as [number, number];
-        } else if (parque.geometry.type === 'LineString') {
-          const lineCoords = coords as [number, number][];
-          [lng, lat] = lineCoords[0];
-        } else if (parque.geometry.type === 'MultiLineString') {
-          const firstLine = (coords as [number, number][][])[0];
-          [lng, lat] = firstLine[0];
-        } else if (parque.geometry.type === 'Polygon') {
-          const ring = (coords as [number, number][][])[0];
-          [lng, lat] = ring[0];
-        } else {
-          throw new Error(`Tipo de geometría no soportado: ${parque.geometry.type}`);
-        }
-      } 
-      // Fallback a lat/lon
-      else if (parque.lat && parque.lon) {
-        lat = parseFloat(parque.lat);
-        lng = parseFloat(parque.lon);
-      } else {
-        throw new Error('No hay coordenadas disponibles');
-      }
-
-      // Validar coordenadas
-      if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
-        throw new Error(`Coordenadas no válidas: lat=${lat}, lng=${lng}`);
-      }
-
-      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        throw new Error(`Coordenadas fuera de rango: lat=${lat}, lng=${lng}`);
-      }
-      
-      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-      console.log('✅ Abriendo Google Maps:', { lat, lng, url: mapsUrl });
-      window.open(mapsUrl, '_blank');
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      alert(`Las coordenadas del parque no son válidas.\n\nDetalle: ${errorMsg}`);
-      console.error('❌ Error procesando coordenadas:', { error: errorMsg, parque });
-    }
+  function getDireccion(actividad: ActividadPlanDistritoVerde): string {
+    return actividad.punto_encuentro?.direccion || "-";
   }
 
   function goToPage(page: number) {
@@ -211,193 +138,114 @@
       currentPage = page;
     }
   }
-
-  function toggleColumnVisibility(columnKey: keyof Parque | 'distancia' | 'estado_intervencion') {
-    columns = columns.map(col => 
-      col.key === columnKey ? { ...col, visible: !col.visible } : col
-    );
-  }
-
-  function getCellValue(parque: Parque, key: keyof Parque | 'distancia' | 'estado_intervencion'): string {
-    // Caso especial para distancia
-    if (key === 'distancia') {
-      const distance = calculateParqueDistance(parque);
-      return formatDistance(distance);
-    }
-
-    // Caso especial para estado de intervención
-    if (key === 'estado_intervencion') {
-      if (parque.intervenciones && parque.intervenciones.length > 0) {
-        return parque.intervenciones[0].estado;
-      }
-      return '-';
-    }
-
-    const value = parque[key as keyof Parque];
-    
-    if (value === null || value === undefined) return '-';
-    
-    if (key === 'avance_obra' && typeof value === 'number') {
-      return `${value}%`;
-    }
-    
-    return String(value);
-  }
-
-  // Obtener badge color para estado
-  function getEstadoBadgeClass(estado: string): string {
-    const estadoLower = estado.toLowerCase();
-    if (estadoLower.includes('ejecución') || estadoLower.includes('activo')) {
-      return 'badge-success';
-    }
-    if (estadoLower.includes('suspendido') || estadoLower.includes('inactivo')) {
-      return 'badge-warning';
-    }
-    if (estadoLower.includes('terminado') || estadoLower.includes('completado')) {
-      return 'badge-info';
-    }
-    if (estadoLower.includes('alistamiento')) {
-      return 'badge-secondary';
-    }
-    return 'badge-default';
-  }
 </script>
 
 <div class="step-container">
   <div class="step-header">
-    <h2 class="step-title">Selección de Parque</h2>
-    <p class="step-description">
-      Busque y seleccione el parque o zona verde a verificar
-    </p>
+    <h2 class="step-title">Seleccion de Actividad</h2>
+    <p class="step-description">Busque y seleccione la actividad a reconocer</p>
   </div>
 
   <div class="step-content">
     {#if isLoading}
       <div class="loading-state">
         <div class="spinner"></div>
-        <p>Cargando parques...</p>
+        <p>Cargando Actividades</p>
       </div>
     {:else}
-      <!-- Barra de herramientas -->
       <div class="toolbar">
         <input
           type="text"
-          placeholder="Buscar por nombre, barrio, comuna..."
+          placeholder="Buscar por direccion, lider, objetivo..."
           bind:value={searchTerm}
           class="search-input"
         />
-        
-        <div class="toolbar-actions">
-          <!-- Indicador de GPS -->
-          <div class="gps-indicator">
-            {#if capturingLocation}
-              <div class="gps-status capturing">
-                <div class="spinner-small"></div>
-                <span>Capturando GPS...</span>
-              </div>
-            {:else if currentLocation}
-              <div class="gps-status active" title="Parques ordenados por cercanía">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#10b981"/>
-                </svg>
-                <span>GPS activo</span>
-              </div>
-            {:else}
-              <div class="gps-status inactive">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#9ca3af"/>
-                </svg>
-                <span>Sin GPS</span>
-                <button class="btn-retry" on:click={captureLocation}>Reintentar</button>
-              </div>
-            {/if}
-          </div>
 
-          <button 
-            class="btn-toggle-columns"
-            on:click={() => showColumnSelector = !showColumnSelector}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 3h12M2 8h12M2 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            Columnas
-          </button>
-          <span class="results-count">{sortedParques.length} parque(s)</span>
+        <div class="toolbar-actions">
+          <span class="results-count">
+            {filteredActividades.length} actividad(es)
+          </span>
         </div>
       </div>
 
-      <!-- Selector de columnas -->
-      {#if showColumnSelector}
-        <div class="column-selector">
-          <p class="column-selector-title">Mostrar/Ocultar Columnas:</p>
-          <div class="column-options">
-            {#each columns as column}
-              <label class="column-option">
-                <input
-                  type="checkbox"
-                  checked={column.visible}
-                  on:change={() => toggleColumnVisibility(column.key)}
-                />
-                <span>{column.label}</span>
-              </label>
-            {/each}
-          </div>
-        </div>
-      {/if}
-
-      <!-- Tabla de parques -->
       <div class="table-container">
         <table class="projects-table">
           <thead>
             <tr>
-              {#each visibleColumns as column}
+              {#each columns as column}
                 <th style="width: {column.width || 'auto'}">{column.label}</th>
               {/each}
               <th style="width: 140px">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {#if filteredParques.length === 0}
+            {#if filteredActividades.length === 0}
               <tr>
-                <td colspan={visibleColumns.length + 1} class="empty-state">
-                  No se encontraron parques
+                <td colspan={columns.length + 1} class="empty-state">
+                  {normalizedUserGroups.length === 0
+                    ? "No se pudo determinar el grupo del usuario"
+                    : "No se encontraron actividades para tu grupo"}
                 </td>
               </tr>
             {:else}
-              {#each paginatedParques as parque}
-                <tr class:selected={selectedParque?.upid === parque.upid}>
-                  {#each visibleColumns as column}
-                    {#if column.key === 'estado_intervencion'}
-                      <td>
-                        {#if parque.intervenciones && parque.intervenciones.length > 0}
-                          <span class="badge {getEstadoBadgeClass(parque.intervenciones[0].estado)}">
-                            {parque.intervenciones[0].estado}
-                          </span>
-                        {:else}
-                          -
-                        {/if}
-                      </td>
-                    {:else}
-                      <td>{getCellValue(parque, column.key)}</td>
-                    {/if}
-                  {/each}
+              {#each paginatedActividades as actividad}
+                <tr class:selected={selectedActividad?.id === actividad.id}>
+                  <td>
+                    <div class="cell-stack">
+                      <span class="cell-primary"
+                        >{actividad.tipo_jornada || "-"}</span
+                      >
+                      <span class="cell-secondary"
+                        >{getDireccion(actividad)}</span
+                      >
+                      <span class="cell-tertiary">
+                        {actividad.grupos_requeridos?.length
+                          ? actividad.grupos_requeridos.join(", ")
+                          : "-"}
+                      </span>
+                    </div>
+                  </td>
+                  <td>{actividad.lider_actividad || "-"}</td>
+                  <td>{actividad.objetivo_actividad || "-"}</td>
+                  <td>
+                    <div class="cell-stack">
+                      <span class="cell-primary"
+                        >{actividad.fecha_actividad || "-"}</span
+                      >
+                      <span class="cell-secondary"
+                        >{actividad.hora_encuentro || "-"}</span
+                      >
+                    </div>
+                  </td>
+                  <td>{actividad.observaciones || "-"}</td>
                   <td class="actions-cell">
-                    <button
-                      class="btn-action btn-maps"
-                      on:click={() => openGoogleMaps(parque)}
-                      disabled={!parque.has_geometry}
-                      title={parque.has_geometry ? 'Abrir en Google Maps' : 'Sin coordenadas'}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M8 0C5.2 0 3 2.2 3 5c0 3.9 5 11 5 11s5-7.1 5-11c0-2.8-2.2-5-5-5zm0 7.5c-1.4 0-2.5-1.1-2.5-2.5S6.6 2.5 8 2.5s2.5 1.1 2.5 2.5S9.4 7.5 8 7.5z"/>
-                      </svg>
-                    </button>
-                    <button
-                      class="btn-action btn-select"
-                      on:click={() => handleSelectParque(parque)}
-                    >
-                      Seleccionar
-                    </button>
+                    <div class="actions-cell-inner">
+                      <button
+                        class="btn-action btn-maps"
+                        on:click={() => openGoogleMaps(actividad)}
+                        disabled={!actividad.punto_encuentro?.geometry}
+                        title={actividad.punto_encuentro?.geometry
+                          ? "Abrir en Google Maps"
+                          : "Sin coordenadas"}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                          fill="currentColor"
+                        >
+                          <path
+                            d="M8 0C5.2 0 3 2.2 3 5c0 3.9 5 11 5 11s5-7.1 5-11c0-2.8-2.2-5-5-5zm0 7.5c-1.4 0-2.5-1.1-2.5-2.5S6.6 2.5 8 2.5s2.5 1.1 2.5 2.5S9.4 7.5 8 7.5z"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        class="btn-action btn-select"
+                        on:click={() => handleSelectActividad(actividad)}
+                      >
+                        Seleccionar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               {/each}
@@ -406,13 +254,14 @@
         </table>
       </div>
 
-      <!-- Paginación -->
-      {#if filteredParques.length > 0}
+      {#if filteredActividades.length > 0}
         <div class="pagination">
           <div class="pagination-info">
-            Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredParques.length)} de {filteredParques.length}
+            Mostrando {(currentPage - 1) * itemsPerPage + 1} -
+            {Math.min(currentPage * itemsPerPage, filteredActividades.length)} de
+            {filteredActividades.length}
           </div>
-          
+
           <div class="pagination-controls">
             <button
               class="btn-page"
@@ -421,7 +270,7 @@
             >
               ‹ Anterior
             </button>
-            
+
             <div class="page-numbers">
               {#each Array(totalPages) as _, i}
                 {#if totalPages <= 5 || i === 0 || i === totalPages - 1 || Math.abs(i + 1 - currentPage) <= 1}
@@ -437,7 +286,7 @@
                 {/if}
               {/each}
             </div>
-            
+
             <button
               class="btn-page"
               on:click={() => goToPage(currentPage + 1)}
@@ -446,13 +295,6 @@
               Siguiente ›
             </button>
           </div>
-        </div>
-      {/if}
-
-      {#if selectedParque}
-        <div class="up-preview">
-          <h4>Parque seleccionado: {selectedParque.nombre_up}</h4>
-          <p class="selected-id">UP ID: {selectedParque.upid}</p>
         </div>
       {/if}
     {/if}
@@ -473,13 +315,13 @@
   .step-title {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #111827;
+    color: var(--text-primary);
     margin-bottom: 0.25rem;
   }
 
   .step-description {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--text-secondary);
   }
 
   .step-content {
@@ -494,21 +336,23 @@
     align-items: center;
     gap: 0.75rem;
     padding: 2rem 1rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 0.875rem;
   }
 
   .spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid #e5e7eb;
-    border-top-color: #667eea;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   /* Toolbar */
@@ -524,16 +368,18 @@
     flex: 1;
     min-width: 250px;
     padding: 0.625rem 0.875rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 0.875rem;
     transition: border-color 0.2s;
+    background: white;
+    color: var(--text-primary);
   }
 
   .search-input:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--shadow);
   }
 
   .toolbar-actions {
@@ -623,7 +469,7 @@
 
   .results-count {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     white-space: nowrap;
   }
 
@@ -664,10 +510,10 @@
   /* Table */
   .table-container {
     overflow-x: auto;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 8px;
     background: white;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px var(--shadow);
   }
 
   .projects-table {
@@ -677,26 +523,27 @@
   }
 
   .projects-table thead {
-    background: #f9fafb;
-    border-bottom: 2px solid #e5e7eb;
+    background: var(--primary-dark);
+    border-bottom: 2px solid var(--primary-dark);
   }
 
   .projects-table th {
     padding: 0.75rem 0.875rem;
     text-align: left;
     font-weight: 600;
-    color: #374151;
+    color: #ffffff;
     white-space: nowrap;
     position: sticky;
     top: 0;
-    background: #f9fafb;
+    background: var(--primary-dark);
     z-index: 10;
   }
 
   .projects-table td {
     padding: 0.75rem 0.875rem;
-    border-bottom: 1px solid #f3f4f6;
-    color: #111827;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+    vertical-align: middle;
   }
 
   .projects-table tbody tr {
@@ -704,27 +551,32 @@
   }
 
   .projects-table tbody tr:hover {
-    background: #f9fafb;
+    background: var(--surface);
   }
 
   .projects-table tbody tr.selected {
-    background: #eff6ff;
+    background: #ecfdf5;
   }
 
   .projects-table tbody tr.selected:hover {
-    background: #dbeafe;
+    background: #d1fae5;
   }
 
   .empty-state {
     text-align: center;
     padding: 3rem 1rem !important;
-    color: #9ca3af;
+    color: var(--text-secondary);
     font-style: italic;
   }
 
-  .actions-cell {
+  .projects-table td.actions-cell {
+    border-bottom: none;
+    vertical-align: middle;
+  }
+
+  .actions-cell-inner {
     display: flex;
-    gap: 0.25rem;
+    gap: 0.5rem;
     align-items: center;
     justify-content: center;
   }
@@ -745,15 +597,15 @@
   }
 
   .btn-maps {
-    background: #f0fdf4;
-    color: #15803d;
-    border-color: #bbf7d0;
+    background: var(--surface);
+    color: var(--primary-dark);
+    border-color: var(--border);
     padding: 0.5rem;
   }
 
   .btn-maps:hover:not(:disabled) {
     background: #dcfce7;
-    border-color: #86efac;
+    border-color: var(--primary-light);
   }
 
   .btn-maps:disabled {
@@ -762,15 +614,15 @@
   }
 
   .btn-select {
-    background: #667eea;
+    background: var(--primary);
     color: white;
-    border-color: #667eea;
+    border-color: var(--primary);
     padding: 0.5rem 0.75rem;
   }
 
   .btn-select:hover {
-    background: #5568d3;
-    border-color: #5568d3;
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
   }
 
   /* Paginación */
@@ -781,13 +633,13 @@
     align-items: center;
     padding: 0.75rem;
     background: white;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 8px;
   }
 
   .pagination-info {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--text-secondary);
   }
 
   .pagination-controls {
@@ -801,17 +653,17 @@
   .btn-page {
     padding: 0.5rem 0.875rem;
     background: white;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 0.875rem;
-    color: #374151;
+    color: var(--text-primary);
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .btn-page:hover:not(:disabled) {
-    background: #f9fafb;
-    border-color: #9ca3af;
+    background: var(--surface);
+    border-color: var(--primary-light);
   }
 
   .btn-page:disabled {
@@ -830,28 +682,50 @@
     height: 36px;
     padding: 0.5rem;
     background: white;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 0.875rem;
-    color: #374151;
+    color: var(--text-primary);
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .btn-page-number:hover {
-    background: #f9fafb;
-    border-color: #9ca3af;
+    background: var(--surface);
+    border-color: var(--primary-light);
   }
 
   .btn-page-number.active {
-    background: #667eea;
+    background: var(--primary);
     color: white;
-    border-color: #667eea;
+    border-color: var(--primary);
   }
 
   .page-ellipsis {
     padding: 0 0.25rem;
-    color: #9ca3af;
+    color: var(--text-secondary);
+  }
+
+  .cell-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .cell-primary {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .cell-secondary {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .cell-tertiary {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
   }
 
   /* Status Badges */
@@ -891,26 +765,6 @@
   }
 
   /* Selected Preview */
-  .up-preview {
-    background: #ecfdf5;
-    border: 1px solid #86efac;
-    border-radius: 8px;
-    padding: 1rem;
-  }
-
-  .up-preview h4 {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #047857;
-    margin: 0 0 0.25rem 0;
-  }
-
-  .selected-id {
-    font-size: 0.75rem;
-    color: #059669;
-    margin: 0;
-  }
-
   /* Responsive */
   @media (max-width: 768px) {
     .toolbar {

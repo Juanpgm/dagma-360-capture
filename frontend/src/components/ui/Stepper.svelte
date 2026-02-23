@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { StepNumber } from '../../types/visitas';
-  
+  import type { StepNumber } from "../../types/visitas";
+
   export let currentStep: StepNumber;
   export let steps: string[];
   export let completedSteps: Set<StepNumber>;
@@ -8,22 +8,29 @@
 
   // Convertir Set a Array para reactividad
   $: completedStepsArray = Array.from(completedSteps);
-  
+
   // Debug logs
-  $: console.log('Stepper - currentStep:', currentStep, 'completedSteps:', completedStepsArray);
-  
+  $: console.log(
+    "Stepper - currentStep:",
+    currentStep,
+    "completedSteps:",
+    completedStepsArray,
+  );
+
   // Precalcular estados de forma reactiva
   $: stepStatuses = steps.map((_, index) => {
-    if (completedStepsArray.includes(index as StepNumber)) return 'completed';
-    if (index === currentStep) return 'current';
-    return 'pending';
-  });
-  
-  $: console.log('stepStatuses:', stepStatuses);
+    const stepNumber = (index + 1) as StepNumber;
 
-  function handleStepClick(step: number) {
-    if (onStepClick && step <= currentStep) {
-      onStepClick(step as StepNumber);
+    if (completedStepsArray.includes(stepNumber)) return "completed";
+    if (stepNumber === currentStep) return "current";
+    return "pending";
+  });
+
+  $: console.log("stepStatuses:", stepStatuses);
+
+  function handleStepClick(stepNumber: number) {
+    if (onStepClick && stepNumber <= currentStep) {
+      onStepClick(stepNumber as StepNumber);
     }
   }
 </script>
@@ -31,9 +38,11 @@
 <div class="stepper-container">
   <!-- Progreso visual superior -->
   <div class="progress-bar">
-    <div 
-      class="progress-fill" 
-      style="width: {(currentStep / (steps.length - 1)) * 100}%"
+    <div
+      class="progress-fill"
+      style="width: {steps.length > 1
+        ? ((currentStep - 1) / (steps.length - 1)) * 100
+        : 0}%"
     />
   </div>
 
@@ -41,28 +50,28 @@
   <div class="steps-wrapper">
     {#each steps as step, index}
       {@const status = stepStatuses[index]}
-      
+
       <button
         type="button"
         class="step-item"
-        class:completed={status === 'completed'}
-        class:current={status === 'current'}
-        class:clickable={index <= currentStep}
-        on:click={() => handleStepClick(index)}
+        class:completed={status === "completed"}
+        class:current={status === "current"}
+        class:clickable={index + 1 <= currentStep}
+        on:click={() => handleStepClick(index + 1)}
       >
         <div class="step-indicator">
-          {#if status === 'completed'}
+          {#if status === "completed"}
             <span class="check-icon">✓</span>
           {:else}
             <span class="step-number">{index + 1}</span>
           {/if}
         </div>
-        
+
         <span class="step-label">{step}</span>
       </button>
 
       {#if index < steps.length - 1}
-        <div class="step-connector" class:active={index < currentStep} />
+        <div class="step-connector" class:active={index + 1 < currentStep} />
       {/if}
     {/each}
   </div>
@@ -80,7 +89,7 @@
   .progress-bar {
     width: 100%;
     height: 6px; /* Un poco más visible */
-    background: #e5e7eb;
+    background: var(--border);
     border-radius: 3px;
     overflow: hidden;
     margin-bottom: 1rem;
@@ -88,9 +97,13 @@
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(
+      90deg,
+      var(--primary) 0%,
+      var(--secondary) 100%
+    );
     transition: width 0.3s ease;
-    box-shadow: 0 0 8px rgba(102, 126, 234, 0.5);
+    box-shadow: 0 0 8px var(--shadow);
   }
 
   /* Steps */
@@ -106,7 +119,7 @@
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE/Edge */
   }
-  
+
   .steps-wrapper::-webkit-scrollbar {
     display: none; /* Chrome/Safari */
   }
@@ -141,8 +154,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #e5e7eb;
-    color: #6b7280;
+    background: var(--border);
+    color: var(--text-secondary);
     font-weight: 700;
     font-size: 0.8125rem;
     transition: all 0.3s ease;
@@ -150,17 +163,21 @@
   }
 
   .step-item.current .step-indicator {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(
+      135deg,
+      var(--primary) 0%,
+      var(--primary-dark) 100%
+    );
     color: white;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    box-shadow: 0 0 0 2px var(--shadow);
     transform: scale(1.1);
     border-color: white;
   }
 
   .step-item.completed .step-indicator {
-    background: #10b981;
+    background: var(--success);
     color: white;
-    border-color: #059669;
+    border-color: var(--primary-dark);
   }
 
   .check-icon {
@@ -169,7 +186,7 @@
 
   .step-label {
     font-size: 0.625rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-weight: 500;
     text-align: center;
     max-width: 60px;
@@ -177,19 +194,19 @@
   }
 
   .step-item.current .step-label {
-    color: #667eea;
+    color: var(--primary);
     font-weight: 700;
   }
 
   .step-item.completed .step-label {
-    color: #10b981;
+    color: var(--success);
     font-weight: 600;
   }
 
   .step-connector {
     flex: 1;
     height: 2px;
-    background: #e5e7eb;
+    background: var(--border);
     min-width: 10px;
     max-width: 20px;
     transition: background 0.3s ease;
@@ -197,7 +214,11 @@
   }
 
   .step-connector.active {
-    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    background: linear-gradient(
+      90deg,
+      var(--success) 0%,
+      var(--primary-dark) 100%
+    );
   }
 
   /* Responsive para móviles pequeños */

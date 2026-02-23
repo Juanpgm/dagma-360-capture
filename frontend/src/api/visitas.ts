@@ -406,6 +406,185 @@ export async function registrarReconocimiento(
 }
 
 /**
+ * Registra una intervención de CUADRILLA (poda, tala, mantenimiento arbóreo)
+ * Endpoint: POST /grupo-cuadrilla/reporte_intervencion
+ * 
+ * @param data - Datos de la intervención
+ * @param photoFiles - Archivos de fotos
+ * @returns Respuesta del servidor
+ */
+export async function registrarIntervencionCuadrilla(
+  data: {
+    tipo_arbol: string;
+    registrado_por: string;
+    grupo: string;
+    observaciones: string;
+    numero_individuos_intervenidos: number;
+    coordinates_data: string;
+    tipo_intervencion: string;
+    id_actividad: string;
+    descripcion_intervencion: string;
+    coordinates_type: string;
+  },
+  photoFiles: File[] = []
+): Promise<ReconocimientoResponse> {
+  try {
+    const formData = new FormData();
+    
+    // Validar campos requeridos
+    if (!data.tipo_arbol) throw new Error('Tipo de árbol es requerido');
+    if (!data.tipo_intervencion) throw new Error('Tipo de intervención es requerido');
+    if (!data.numero_individuos_intervenidos || data.numero_individuos_intervenidos < 1) {
+      throw new Error('Número de individuos intervenidos es requerido');
+    }
+    if (!data.descripcion_intervencion) throw new Error('Descripción es requerida');
+    if (!data.coordinates_data) throw new Error('Coordenadas GPS son requeridas');
+    if (!photoFiles || photoFiles.length === 0) {
+      throw new Error('Debe incluir al menos una foto');
+    }
+    
+    // Validar que photoFiles contenga objetos File válidos
+    console.log('🔍 Validando photoFiles:', {
+      esArray: Array.isArray(photoFiles),
+      longitud: photoFiles.length,
+      tipo: typeof photoFiles,
+      contenido: photoFiles.map((f, i) => ({
+        index: i,
+        nombre: f?.name,
+        tamaño: f?.size,
+        tipo: f?.type,
+        esFile: f instanceof File,
+        esBlob: f instanceof Blob
+      }))
+    });
+    
+    if (!Array.isArray(photoFiles)) {
+      throw new Error('photoFiles debe ser un array');
+    }
+    
+    const invalidFiles = photoFiles.filter(f => !(f instanceof File));
+    if (invalidFiles.length > 0) {
+      throw new Error(`Se encontraron ${invalidFiles.length} elementos que no son archivos File válidos`);
+    }
+    
+    // TEMPORALMENTE: Revertir a campos individuales (JSON string no funcionó)
+    // Usar array notation photos[] para que FastAPI lo interprete como lista
+    formData.append('tipo_arbol', data.tipo_arbol);
+    formData.append('registrado_por', data.registrado_por || '');
+    formData.append('grupo', data.grupo || '');
+    formData.append('observaciones', data.observaciones || '');
+    formData.append('numero_individuos_intervenidos', data.numero_individuos_intervenidos.toString());
+    formData.append('coordinates_data', data.coordinates_data);
+    formData.append('tipo_intervencion', data.tipo_intervencion);
+    formData.append('id_actividad', data.id_actividad);
+    formData.append('descripcion_intervencion', data.descripcion_intervencion);
+    formData.append('coordinates_type', data.coordinates_type || 'Point');
+    
+    // Agregar fotos con array notation [] - esto ayuda a algunos backends a reconocerlo como lista
+    console.log(`📸 Agregando ${photoFiles.length} foto(s) con array notation`);
+    photoFiles.forEach((file, index) => {
+      console.log(`  - Foto ${index}: ${file.name} (${file.size} bytes, tipo: ${file.type})`);
+      // CAMBIO CRÍTICO: Usar 'photos[]' en lugar de 'photos'
+      formData.append('photos[]', file);
+    });
+    
+    // Log del FormData para debugging
+    console.log('📦 Contenido del FormData:');
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        console.log(`  ${key}: [File] ${value.name} (${value.size} bytes)`);
+      } else {
+        console.log(`  ${key}: ${value}`);
+      }
+    }
+    
+    // Log detallado para debugging
+    console.log('📋 Datos a enviar:', {
+      tipo_arbol: data.tipo_arbol,
+      registrado_por: data.registrado_por,
+      grupo: data.grupo,
+      observaciones: data.observaciones,
+      numero_individuos_intervenidos: data.numero_individuos_intervenidos,
+      coordinates_data: data.coordinates_data,
+      tipo_intervencion: data.tipo_intervencion,
+      id_actividad: data.id_actividad,
+      descripcion_intervencion: data.descripcion_intervencion,
+      coordinates_type: data.coordinates_type,
+      fotos: photoFiles.length
+    });
+    
+    // Determinar URL según entorno
+    const API_URL = import.meta.env.DEV 
+      ? '/api/grupo-cuadrilla/reporte_intervencion'
+      : `${import.meta.env.VITE_API_URL}/grupo-cuadrilla/reporte_intervencion`;
+    
+    const token = localStorage.getItem('auth_token');
+    
+    console.log('📤 Enviando intervención CUADRILLA a:', API_URL);
+    
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      let errorData: any = {};
+      try {
+        errorData = await response.json();
+      } catch (parseError) {
+        const textError = await response.text().catch(() => '');
+        console.error('❌ Error del servidor (texto):', textError);
+        throw new Error(`Error ${response.status}: ${response.statusText} - ${textError}`);
+      }
+      
+      console.error('❌ Error del servidor CUADRILLA:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData: JSON.stringify(errorData, null, 2)
+      });
+      
+      // Extraer mensaje de error
+      let errorMessage = `Error ${response.status}: ${response.statusText}`;
+      
+      if (errorData.detail) {
+        if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          // FastAPI validation errors
+          errorMessage = errorData.detail.map((err: any) => 
+            `${err.loc?.join('.')} - ${err.msg}`
+          ).join(', ');
+        } else {
+          errorMessage = JSON.stringify(errorData.detail);
+        }
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error) {
+        errorMessage = errorData.error;
+      }
+      
+      throw new Error(errorMessage);
+    }
+    
+    const result: ReconocimientoResponse = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.message || 'Error al registrar la intervención');
+    }
+    
+    console.log('✅ Intervención CUADRILLA registrada:', result);
+    return result;
+    
+  } catch (error) {
+    console.error('❌ Error al registrar intervención CUADRILLA:', error);
+    throw error instanceof Error ? error : new Error('No se pudo registrar la intervención');
+  }
+}
+
+/**
  * Obtiene el listado de reportes/reconocimientos registrados
  * Endpoint: GET /grupo-operativo/reportes
  */
@@ -436,4 +615,107 @@ export async function getReportes(): Promise<ReportesResponse> {
  */
 export function preparePhotosForUpload(photos: (File | string)[]): File[] {
   return photos.filter((photo): photo is File => photo instanceof File);
+}
+
+/**
+ * Obtiene todos los reportes de intervenciones del grupo CUADRILLA
+ * GET /grupo-cuadrilla/reportes_intervenciones
+ */
+export interface ReporteIntervencion {
+  id: string;
+  tipo_arbol: string | null;
+  registrado_por: string | null;
+  grupo: string | null;
+  observaciones: string;
+  numero_individuos_intervenidos: number | null;
+  coordinates: {
+    type: string;
+    coordinates: string; // "lng lat" format
+  };
+  tipo_intervencion: string;
+  id_actividad: string | null;
+  descripcion_intervencion: string | null;
+  timestamp: string;
+  photos_uploaded: number;
+  photosUrl: string[];
+  barrio_vereda: string;
+  comuna_corregimiento: string;
+  // Campos calculados para compatibilidad
+  coordinates_data?: [number, number];
+  fecha_registro?: string;
+  comuna?: string;
+  barrio?: string;
+}
+
+export interface ReportesIntervencionResponse {
+  success: boolean;
+  total: number;
+  data: ReporteIntervencion[];
+}
+
+export async function obtenerReportesIntervenciones(): Promise<ReportesIntervencionResponse> {
+  try {
+    const API_URL = import.meta.env.DEV 
+      ? '/api/grupo-cuadrilla/reportes_intervenciones'
+      : `${import.meta.env.VITE_API_URL}/grupo-cuadrilla/reportes_intervenciones`;
+    
+    const token = localStorage.getItem('auth_token');
+    
+    console.log('📊 Obteniendo reportes de intervenciones...');
+    
+    const response = await fetch(API_URL, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    
+    const responseData = await response.json();
+    console.log('✓ Reportes obtenidos:', responseData);
+    
+    // Normalizar los datos para agregar campos calculados
+    const normalizedData = responseData.data.map((reporte: ReporteIntervencion) => {
+      // Parsear coordenadas - puede ser string "lng lat" o array [lng, lat]
+      let coordinates_data: [number, number] = [-76.532, 3.4516]; // Default Cali
+      
+      if (reporte.coordinates?.coordinates) {
+        const coordsValue = reporte.coordinates.coordinates;
+        
+        // Si es un array [lng, lat]
+        if (Array.isArray(coordsValue) && coordsValue.length === 2) {
+          coordinates_data = [Number(coordsValue[0]), Number(coordsValue[1])];
+        } 
+        // Si es un string "lng lat"
+        else if (typeof coordsValue === 'string') {
+          const coords = coordsValue.split(' ');
+          if (coords.length === 2) {
+            coordinates_data = [parseFloat(coords[0]), parseFloat(coords[1])];
+          }
+        }
+      }
+      
+      return {
+        ...reporte,
+        coordinates_data,
+        fecha_registro: reporte.timestamp,
+        // Alias para compatibilidad
+        comuna: reporte.comuna_corregimiento,
+        barrio: reporte.barrio_vereda,
+        photos: reporte.photosUrl
+      };
+    });
+    
+    return {
+      ...responseData,
+      data: normalizedData
+    };
+  } catch (error) {
+    console.error('❌ Error al obtener reportes de intervenciones:', error);
+    throw error;
+  }
 }

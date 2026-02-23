@@ -2,17 +2,10 @@
   import { authStore } from "../stores/authStore";
   import VisitaVerificacion from "./visitas/VisitaVerificacion.svelte";
   import KanbanReportes from "./history/KanbanReportes.svelte";
-  import MapaParques from "./visitas/MapaParques.svelte";
-  import MapaReportes from "./visitas/MapaReportes.svelte";
   import Convocatorias from "./convocatorias/Convocatorias.svelte";
+  import Dashboard from "./dashboard/Dashboard.svelte";
 
-  type View =
-    | "home"
-    | "visita"
-    | "reportes"
-    | "mapa-parques"
-    | "mapa-reportes"
-    | "convocatorias";
+  type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard";
   let currentView: View = "home";
 
   const handleLogout: () => Promise<void> = async () => {
@@ -27,16 +20,12 @@
     currentView = "reportes";
   }
 
-  function openMapaParques(): void {
-    currentView = "mapa-parques";
-  }
-
-  function openMapaReportes(): void {
-    currentView = "mapa-reportes";
-  }
-
   function openConvocatorias(): void {
     currentView = "convocatorias";
+  }
+
+  function openDashboard(): void {
+    currentView = "dashboard";
   }
 
   function goHome(): void {
@@ -67,8 +56,6 @@
 {#if currentView === "visita"}
   <VisitaVerificacion onClose={goHome} />
 {:else if currentView === "reportes"}
-  <KanbanReportes />
-{:else if currentView === "mapa-parques"}
   <div class="view-container">
     <header class="header">
       <button class="btn-back" on:click={goHome}>← Volver</button>
@@ -93,34 +80,7 @@
         </button>
       </div>
     </header>
-    <MapaParques />
-  </div>
-{:else if currentView === "mapa-reportes"}
-  <div class="view-container">
-    <header class="header">
-      <button class="btn-back" on:click={goHome}>← Volver</button>
-      <div class="brand">DAGMA Parques</div>
-      <div class="header-right">
-        <div class="user-chip">
-          <div class="user-avatar">
-            {userAvatarLetter}
-          </div>
-          <div class="user-meta">
-            <span class="user-name">{userFullName}</span>
-            <div class="user-subline">
-              <span class="user-detail"
-                ><strong>Grupo:</strong> {userGrupo}</span
-              >
-              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
-            </div>
-          </div>
-        </div>
-        <button class="btn-logout" on:click={handleLogout}>
-          Cerrar sesion
-        </button>
-      </div>
-    </header>
-    <MapaReportes />
+    <KanbanReportes />
   </div>
 {:else if currentView === "convocatorias"}
   <div class="view-container">
@@ -148,6 +108,33 @@
       </div>
     </header>
     <Convocatorias />
+  </div>
+{:else if currentView === "dashboard"}
+  <div class="view-container">
+    <header class="header">
+      <button class="btn-back" on:click={goHome}>← Volver</button>
+      <div class="brand">DAGMA Parques</div>
+      <div class="header-right">
+        <div class="user-chip">
+          <div class="user-avatar">
+            {userAvatarLetter}
+          </div>
+          <div class="user-meta">
+            <span class="user-name">{userFullName}</span>
+            <div class="user-subline">
+              <span class="user-detail"
+                ><strong>Grupo:</strong> {userGrupo}</span
+              >
+              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-logout" on:click={handleLogout}>
+          Cerrar sesion
+        </button>
+      </div>
+    </header>
+    <Dashboard />
   </div>
 {:else}
   <div class="home-container">
@@ -202,16 +189,10 @@
             <p class="action-description">Historial de reconocimientos</p>
           </button>
 
-          <button class="action-card" on:click={openMapaParques}>
-            <div class="action-icon">🗺️</div>
-            <h3 class="action-title">Mapa de Parques</h3>
-            <p class="action-description">Visualizar parques en mapa</p>
-          </button>
-
-          <button class="action-card" on:click={openMapaReportes}>
-            <div class="action-icon">📍</div>
-            <h3 class="action-title">Mapa de Reportes</h3>
-            <p class="action-description">Reconocimientos en mapa</p>
+          <button class="action-card" on:click={openDashboard}>
+            <div class="action-icon">📈</div>
+            <h3 class="action-title">Dashboard</h3>
+            <p class="action-description">Panel de control</p>
           </button>
         </div>
       </div>
@@ -408,7 +389,7 @@
 
   .actions-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 1rem;
     margin-top: 1rem;
   }

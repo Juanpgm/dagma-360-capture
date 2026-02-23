@@ -117,8 +117,7 @@
 <div class="login-container">
   <div class="login-card">
     <div class="logo">
-      <h1>DAGMA Parques</h1>
-      <p>Verificación de Parques y Zonas Verdes</p>
+      <img src="/dagma_logo/dagma-seeklogo.png" alt="Logo oficial DAGMA" />
     </div>
 
     <div class="tabs">
@@ -295,16 +294,11 @@
     margin-bottom: 1.5rem;
   }
 
-  .logo h1 {
-    color: var(--primary);
-    font-size: 1.875rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-  }
-
-  .logo p {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
+  .logo img {
+    width: min(280px, 100%);
+    height: auto;
+    max-height: 84px;
+    object-fit: contain;
   }
 
   .tabs {
@@ -520,8 +514,9 @@
       padding: 1.5rem;
     }
 
-    .logo h1 {
-      font-size: 1.5rem;
+    .logo img {
+      width: min(240px, 100%);
+      max-height: 72px;
     }
   }
 </style>
