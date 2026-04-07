@@ -8,7 +8,11 @@ import type {
   ParquesResponse,
   ReportesResponse,
   ReconocimientoResponse,
-  ReconocimientoParque
+  ReconocimientoParque,
+  IntervencionViveroData,
+  IntervencionGobernanzaData,
+  IntervencionEcosistemasData,
+  IntervencionUmataData,
 } from '../types/visitas';
 
 /**
@@ -362,7 +366,7 @@ export async function registrarReconocimiento(
     // Fotos - El backend las sube a S3
     if (photoFiles && photoFiles.length > 0) {
       photoFiles.forEach((file) => {
-        formData.append('photos', file);
+        formData.append('photos[]', file);
       });
     }
     
@@ -716,6 +720,281 @@ export async function obtenerReportesIntervenciones(): Promise<ReportesIntervenc
     };
   } catch (error) {
     console.error('❌ Error al obtener reportes de intervenciones:', error);
+    throw error;
+  }
+}
+
+// ============================================
+// FUNCIONES GENÉRICAS PARA GRUPOS ADICIONALES
+// ============================================
+
+/**
+ * Helper: Construye la URL según entorno (dev proxy vs prod)
+ */
+function buildApiUrl(path: string): string {
+  return import.meta.env.DEV
+    ? `/api${path}`
+    : `${import.meta.env.VITE_API_URL}${path}`;
+}
+
+/**
+ * Helper: Envía un reporte de intervención genérico (FormData) a un endpoint de grupo.
+ * Reutiliza la lógica de fetch + token + error handling.
+ */
+async function postIntervencionGrupo(
+  endpoint: string,
+  formData: FormData,
+  grupoLabel: string
+): Promise<ReconocimientoResponse> {
+  const API_URL = buildApiUrl(endpoint);
+  const token = localStorage.getItem('auth_token');
+
+  console.log(`📤 Enviando intervención ${grupoLabel} a:`, API_URL);
+
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let errorData: any = {};
+    try {
+      errorData = await response.json();
+    } catch {
+      const textError = await response.text().catch(() => '');
+      throw new Error(`Error ${response.status}: ${response.statusText} - ${textError}`);
+    }
+
+    let errorMessage = `Error ${response.status}: ${response.statusText}`;
+    if (errorData.detail) {
+      if (typeof errorData.detail === 'string') {
+        errorMessage = errorData.detail;
+      } else if (Array.isArray(errorData.detail)) {
+        errorMessage = errorData.detail
+          .map((err: any) => `${err.loc?.join('.')} - ${err.msg}`)
+          .join(', ');
+      } else {
+        errorMessage = JSON.stringify(errorData.detail);
+      }
+    } else if (errorData.message) {
+      errorMessage = errorData.message;
+    }
+    throw new Error(errorMessage);
+  }
+
+  const result: ReconocimientoResponse = await response.json();
+  if (!result.success) {
+    throw new Error(result.message || `Error al registrar intervención ${grupoLabel}`);
+  }
+
+  console.log(`✅ Intervención ${grupoLabel} registrada:`, result);
+  return result;
+}
+
+/**
+ * Helper: Agrega campos comunes de intervención al FormData.
+ */
+function appendCommonFields(
+  formData: FormData,
+  data: {
+    tipo_intervencion: string;
+    descripcion_intervencion: string;
+    registrado_por: string;
+    grupo: string;
+    id_actividad: string;
+    observaciones: string;
+    coordinates_type: string;
+    coordinates_data: string;
+  }
+): void {
+  formData.append('tipo_intervencion', data.tipo_intervencion);
+  formData.append('descripcion_intervencion', data.descripcion_intervencion);
+  formData.append('registrado_por', data.registrado_por || '');
+  formData.append('grupo', data.grupo || '');
+  formData.append('id_actividad', data.id_actividad || '');
+  formData.append('observaciones', data.observaciones || '');
+  formData.append('coordinates_type', data.coordinates_type || 'Point');
+  formData.append('coordinates_data', data.coordinates_data);
+}
+
+/**
+ * Helper: Agrega fotos al FormData.
+ * Usa 'photos[]' (array notation) para que FastAPI/python-multipart
+ * lo interprete correctamente como lista de archivos.
+ */
+function appendPhotos(formData: FormData, photoFiles: File[]): void {
+  photoFiles.forEach((file) => {
+    formData.append('photos[]', file);
+  });
+}
+
+// ── VIVERO ──
+
+/**
+ * POST /grupo-vivero/reporte_intervencion
+ */
+export async function registrarIntervencionVivero(
+  data: IntervencionViveroData,
+  photoFiles: File[] = []
+): Promise<ReconocimientoResponse> {
+  const formData = new FormData();
+  appendCommonFields(formData, data);
+  formData.append('tipos_plantas', data.tipos_plantas);
+  formData.append('direccion', data.direccion || '');
+  appendPhotos(formData, photoFiles);
+  return postIntervencionGrupo('/grupo-vivero/reporte_intervencion', formData, 'VIVERO');
+}
+
+/**
+ * GET /grupo-vivero/reportes_intervenciones
+ */
+export async function obtenerReportesVivero(
+  filters?: { id?: string; id_actividad?: string; grupo?: string }
+): Promise<ReportesIntervencionResponse> {
+  return fetchReportesGrupo('/grupo-vivero/reportes_intervenciones', filters);
+}
+
+// ── GOBERNANZA ──
+
+/**
+ * POST /grupo-gobernanza/reporte_intervencion
+ */
+export async function registrarIntervencionGobernanza(
+  data: IntervencionGobernanzaData,
+  photoFiles: File[] = []
+): Promise<ReconocimientoResponse> {
+  const formData = new FormData();
+  appendCommonFields(formData, data);
+  formData.append('unidades_impactadas', data.unidades_impactadas.toString());
+  formData.append('direccion', data.direccion || '');
+  appendPhotos(formData, photoFiles);
+  return postIntervencionGrupo('/grupo-gobernanza/reporte_intervencion', formData, 'GOBERNANZA');
+}
+
+/**
+ * GET /grupo-gobernanza/reportes_intervenciones
+ */
+export async function obtenerReportesGobernanza(
+  filters?: { id?: string; id_actividad?: string; grupo?: string }
+): Promise<ReportesIntervencionResponse> {
+  return fetchReportesGrupo('/grupo-gobernanza/reportes_intervenciones', filters);
+}
+
+// ── ECOSISTEMAS ──
+
+/**
+ * POST /grupo-ecosistemas/reporte_intervencion
+ */
+export async function registrarIntervencionEcosistemas(
+  data: IntervencionEcosistemasData,
+  photoFiles: File[] = []
+): Promise<ReconocimientoResponse> {
+  const formData = new FormData();
+  appendCommonFields(formData, data);
+  formData.append('unidad_medida', data.unidad_medida);
+  formData.append('unidades_impactadas', data.unidades_impactadas.toString());
+  formData.append('direccion', data.direccion || '');
+  appendPhotos(formData, photoFiles);
+  return postIntervencionGrupo('/grupo-ecosistemas/reporte_intervencion', formData, 'ECOSISTEMAS');
+}
+
+/**
+ * GET /grupo-ecosistemas/reportes_intervenciones
+ */
+export async function obtenerReportesEcosistemas(
+  filters?: { id?: string; id_actividad?: string; grupo?: string }
+): Promise<ReportesIntervencionResponse> {
+  return fetchReportesGrupo('/grupo-ecosistemas/reportes_intervenciones', filters);
+}
+
+// ── UMATA ──
+
+/**
+ * POST /grupo-umata/reporte_intervencion
+ */
+export async function registrarIntervencionUmata(
+  data: IntervencionUmataData,
+  photoFiles: File[] = []
+): Promise<ReconocimientoResponse> {
+  const formData = new FormData();
+  appendCommonFields(formData, data);
+  formData.append('unidades_impactadas', data.unidades_impactadas.toString());
+  formData.append('direccion', data.direccion || '');
+  appendPhotos(formData, photoFiles);
+  return postIntervencionGrupo('/grupo-umata/reporte_intervencion', formData, 'UMATA');
+}
+
+/**
+ * GET /grupo-umata/reportes_intervenciones
+ */
+export async function obtenerReportesUmata(
+  filters?: { id?: string; id_actividad?: string; grupo?: string }
+): Promise<ReportesIntervencionResponse> {
+  return fetchReportesGrupo('/grupo-umata/reportes_intervenciones', filters);
+}
+
+// ── Helper GET genérico para reportes de grupo ──
+
+async function fetchReportesGrupo(
+  endpoint: string,
+  filters?: { id?: string; id_actividad?: string; grupo?: string }
+): Promise<ReportesIntervencionResponse> {
+  try {
+    let url = buildApiUrl(endpoint);
+    const params = new URLSearchParams();
+    if (filters?.id) params.append('id', filters.id);
+    if (filters?.id_actividad) params.append('id_actividad', filters.id_actividad);
+    if (filters?.grupo) params.append('grupo', filters.grupo);
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
+
+    const token = localStorage.getItem('auth_token');
+    console.log(`📊 Obteniendo reportes desde ${endpoint}...`);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    const responseData = await response.json();
+    console.log(`✓ Reportes obtenidos de ${endpoint}:`, responseData);
+
+    const normalizedData = (responseData.data || []).map((reporte: ReporteIntervencion) => {
+      let coordinates_data: [number, number] = [-76.532, 3.4516];
+      if (reporte.coordinates?.coordinates) {
+        const coordsValue = reporte.coordinates.coordinates;
+        if (Array.isArray(coordsValue) && coordsValue.length === 2) {
+          coordinates_data = [Number(coordsValue[0]), Number(coordsValue[1])];
+        } else if (typeof coordsValue === 'string') {
+          const coords = coordsValue.split(' ');
+          if (coords.length === 2) {
+            coordinates_data = [parseFloat(coords[0]), parseFloat(coords[1])];
+          }
+        }
+      }
+      return {
+        ...reporte,
+        coordinates_data,
+        fecha_registro: reporte.timestamp,
+        comuna: reporte.comuna_corregimiento,
+        barrio: reporte.barrio_vereda,
+        photos: reporte.photosUrl,
+      };
+    });
+
+    return { ...responseData, data: normalizedData };
+  } catch (error) {
+    console.error(`❌ Error al obtener reportes de ${endpoint}:`, error);
     throw error;
   }
 }

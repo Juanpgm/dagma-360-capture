@@ -242,3 +242,53 @@ export interface ReconocimientoResponse {
   photos_uploaded: number;
   timestamp: string;
 }
+
+// ============================================
+// 7. TIPOS PARA INTERVENCIONES POR GRUPO
+// ============================================
+
+import type { GrupoFormType } from '../lib/grupos';
+export type { GrupoFormType };
+
+/** Entrada de planta para Vivero: { "Guayacán": 10, "Ceiba": 5 } */
+export interface PlantaEntry {
+  nombre: string;
+  cantidad: number;
+}
+
+/** Campos comunes a todos los endpoints de reporte de intervención */
+export interface IntervencionCommonData {
+  tipo_intervencion: string;
+  descripcion_intervencion: string;
+  registrado_por: string;
+  grupo: string;
+  id_actividad: string;
+  observaciones: string;
+  coordinates_type: string;
+  coordinates_data: string;
+}
+
+/** POST /grupo-vivero/reporte_intervencion */
+export interface IntervencionViveroData extends IntervencionCommonData {
+  tipos_plantas: string; // JSON dict {"Guayacán": 10, "Ceiba": 5}
+  direccion: string;
+}
+
+/** POST /grupo-gobernanza/reporte_intervencion */
+export interface IntervencionGobernanzaData extends IntervencionCommonData {
+  unidades_impactadas: number;
+  direccion: string;
+}
+
+/** POST /grupo-ecosistemas/reporte_intervencion */
+export interface IntervencionEcosistemasData extends IntervencionCommonData {
+  unidad_medida: string;
+  unidades_impactadas: number;
+  direccion: string;
+}
+
+/** POST /grupo-umata/reporte_intervencion */
+export interface IntervencionUmataData extends IntervencionCommonData {
+  unidades_impactadas: number;
+  direccion: string;
+}

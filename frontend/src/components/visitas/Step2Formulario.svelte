@@ -3,7 +3,8 @@
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import Select from "../ui/Select.svelte";
-  import type { Coordenadas } from "../../types/visitas";
+  import type { Coordenadas, PlantaEntry } from "../../types/visitas";
+  import type { GrupoFormType } from "../../lib/grupos";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
   import {
     formatCoordinates,
@@ -26,6 +27,12 @@
   export let nombreCientifico: string | undefined = undefined;
   export let nombreComun: string | undefined = undefined;
 
+  // ── Props para grupo dinámico ──
+  export let grupoFormType: GrupoFormType = "operativo";
+  export let unidadesImpactadas: number | undefined = undefined;
+  export let unidadMedida: string = "";
+  export let tiposPlantas: PlantaEntry[] = [{ nombre: "", cantidad: 0 }];
+
   // ── Opciones CUADRILLA ──
   const TIPOS_INTERVENCION_CUADRILLA = [
     { label: "Poda", value: "Poda" },
@@ -44,6 +51,27 @@
       (e) => e.nombre_cientifico === nombreCientifico,
     );
     if (match) nombreComun = match.nombre_comun;
+  }
+
+  // ── Opciones de unidad de medida (Ecosistemas) ──
+  const UNIDADES_MEDIDA = [
+    { label: "Metros cuadrados (m²)", value: "m2" },
+    { label: "Hectáreas (ha)", value: "ha" },
+    { label: "Kilómetros (km)", value: "km" },
+    { label: "Unidades", value: "unidades" },
+    { label: "Árboles", value: "arboles" },
+    { label: "Toneladas", value: "toneladas" },
+  ];
+
+  // ── Helpers Vivero: filas dinámicas ──
+  function addPlantaRow() {
+    tiposPlantas = [...tiposPlantas, { nombre: "", cantidad: 0 }];
+  }
+
+  function removePlantaRow(index: number) {
+    if (tiposPlantas.length > 1) {
+      tiposPlantas = tiposPlantas.filter((_, i) => i !== index);
+    }
   }
 
   let gpsError = "";
@@ -206,6 +234,160 @@
               min="1"
               bind:value={individuosIntervenidos}
               placeholder="Ej: 5"
+              required
+            />
+          </div>
+        {:else if grupoFormType === "vivero"}
+          <!-- ── Campos VIVERO: filas dinámicas de plantas ── -->
+          <div class="field">
+            <label>Tipos de Plantas <span class="required">*</span></label>
+            {#each tiposPlantas as planta, i}
+              <div class="planta-row">
+                <select
+                  bind:value={planta.nombre}
+                  class="planta-nombre"
+                >
+                  <option value="" disabled>Seleccionar planta</option>
+                  <option value="Cintas">Cintas</option>
+                  <option value="Roelias">Roelias</option>
+                  <option value="Ginger rosada">Ginger rosada</option>
+                  <option value="Ginger variegada">Ginger variegada</option>
+                  <option value="Verbenas">Verbenas</option>
+                  <option value="Tapetes">Tapetes</option>
+                  <option value="Cosmos">Cosmos</option>
+                  <option value="Caricatura">Caricatura</option>
+                  <option value="Malamadre">Malamadre</option>
+                  <option value="Heliconia pajarito">Heliconia pajarito</option>
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  bind:value={planta.cantidad}
+                  placeholder="Cant."
+                  class="planta-cantidad"
+                />
+                {#if tiposPlantas.length > 1}
+                  <button
+                    type="button"
+                    class="remove-planta-btn"
+                    on:click={() => removePlantaRow(i)}
+                    title="Eliminar fila">✕</button
+                  >
+                {/if}
+              </div>
+            {/each}
+            <button
+              type="button"
+              class="add-planta-btn"
+              on:click={addPlantaRow}
+            >
+              + Agregar otra planta
+            </button>
+          </div>
+
+          <div class="field">
+            <label for="direccion-vivero">
+              Dirección <span class="required">*</span>
+            </label>
+            <input
+              id="direccion-vivero"
+              type="text"
+              bind:value={direccion}
+              placeholder="Dirección del sitio"
+              required
+            />
+          </div>
+        {:else if grupoFormType === "gobernanza"}
+          <!-- ── Campos GOBERNANZA ── -->
+          <div class="field">
+            <label for="unidades-gobernanza">
+              Unidades Impactadas <span class="required">*</span>
+            </label>
+            <input
+              id="unidades-gobernanza"
+              type="number"
+              min="1"
+              bind:value={unidadesImpactadas}
+              placeholder="Ej: 10"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="direccion-gobernanza">
+              Dirección <span class="required">*</span>
+            </label>
+            <input
+              id="direccion-gobernanza"
+              type="text"
+              bind:value={direccion}
+              placeholder="Dirección del sitio"
+              required
+            />
+          </div>
+        {:else if grupoFormType === "ecosistemas"}
+          <!-- ── Campos ECOSISTEMAS ── -->
+          <div class="field">
+            <Select
+              label="Unidad de Medida"
+              bind:value={unidadMedida}
+              options={UNIDADES_MEDIDA}
+              placeholder="Seleccione unidad de medida"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="unidades-ecosistemas">
+              Unidades Impactadas <span class="required">*</span>
+            </label>
+            <input
+              id="unidades-ecosistemas"
+              type="number"
+              min="1"
+              bind:value={unidadesImpactadas}
+              placeholder="Ej: 10"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="direccion-ecosistemas">
+              Dirección <span class="required">*</span>
+            </label>
+            <input
+              id="direccion-ecosistemas"
+              type="text"
+              bind:value={direccion}
+              placeholder="Dirección del sitio"
+              required
+            />
+          </div>
+        {:else if grupoFormType === "umata"}
+          <!-- ── Campos UMATA ── -->
+          <div class="field">
+            <label for="unidades-umata">
+              Unidades Impactadas <span class="required">*</span>
+            </label>
+            <input
+              id="unidades-umata"
+              type="number"
+              min="1"
+              bind:value={unidadesImpactadas}
+              placeholder="Ej: 10"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="direccion-umata">
+              Dirección <span class="required">*</span>
+            </label>
+            <input
+              id="direccion-umata"
+              type="text"
+              bind:value={direccion}
+              placeholder="Dirección del sitio"
               required
             />
           </div>
@@ -416,5 +598,81 @@
     .gps-grid {
       grid-template-columns: 1fr;
     }
+  }
+
+  /* Vivero: filas dinámicas de plantas */
+  .planta-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .planta-nombre {
+    flex: 2;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: white;
+    appearance: auto;
+    cursor: pointer;
+  }
+
+  .planta-cantidad {
+    flex: 1;
+    max-width: 80px;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: white;
+  }
+
+  .planta-nombre:focus,
+  .planta-cantidad:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--shadow);
+  }
+
+  .remove-planta-btn {
+    background: none;
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .remove-planta-btn:hover {
+    background: #fef2f2;
+  }
+
+  .add-planta-btn {
+    background: none;
+    border: 1px dashed var(--border);
+    color: var(--primary);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    width: 100%;
+    transition: background 0.15s ease;
+  }
+
+  .add-planta-btn:hover {
+    background: var(--surface);
   }
 </style>

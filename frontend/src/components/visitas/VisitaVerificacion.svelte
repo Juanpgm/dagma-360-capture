@@ -9,8 +9,20 @@
   import {
     registrarReconocimiento,
     registrarIntervencionCuadrilla,
+    registrarIntervencionVivero,
+    registrarIntervencionGobernanza,
+    registrarIntervencionEcosistemas,
+    registrarIntervencionUmata,
   } from "../../api/visitas";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
+  import type {
+    PlantaEntry,
+    IntervencionViveroData,
+    IntervencionGobernanzaData,
+    IntervencionEcosistemasData,
+    IntervencionUmataData,
+  } from "../../types/visitas";
+  import { getGrupoConfig, type GrupoConfig } from "../../lib/grupos";
   import Stepper from "../ui/Stepper.svelte";
   import Button from "../ui/Button.svelte";
   import Modal from "../ui/Modal.svelte";
@@ -35,6 +47,11 @@
   let individuosIntervenidos: number | undefined = undefined;
   let nombreCientifico: string | undefined = undefined;
   let nombreComun: string | undefined = undefined;
+
+  // Variables para grupos adicionales
+  let unidadesImpactadas: number | undefined = undefined;
+  let unidadMedida: string = "";
+  let tiposPlantas: PlantaEntry[] = [{ nombre: "", cantidad: 0 }];
 
   // Estado del modal
   let modalOpen = false;
@@ -89,20 +106,31 @@
   $: state = $visitaStore;
   $: currentUser = $authStore.user;
   $: userGrupo = extractUserGroups(currentUser);
-  $: isCuadrilla = userGrupo.some((g) => g.toLowerCase().includes("cuadrilla"));
+  $: grupoConfig = getGrupoConfig(userGrupo);
+  $: isCuadrilla = grupoConfig.formType === "cuadrilla";
   $: canContinue =
     currentStep === 3
-      ? photoFiles.length > 0 // En el paso 3, validar que haya fotos
+      ? photoFiles.length > 0
       : currentStep === 2
         ? tipoIntervencion &&
           descripcionIntervencion &&
-          (isCuadrilla || direccion) && // Direccion solo requerida para NO-CUADRILLA
-          (!isCuadrilla ||
-            (individuosIntervenidos != null &&
+          (isCuadrilla || direccion) &&
+          // Validación específica por grupo
+          (grupoConfig.formType === "cuadrilla"
+            ? individuosIntervenidos != null &&
               individuosIntervenidos > 0 &&
-              nombreCientifico))
-        : // && state.data.coordenadas_gps // Ya no es bloqueante
-          $isCurrentStepValid; // En paso 1, usar la validación del store
+              nombreCientifico
+            : grupoConfig.formType === "vivero"
+              ? tiposPlantas.some((p) => p.nombre && p.cantidad > 0)
+              : grupoConfig.formType === "gobernanza" ||
+                  grupoConfig.formType === "umata"
+                ? unidadesImpactadas != null && unidadesImpactadas > 0
+                : grupoConfig.formType === "ecosistemas"
+                  ? unidadMedida &&
+                    unidadesImpactadas != null &&
+                    unidadesImpactadas > 0
+                  : true) // operativo: sin campos extra
+        : $isCurrentStepValid;
   $: currentStep = state.currentStep;
 
   onMount(() => {
@@ -116,6 +144,9 @@
     individuosIntervenidos = undefined;
     nombreCientifico = undefined;
     nombreComun = undefined;
+    unidadesImpactadas = undefined;
+    unidadMedida = "";
+    tiposPlantas = [{ nombre: "", cantidad: 0 }];
   });
 
   // Handlers para Step 1
@@ -167,10 +198,21 @@
         direccion: direccion,
         observaciones: observaciones,
       };
-      if (isCuadrilla) {
+      if (grupoConfig.formType === "cuadrilla") {
         updatePayload.individuos_intervenidos = individuosIntervenidos;
         updatePayload.nombre_cientifico = nombreCientifico;
         updatePayload.nombre_comun = nombreComun;
+      }
+      if (grupoConfig.formType === "vivero") {
+        updatePayload.tipos_plantas = tiposPlantas;
+      }
+      if (
+        ["gobernanza", "ecosistemas", "umata"].includes(grupoConfig.formType)
+      ) {
+        updatePayload.unidades_impactadas = unidadesImpactadas;
+      }
+      if (grupoConfig.formType === "ecosistemas") {
+        updatePayload.unidad_medida = unidadMedida;
       }
       visitaStore.updateData(updatePayload);
     }
@@ -259,10 +301,21 @@
         direccion: direccion,
         observaciones: observaciones,
       };
-      if (isCuadrilla) {
+      if (grupoConfig.formType === "cuadrilla") {
         updatePayload.individuos_intervenidos = individuosIntervenidos;
         updatePayload.nombre_cientifico = nombreCientifico;
         updatePayload.nombre_comun = nombreComun;
+      }
+      if (grupoConfig.formType === "vivero") {
+        updatePayload.tipos_plantas = tiposPlantas;
+      }
+      if (
+        ["gobernanza", "ecosistemas", "umata"].includes(grupoConfig.formType)
+      ) {
+        updatePayload.unidades_impactadas = unidadesImpactadas;
+      }
+      if (grupoConfig.formType === "ecosistemas") {
+        updatePayload.unidad_medida = unidadMedida;
       }
       visitaStore.updateData(updatePayload);
 
@@ -327,75 +380,164 @@
 
       let response;
 
-      // ── Flujo CUADRILLA ──
-      if (isCuadrilla) {
-        // Validaciones específicas para CUADRILLA
-        if (!nombreComun || !nombreCientifico) {
-          throw new Error("Debe seleccionar una especie de árbol");
-        }
-        if (!individuosIntervenidos || individuosIntervenidos < 1) {
-          throw new Error("Debe indicar el número de individuos intervenidos");
-        }
-        if (!state.selectedActividad?.id) {
-          throw new Error("ID de actividad no disponible");
+      // Campos comunes para grupos con endpoint de intervención
+      const commonIntervencionFields = {
+        tipo_intervencion: tipoIntervencion,
+        descripcion_intervencion: descripcionIntervencion,
+        registrado_por:
+          currentUser?.nombre_completo ||
+          currentUser?.displayName ||
+          currentUser?.email ||
+          "Usuario",
+        grupo: currentUser?.grupo || userGrupo[0] || grupoConfig.label,
+        id_actividad: state.selectedActividad?.id || "",
+        observaciones: observaciones || "",
+        coordinates_type: finalCoordinatesType,
+        coordinates_data:
+          finalCoordinatesData ||
+          JSON.stringify([
+            finalCoordenadas.longitude,
+            finalCoordenadas.latitude,
+          ]),
+      };
+
+      switch (grupoConfig.formType) {
+        case "cuadrilla": {
+          // Validaciones CUADRILLA
+          if (!nombreComun || !nombreCientifico) {
+            throw new Error("Debe seleccionar una especie de árbol");
+          }
+          if (!individuosIntervenidos || individuosIntervenidos < 1) {
+            throw new Error(
+              "Debe indicar el número de individuos intervenidos",
+            );
+          }
+          if (!state.selectedActividad?.id) {
+            throw new Error("ID de actividad no disponible");
+          }
+
+          const dataCuadrilla = {
+            tipo_arbol: `${nombreComun} (${nombreCientifico})`,
+            ...commonIntervencionFields,
+            numero_individuos_intervenidos: individuosIntervenidos,
+          };
+
+          console.log("📤 Enviando intervención CUADRILLA:", dataCuadrilla);
+          response = await registrarIntervencionCuadrilla(
+            dataCuadrilla,
+            photoFiles,
+          );
+          break;
         }
 
-        // Construir el objeto para el endpoint de CUADRILLA
-        const dataCuadrilla = {
-          tipo_arbol: `${nombreComun} (${nombreCientifico})`,
-          registrado_por:
-            currentUser?.nombre_completo ||
-            currentUser?.displayName ||
-            currentUser?.email ||
-            "Usuario",
-          grupo: currentUser?.grupo || userGrupo[0] || "CUADRILLA",
-          observaciones: observaciones || "",
-          numero_individuos_intervenidos: individuosIntervenidos,
-          coordinates_data:
-            finalCoordinatesData ||
-            JSON.stringify([
-              finalCoordenadas.longitude,
-              finalCoordenadas.latitude,
-            ]),
-          tipo_intervencion: tipoIntervencion,
-          id_actividad: state.selectedActividad.id,
-          descripcion_intervencion: descripcionIntervencion,
-          coordinates_type: finalCoordinatesType,
-        };
+        case "vivero": {
+          const plantasValidas = tiposPlantas.filter(
+            (p) => p.nombre && p.cantidad > 0,
+          );
+          if (plantasValidas.length === 0) {
+            throw new Error("Debe agregar al menos una planta con cantidad");
+          }
+          const tiposPlantasDict: Record<string, number> = {};
+          plantasValidas.forEach((p) => {
+            tiposPlantasDict[p.nombre] = p.cantidad;
+          });
 
-        console.log("📤 Enviando intervención CUADRILLA:", dataCuadrilla);
-        console.log("📸 Número de fotos:", photoFiles.length);
-        response = await registrarIntervencionCuadrilla(
-          dataCuadrilla,
-          photoFiles,
-        );
-      }
-      // ── Flujo estándar (grupo operativo) ──
-      else {
-        const reconocimiento: Record<string, any> = {
-          upid: state.selectedActividad.id,
-          nombre_up:
-            state.selectedActividad.objetivo_actividad ||
-            state.data.nombre_up ||
-            "Actividad sin objetivo",
-          tipo_intervencion: tipoIntervencion,
-          descripcion_intervencion: descripcionIntervencion,
-          direccion:
-            direccion ||
-            state.selectedActividad.punto_encuentro?.direccion ||
-            "Sin dirección registrada",
-          observaciones: observaciones || "",
-          coordenadas_gps: finalCoordenadas,
-          coordinates_type: finalCoordinatesType,
-          coordinates_data:
-            finalCoordinatesData ||
-            JSON.stringify([
-              finalCoordenadas.longitude,
-              finalCoordenadas.latitude,
-            ]),
-        };
+          const dataVivero: IntervencionViveroData = {
+            ...commonIntervencionFields,
+            tipos_plantas: JSON.stringify(tiposPlantasDict),
+            direccion: direccion || "Sin dirección registrada",
+          };
 
-        response = await registrarReconocimiento(reconocimiento, photoFiles);
+          console.log("📤 Enviando intervención VIVERO:", dataVivero);
+          response = await registrarIntervencionVivero(dataVivero, photoFiles);
+          break;
+        }
+
+        case "gobernanza": {
+          if (!unidadesImpactadas || unidadesImpactadas < 1) {
+            throw new Error("Debe indicar las unidades impactadas");
+          }
+
+          const dataGobernanza: IntervencionGobernanzaData = {
+            ...commonIntervencionFields,
+            unidades_impactadas: unidadesImpactadas,
+            direccion: direccion || "Sin dirección registrada",
+          };
+
+          console.log("📤 Enviando intervención GOBERNANZA:", dataGobernanza);
+          response = await registrarIntervencionGobernanza(
+            dataGobernanza,
+            photoFiles,
+          );
+          break;
+        }
+
+        case "ecosistemas": {
+          if (!unidadMedida) {
+            throw new Error("Debe seleccionar una unidad de medida");
+          }
+          if (!unidadesImpactadas || unidadesImpactadas < 1) {
+            throw new Error("Debe indicar las unidades impactadas");
+          }
+
+          const dataEcosistemas: IntervencionEcosistemasData = {
+            ...commonIntervencionFields,
+            unidad_medida: unidadMedida,
+            unidades_impactadas: unidadesImpactadas,
+            direccion: direccion || "Sin dirección registrada",
+          };
+
+          console.log("📤 Enviando intervención ECOSISTEMAS:", dataEcosistemas);
+          response = await registrarIntervencionEcosistemas(
+            dataEcosistemas,
+            photoFiles,
+          );
+          break;
+        }
+
+        case "umata": {
+          if (!unidadesImpactadas || unidadesImpactadas < 1) {
+            throw new Error("Debe indicar las unidades impactadas");
+          }
+
+          const dataUmata: IntervencionUmataData = {
+            ...commonIntervencionFields,
+            unidades_impactadas: unidadesImpactadas,
+            direccion: direccion || "Sin dirección registrada",
+          };
+
+          console.log("📤 Enviando intervención UMATA:", dataUmata);
+          response = await registrarIntervencionUmata(dataUmata, photoFiles);
+          break;
+        }
+
+        default: {
+          // Flujo estándar (grupo operativo)
+          const reconocimiento: Record<string, any> = {
+            upid: state.selectedActividad.id,
+            nombre_up:
+              state.selectedActividad.objetivo_actividad ||
+              state.data.nombre_up ||
+              "Actividad sin objetivo",
+            tipo_intervencion: tipoIntervencion,
+            descripcion_intervencion: descripcionIntervencion,
+            direccion:
+              direccion ||
+              state.selectedActividad.punto_encuentro?.direccion ||
+              "Sin dirección registrada",
+            observaciones: observaciones || "",
+            coordenadas_gps: finalCoordenadas,
+            coordinates_type: finalCoordinatesType,
+            coordinates_data:
+              finalCoordinatesData ||
+              JSON.stringify([
+                finalCoordenadas.longitude,
+                finalCoordenadas.latitude,
+              ]),
+          };
+
+          response = await registrarReconocimiento(reconocimiento, photoFiles);
+        }
       }
 
       if (response.success) {
@@ -504,9 +646,13 @@
         onCaptureGPS={handleCaptureGPS}
         isLoading={state.isLoading}
         {isCuadrilla}
+        grupoFormType={grupoConfig.formType}
         bind:individuosIntervenidos
         bind:nombreCientifico
         bind:nombreComun
+        bind:unidadesImpactadas
+        bind:unidadMedida
+        bind:tiposPlantas
       />
     {:else if currentStep === 3}
       <Step3Fotos bind:photoFiles />
