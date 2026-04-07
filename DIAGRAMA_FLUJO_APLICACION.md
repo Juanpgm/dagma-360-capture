@@ -1,0 +1,80 @@
+# Diagrama de Flujo de la Aplicacion (Artefacto 360 DAGMA)
+
+Este diagrama resume el flujo funcional de la aplicacion frontend (Svelte) segun el comportamiento actual del codigo.
+
+```mermaid
+flowchart TD
+    A[Usuario abre la aplicacion] --> B[App.svelte onMount]
+    B --> C{Variables Firebase cargadas?}
+    C -- No --> C1[Mostrar error de configuracion]
+    C -- Si --> D[initAuth en authStore]
+
+    D --> E[onAuthStateChanged Firebase]
+    E --> F{Hay sesion Firebase?}
+    F -- No --> G[Mostrar Login.svelte]
+    F -- Si --> H[Restaurar usuario y token en storage]
+    H --> I[Mostrar Home.svelte]
+
+    G --> J{Accion del usuario}
+    J -- Iniciar sesion --> K[auth.login]
+    J -- Registrarse --> L[auth.registerUser]
+    L --> K
+
+    K --> M{Autenticacion exitosa?}
+    M -- No --> N[Mostrar mensaje de error]
+    N --> G
+    M -- Si --> O[authStore.login y persistencia]
+    O --> I
+
+    I --> P{Modulo seleccionado}
+
+    P -- Reconocimiento --> R1[VisitaVerificacion.svelte]
+    R1 --> R2[Cargar actividades del Plan Distrito Verde]
+    R2 --> R3[Step 1 seleccionar actividad]
+    R3 --> R4[Step 2 datos + GPS]
+    R4 --> R5{GPS disponible/permitido?}
+    R5 -- No --> R5A[Mostrar modal de advertencia]
+    R5A --> R4
+    R5 -- Si u opcional --> R6[Step 3 subir fotos]
+    R6 --> R7{Usuario del grupo CUADRILLA?}
+    R7 -- Si --> R8[POST registrarIntervencionCuadrilla]
+    R7 -- No --> R9[POST registrarReconocimiento]
+    R8 --> R10{Guardado exitoso?}
+    R9 --> R10
+    R10 -- No --> R11[Mostrar error de envio]
+    R10 -- Si --> R12[Modal de exito y volver a Home]
+
+    P -- Reportes --> S1[KanbanReportes.svelte]
+    S1 --> S2[GET grupo-operativo/reportes]
+    S2 --> S3[Render en Kanban o Tabla]
+    S3 --> S4[Actualizar estado, avance y encargado en reportesStore]
+
+    P -- Programacion --> T1[Convocatorias.svelte]
+    T1 --> T2[GET actividades_plan_distrito_verde]
+    T2 --> T3[GET lideres_grupo]
+    T3 --> T4[Filtrar y visualizar actividades]
+    T4 --> T5{Accion}
+    T5 -- Convocar --> T6[POST programar_actividad]
+    T5 -- Modificar --> T7[PUT plan_distrito_verde/:id]
+    T5 -- Eliminar --> T8[DELETE plan_distrito_verde/:id]
+
+    P -- Dashboard --> U1[Dashboard.svelte]
+    U1 --> U2[GET reportes de intervenciones]
+    U2 --> U3[Aplicar filtros]
+    U3 --> U4[Calcular KPIs]
+    U4 --> U5[Mostrar mapas y analitica]
+
+    I --> V[Cerrar sesion]
+    V --> W[authStore.logout]
+    W --> X[Limpiar storages y volver a Login]
+```
+
+## Resumen corto para presentacion
+
+- El flujo inicia con validacion de configuracion y estado de sesion.
+- Si no hay sesion, el usuario entra por Login/Registro.
+- En Home se enruta a 4 modulos: Reconocimiento, Reportes, Programacion y Dashboard.
+- Reconocimiento es un wizard de 3 pasos con validaciones, GPS/fallback y carga de fotos.
+- Reportes consume API para listado y gestiona seguimiento operativo en store local.
+- Programacion gestiona actividades (crear, editar, eliminar) contra endpoints dedicados.
+- Dashboard consume reportes de intervenciones, aplica filtros y genera indicadores/mapas.

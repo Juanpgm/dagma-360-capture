@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diagrama de Flujo - Artefacto 360 DAGMA</title>
+  <style>
+    :root {
+      --bg: #f6faf8;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #0f766e;
+      --border: #dbe7e4;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: radial-gradient(circle at 20% 0%, #e6f5ef 0%, var(--bg) 45%, #eef6ff 100%);
+      color: var(--text);
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, #e8faf2 0%, #f4fbff 100%);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      color: var(--accent);
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: var(--muted);
+    }
+
+    .diagram-wrap {
+      padding: 20px;
+      overflow: auto;
+    }
+
+    .mermaid {
+      min-width: 1400px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      padding: 0 20px 20px;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: white;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      .container {
+        box-shadow: none;
+        border: none;
+        border-radius: 0;
+      }
+      .actions {
+        display: none;
+      }
+      .diagram-wrap {
+        overflow: visible;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="header">
+      <h1>Diagrama de Flujo - Aplicacion Artefacto 360 DAGMA</h1>
+      <p>Version exportable. Puedes imprimir este HTML como PDF desde el navegador.</p>
+    </section>
+
+    <section class="diagram-wrap">
+      <pre class="mermaid">
+flowchart TD
+    A[Usuario abre la aplicacion] --> B[App.svelte onMount]
+    B --> C{Variables Firebase cargadas?}
+    C -- No --> C1[Mostrar error de configuracion]
+    C -- Si --> D[initAuth en authStore]
+
+    D --> E[onAuthStateChanged Firebase]
+    E --> F{Hay sesion Firebase?}
+    F -- No --> G[Mostrar Login.svelte]
+    F -- Si --> H[Restaurar usuario y token en storage]
+    H --> I[Mostrar Home.svelte]
+
+    G --> J{Accion del usuario}
+    J -- Iniciar sesion --> K[auth.login]
+    J -- Registrarse --> L[auth.registerUser]
+    L --> K
+
+    K --> M{Autenticacion exitosa?}
+    M -- No --> N[Mostrar mensaje de error]
+    N --> G
+    M -- Si --> O[authStore.login y persistencia]
+    O --> I
+
+    I --> P{Modulo seleccionado}
+
+    P -- Reconocimiento --> R1[VisitaVerificacion.svelte]
+    R1 --> R2[Cargar actividades del Plan Distrito Verde]
+    R2 --> R3[Step 1 seleccionar actividad]
+    R3 --> R4[Step 2 datos + GPS]
+    R4 --> R5{GPS disponible/permitido?}
+    R5 -- No --> R5A[Mostrar modal de advertencia]
+    R5A --> R4
+    R5 -- Si u opcional --> R6[Step 3 subir fotos]
+    R6 --> R7{Usuario del grupo CUADRILLA?}
+    R7 -- Si --> R8[POST registrarIntervencionCuadrilla]
+    R7 -- No --> R9[POST registrarReconocimiento]
+    R8 --> R10{Guardado exitoso?}
+    R9 --> R10
+    R10 -- No --> R11[Mostrar error de envio]
+    R10 -- Si --> R12[Modal de exito y volver a Home]
+
+    P -- Reportes --> S1[KanbanReportes.svelte]
+    S1 --> S2[GET grupo-operativo/reportes]
+    S2 --> S3[Render en Kanban o Tabla]
+    S3 --> S4[Actualizar estado, avance y encargado en reportesStore]
+
+    P -- Programacion --> T1[Convocatorias.svelte]
+    T1 --> T2[GET actividades_plan_distrito_verde]
+    T2 --> T3[GET lideres_grupo]
+    T3 --> T4[Filtrar y visualizar actividades]
+    T4 --> T5{Accion}
+    T5 -- Convocar --> T6[POST programar_actividad]
+    T5 -- Modificar --> T7[PUT plan_distrito_verde/:id]
+    T5 -- Eliminar --> T8[DELETE plan_distrito_verde/:id]
+
+    P -- Dashboard --> U1[Dashboard.svelte]
+    U1 --> U2[GET reportes de intervenciones]
+    U2 --> U3[Aplicar filtros]
+    U3 --> U4[Calcular KPIs]
+    U4 --> U5[Mostrar mapas y analitica]
+
+    I --> V[Cerrar sesion]
+    V --> W[authStore.logout]
+    W --> X[Limpiar storages y volver a Login]
+      </pre>
+    </section>
+
+    <section class="actions">
+      <button onclick="window.print()">Imprimir / Guardar como PDF</button>
+    </section>
+  </main>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "default",
+      flowchart: {
+        useMaxWidth: false,
+        htmlLabels: true,
+        curve: "basis"
+      }
+    });
+  </script>
+</body>
+</html>

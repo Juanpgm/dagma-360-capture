@@ -2,6 +2,10 @@
   import { onMount } from "svelte";
   import {
     obtenerReportesIntervenciones,
+    obtenerReportesVivero,
+    obtenerReportesGobernanza,
+    obtenerReportesEcosistemas,
+    obtenerReportesUmata,
     type ReporteIntervencion,
   } from "../../api/visitas";
   import KPICard from "./KPICard.svelte";
@@ -18,6 +22,7 @@
   let searchTerm = "";
   let selectedTipoIntervencion: string = "todos";
   let selectedArbol: string = "todos";
+  let selectedGrupo: string = "todos";
   let dateFrom: string = "";
   let dateTo: string = "";
   let aggregationLevel: "comuna" | "barrio" = "comuna";
@@ -34,11 +39,23 @@
   $: tiposArboles = Array.from(
     new Set(reportes.map((r) => r.tipo_arbol).filter(Boolean)),
   ).sort();
+  $: gruposDisponibles = Array.from(
+    new Set(reportes.map((r) => r.grupo).filter(Boolean)),
+  ).sort();
 
   // Agregaciones para gráficas
   $: intervencionPorTipo = filteredReportes.reduce(
     (acc, r) => {
       acc[r.tipo_intervencion] = (acc[r.tipo_intervencion] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  $: reportesPorGrupo = filteredReportes.reduce(
+    (acc, r) => {
+      const g = r.grupo || "Sin grupo";
+      acc[g] = (acc[g] || 0) + 1;
       return acc;
     },
     {} as Record<string, number>,
@@ -85,6 +102,11 @@
         return false;
       }
 
+      // Filtro por grupo
+      if (selectedGrupo !== "todos" && reporte.grupo !== selectedGrupo) {
+        return false;
+      }
+
       // Filtro por rango de fechas
       if (dateFrom && reporte.fecha_registro) {
         const reportDate = new Date(reporte.fecha_registro);
@@ -111,23 +133,43 @@
     try {
       loading = true;
       error = null;
-      console.log("🔄 Dashboard: Iniciando carga de reportes...");
-      const data = await obtenerReportesIntervenciones();
-      console.log("✅ Dashboard: Datos recibidos:", data);
-      console.log("📊 Dashboard: Total de reportes:", data.data?.length || 0);
+      console.log("🔄 Dashboard: Iniciando carga de reportes de todos los grupos...");
 
-      if (!data.data || data.data.length === 0) {
+      const resultados = await Promise.allSettled([
+        obtenerReportesIntervenciones(),
+        obtenerReportesVivero(),
+        obtenerReportesGobernanza(),
+        obtenerReportesEcosistemas(),
+        obtenerReportesUmata(),
+      ]);
+
+      const grupoLabels = ["Cuadrilla", "Vivero", "Gobernanza", "Ecosistemas", "UMATA"];
+      let todosReportes: ReporteIntervencion[] = [];
+
+      resultados.forEach((resultado, index) => {
+        if (resultado.status === "fulfilled" && resultado.value?.data) {
+          const dataConGrupo = resultado.value.data.map((r: ReporteIntervencion) => ({
+            ...r,
+            grupo: r.grupo || grupoLabels[index],
+          }));
+          todosReportes = [...todosReportes, ...dataConGrupo];
+          console.log(`✅ ${grupoLabels[index]}: ${resultado.value.data.length} reportes`);
+        } else if (resultado.status === "rejected") {
+          console.warn(`⚠️ ${grupoLabels[index]}: Error al cargar -`, resultado.reason?.message);
+        }
+      });
+
+      console.log("📊 Dashboard: Total de reportes combinados:", todosReportes.length);
+
+      if (todosReportes.length === 0) {
         console.warn("⚠️ Dashboard: No hay reportes disponibles");
         error = "No hay reportes de intervenciones disponibles";
         reportes = [];
         filteredReportes = [];
       } else {
-        reportes = data.data;
+        reportes = todosReportes;
         filteredReportes = reportes;
-        console.log(
-          "✓ Dashboard: Reportes asignados al estado:",
-          reportes.length,
-        );
+        console.log("✓ Dashboard: Reportes asignados al estado:", reportes.length);
       }
     } catch (err: any) {
       error = err.message || "Error al cargar los reportes";
@@ -143,6 +185,7 @@
     searchTerm = "";
     selectedTipoIntervencion = "todos";
     selectedArbol = "todos";
+    selectedGrupo = "todos";
     dateFrom = "";
     dateTo = "";
   }
@@ -207,7 +250,7 @@
       <div>
         <h1>Dashboard de Intervenciones</h1>
         <p class="subtitle">
-          Análisis geográfico y estadístico de intervenciones arbóreas
+          Análisis geográfico y estadístico de reportes de reconocimiento — Todos los grupos
         </p>
       </div>
       <button class="btn-refresh" on:click={cargarReportes}>
@@ -260,6 +303,13 @@
           <option value="todos">Todos los árboles</option>
           {#each tiposArboles as arbol}
             <option value={arbol}>{arbol}</option>
+          {/each}
+        </select>
+
+        <select bind:value={selectedGrupo}>
+          <option value="todos">Todos los grupos</option>
+          {#each gruposDisponibles as grupo}
+            <option value={grupo}>{grupo}</option>
           {/each}
         </select>
 
@@ -330,6 +380,12 @@
           : "0"}
         subtitle="Individuos/intervención"
         icon={treeIcon}
+      />
+      <KPICard
+        title="Grupos Activos"
+        value={Object.keys(reportesPorGrupo).length}
+        subtitle="Con reportes registrados"
+        icon={chartIcon}
       />
     </div>
 
@@ -410,6 +466,42 @@
       </div>
     </div>
 
+    <!-- Gráfica de Reportes por Grupo -->
+    <div class="charts-grid" style="margin-bottom: 1.5rem;">
+      <div class="chart-card">
+        <h3>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          Reportes por Grupo
+        </h3>
+        <div class="chart-bars">
+          {#each Object.entries(reportesPorGrupo).sort((a, b) => b[1] - a[1]) as [grupo, count]}
+            <div class="bar-item">
+              <div class="bar-label">{grupo}</div>
+              <div class="bar-container">
+                <div
+                  class="bar-fill grupo-bar"
+                  style="width: {(count / Math.max(...Object.values(reportesPorGrupo))) * 100}%"
+                ></div>
+                <span class="bar-value">{count}</span>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    </div>
+
     <!-- Tabla de reportes -->
     <div class="table-section">
       <h3>
@@ -430,6 +522,7 @@
           <thead>
             <tr>
               <th>Fecha</th>
+              <th>Grupo</th>
               <th>Tipo Intervención</th>
               <th>Árbol</th>
               <th>Individuos</th>
@@ -446,6 +539,9 @@
                       )
                     : "N/A"}</td
                 >
+                <td>
+                  <span class="badge grupo">{reporte.grupo || 'N/A'}</span>
+                </td>
                 <td>
                   <span
                     class="badge"
@@ -542,7 +638,7 @@
 
   .filters-row {
     display: grid;
-    grid-template-columns: 2fr repeat(4, 1fr) auto;
+    grid-template-columns: 2fr repeat(5, 1fr) auto;
     gap: 0.75rem;
     margin-bottom: 1rem;
   }
@@ -723,6 +819,10 @@
     background: linear-gradient(90deg, #059669, #047857);
   }
 
+  .bar-fill.grupo-bar {
+    background: linear-gradient(90deg, #7c3aed, #6d28d9);
+  }
+
   .bar-value {
     position: absolute;
     right: 0.75rem;
@@ -820,6 +920,11 @@
   .badge.mantenimiento {
     background: #dbeafe;
     color: #1e40af;
+  }
+
+  .badge.grupo {
+    background: #ede9fe;
+    color: #5b21b6;
   }
 
   /* Loading */
