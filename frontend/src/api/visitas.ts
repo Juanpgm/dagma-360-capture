@@ -627,11 +627,9 @@ export function preparePhotosForUpload(photos: (File | string)[]): File[] {
  */
 export interface ReporteIntervencion {
   id: string;
-  tipo_arbol: string | null;
   registrado_por: string | null;
   grupo: string | null;
   observaciones: string;
-  numero_individuos_intervenidos: number | null;
   coordinates: {
     type: string;
     coordinates: string; // "lng lat" format
@@ -644,6 +642,17 @@ export interface ReporteIntervencion {
   photosUrl: string[];
   barrio_vereda: string;
   comuna_corregimiento: string;
+  // Campos específicos de Cuadrilla
+  tipo_arbol?: string | null;
+  numero_individuos_intervenidos?: number | null;
+  // Campos específicos de Vivero
+  tipos_plantas?: Record<string, number> | null;
+  cantidad_total_plantas?: number | null;
+  // Campos específicos de Gobernanza / Ecosistemas / UMATA
+  unidades_impactadas?: number | null;
+  unidad_medida?: string | null;
+  // Campo compartido por Vivero, Gobernanza, Ecosistemas, UMATA
+  direccion?: string | null;
   // Campos calculados para compatibilidad
   coordinates_data?: [number, number];
   fecha_registro?: string;

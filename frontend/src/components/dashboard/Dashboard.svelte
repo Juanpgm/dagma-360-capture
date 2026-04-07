@@ -21,24 +21,37 @@
   // Filtros
   let searchTerm = "";
   let selectedTipoIntervencion: string = "todos";
-  let selectedArbol: string = "todos";
   let selectedGrupo: string = "todos";
   let dateFrom: string = "";
   let dateTo: string = "";
   let aggregationLevel: "comuna" | "barrio" = "comuna";
 
+  // Paginación
+  let currentPage = 1;
+  let pageSize = 15;
+  $: totalPages = Math.max(1, Math.ceil(filteredReportes.length / pageSize));
+  $: pagedReportes = filteredReportes.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  // Reset página al cambiar filtros
+  $: if (filteredReportes) currentPage = 1;
+
   // KPIs computados
   $: totalIntervenciones = filteredReportes.length;
-  $: totalIndividuos = filteredReportes.reduce(
-    (sum, r) => sum + (r.numero_individuos_intervenidos || 0),
-    0,
+  $: impactoPorUnidad = filteredReportes.reduce(
+    (acc, r) => {
+      const val = getImpacto(r);
+      if (val === 0) return acc;
+      const unit = getUnidadKey(r);
+      acc[unit] = (acc[unit] || 0) + val;
+      return acc;
+    },
+    {} as Record<string, number>,
   );
   $: tiposIntervencion = Array.from(
     new Set(reportes.map((r) => r.tipo_intervencion)),
   );
-  $: tiposArboles = Array.from(
-    new Set(reportes.map((r) => r.tipo_arbol).filter(Boolean)),
-  ).sort();
   $: gruposDisponibles = Array.from(
     new Set(reportes.map((r) => r.grupo).filter(Boolean)),
   ).sort();
@@ -61,19 +74,51 @@
     {} as Record<string, number>,
   );
 
-  $: topArboles = Object.entries(
-    filteredReportes.reduce(
-      (acc, r) => {
-        if (r.tipo_arbol) {
-          acc[r.tipo_arbol] = (acc[r.tipo_arbol] || 0) + 1;
-        }
-        return acc;
-      },
-      {} as Record<string, number>,
-    ),
-  )
+  $: topTiposIntervencion = Object.entries(intervencionPorTipo)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8);
+
+  // Helpers para campos genéricos según grupo
+  function getImpacto(r: ReporteIntervencion): number {
+    if (r.numero_individuos_intervenidos != null)
+      return r.numero_individuos_intervenidos;
+    if (r.cantidad_total_plantas != null) return r.cantidad_total_plantas;
+    if (r.unidades_impactadas != null) return r.unidades_impactadas;
+    return 0;
+  }
+
+  function getUnidadKey(r: ReporteIntervencion): string {
+    if (r.numero_individuos_intervenidos != null) return "Individuos";
+    if (r.cantidad_total_plantas != null) return "Plantas";
+    if (r.unidad_medida) return r.unidad_medida;
+    if (r.unidades_impactadas != null) return "UND";
+    return "UND";
+  }
+
+  const unidadIcons: Record<string, string> = {
+    Individuos: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V8M12 8c2-2 6-2 8 2s-2 6-8 6M12 8c-2-2-6-2-8 2s2 6 8 6"/></svg>`,
+    Plantas: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 20h10M12 20v-6m0 0a4 4 0 004-4V4H8v6a4 4 0 004 4z"/></svg>`,
+  };
+  const defaultUnitIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9l-5 5-3-3-4 4"/></svg>`;
+
+  function getDetalle(r: ReporteIntervencion): string {
+    if (r.tipo_arbol) return r.tipo_arbol;
+    if (r.tipos_plantas) {
+      const entries = Object.entries(r.tipos_plantas);
+      if (entries.length > 0)
+        return entries.map(([k, v]) => `${k} (${v})`).join(", ");
+    }
+    if (r.unidad_medida) return r.unidad_medida;
+    if (r.descripcion_intervencion) return r.descripcion_intervencion;
+    return "N/A";
+  }
+
+  function getImpactoLabel(r: ReporteIntervencion): string {
+    const grupo = (r.grupo || "").toLowerCase();
+    if (grupo.includes("cuadrilla")) return "individuos";
+    if (grupo.includes("vivero")) return "plantas";
+    return "unidades";
+  }
 
   // Aplicar filtros
   $: {
@@ -85,7 +130,8 @@
           reporte.tipo_arbol?.toLowerCase().includes(term) ||
           reporte.descripcion_intervencion?.toLowerCase().includes(term) ||
           reporte.observaciones?.toLowerCase().includes(term) ||
-          reporte.registrado_por?.toLowerCase().includes(term);
+          reporte.registrado_por?.toLowerCase().includes(term) ||
+          reporte.direccion?.toLowerCase().includes(term);
         if (!matchSearch) return false;
       }
 
@@ -94,11 +140,6 @@
         selectedTipoIntervencion !== "todos" &&
         reporte.tipo_intervencion !== selectedTipoIntervencion
       ) {
-        return false;
-      }
-
-      // Filtro por tipo de árbol
-      if (selectedArbol !== "todos" && reporte.tipo_arbol !== selectedArbol) {
         return false;
       }
 
@@ -133,7 +174,9 @@
     try {
       loading = true;
       error = null;
-      console.log("🔄 Dashboard: Iniciando carga de reportes de todos los grupos...");
+      console.log(
+        "🔄 Dashboard: Iniciando carga de reportes de todos los grupos...",
+      );
 
       const resultados = await Promise.allSettled([
         obtenerReportesIntervenciones(),
@@ -143,23 +186,45 @@
         obtenerReportesUmata(),
       ]);
 
-      const grupoLabels = ["Cuadrilla", "Vivero", "Gobernanza", "Ecosistemas", "UMATA"];
+      const grupoLabels = [
+        "Cuadrilla",
+        "Vivero",
+        "Gobernanza",
+        "Ecosistemas",
+        "UMATA",
+      ];
       let todosReportes: ReporteIntervencion[] = [];
 
       resultados.forEach((resultado, index) => {
+        console.log(
+          `📋 ${grupoLabels[index]}: status=${resultado.status}`,
+          resultado.status === "fulfilled"
+            ? `data=${resultado.value?.data?.length ?? "NO DATA"}`
+            : `reason=${(resultado as PromiseRejectedResult).reason?.message}`,
+        );
         if (resultado.status === "fulfilled" && resultado.value?.data) {
-          const dataConGrupo = resultado.value.data.map((r: ReporteIntervencion) => ({
-            ...r,
-            grupo: r.grupo || grupoLabels[index],
-          }));
+          const dataConGrupo = resultado.value.data.map(
+            (r: ReporteIntervencion) => ({
+              ...r,
+              grupo: r.grupo || grupoLabels[index],
+            }),
+          );
           todosReportes = [...todosReportes, ...dataConGrupo];
-          console.log(`✅ ${grupoLabels[index]}: ${resultado.value.data.length} reportes`);
+          console.log(
+            `✅ ${grupoLabels[index]}: ${resultado.value.data.length} reportes`,
+          );
         } else if (resultado.status === "rejected") {
-          console.warn(`⚠️ ${grupoLabels[index]}: Error al cargar -`, resultado.reason?.message);
+          console.warn(
+            `⚠️ ${grupoLabels[index]}: Error al cargar -`,
+            (resultado as PromiseRejectedResult).reason?.message,
+          );
         }
       });
 
-      console.log("📊 Dashboard: Total de reportes combinados:", todosReportes.length);
+      console.log(
+        "📊 Dashboard: Total de reportes combinados:",
+        todosReportes.length,
+      );
 
       if (todosReportes.length === 0) {
         console.warn("⚠️ Dashboard: No hay reportes disponibles");
@@ -169,7 +234,10 @@
       } else {
         reportes = todosReportes;
         filteredReportes = reportes;
-        console.log("✓ Dashboard: Reportes asignados al estado:", reportes.length);
+        console.log(
+          "✓ Dashboard: Reportes asignados al estado:",
+          reportes.length,
+        );
       }
     } catch (err: any) {
       error = err.message || "Error al cargar los reportes";
@@ -184,7 +252,6 @@
   function limpiarFiltros() {
     searchTerm = "";
     selectedTipoIntervencion = "todos";
-    selectedArbol = "todos";
     selectedGrupo = "todos";
     dateFrom = "";
     dateTo = "";
@@ -250,7 +317,8 @@
       <div>
         <h1>Dashboard de Intervenciones</h1>
         <p class="subtitle">
-          Análisis geográfico y estadístico de reportes de reconocimiento — Todos los grupos
+          Análisis geográfico y estadístico de reportes de reconocimiento —
+          Todos los grupos
         </p>
       </div>
       <button class="btn-refresh" on:click={cargarReportes}>
@@ -287,7 +355,7 @@
           </svg>
           <input
             type="text"
-            placeholder="Buscar por árbol, descripción, operador..."
+            placeholder="Buscar por descripción, operador, dirección..."
             bind:value={searchTerm}
           />
         </div>
@@ -296,13 +364,6 @@
           <option value="todos">Todos los tipos</option>
           {#each tiposIntervencion as tipo}
             <option value={tipo}>{tipo}</option>
-          {/each}
-        </select>
-
-        <select bind:value={selectedArbol}>
-          <option value="todos">Todos los árboles</option>
-          {#each tiposArboles as arbol}
-            <option value={arbol}>{arbol}</option>
           {/each}
         </select>
 
@@ -361,25 +422,23 @@
         subtitle="Registros filtrados"
         icon={clipboardIcon}
       />
-      <KPICard
-        title="Individuos Intervenidos"
-        value={totalIndividuos}
-        subtitle="Árboles en total"
-        icon={treeIcon}
-      />
+      {#each Object.entries(impactoPorUnidad).sort((a, b) => b[1] - a[1]) as [unidad, total]}
+        <KPICard
+          title="Impacto ({unidad})"
+          value={total.toLocaleString("es-CO")}
+          subtitle={unidad === "Individuos"
+            ? "Árboles intervenidos"
+            : unidad === "Plantas"
+              ? "Plantas en vivero"
+              : `Medido en ${unidad}`}
+          icon={unidadIcons[unidad] || defaultUnitIcon}
+        />
+      {/each}
       <KPICard
         title="Tipos de Intervención"
         value={Object.keys(intervencionPorTipo).length}
         subtitle="Categorías activas"
         icon={chartIcon}
-      />
-      <KPICard
-        title="Promedio por Intervención"
-        value={totalIntervenciones > 0
-          ? (totalIndividuos / totalIntervenciones).toFixed(1)
-          : "0"}
-        subtitle="Individuos/intervención"
-        icon={treeIcon}
       />
       <KPICard
         title="Grupos Activos"
@@ -443,41 +502,6 @@
             stroke="currentColor"
             stroke-width="2"
           >
-            <path
-              d="M12 22V8M12 8c2-2 6-2 8 2s-2 6-8 6M12 8c-2-2-6-2-8 2s2 6 8 6"
-            />
-          </svg>
-          Top 8 Especies Intervenidas
-        </h3>
-        <div class="chart-bars">
-          {#each topArboles as [arbol, count]}
-            <div class="bar-item">
-              <div class="bar-label small">{arbol.split("(")[0].trim()}</div>
-              <div class="bar-container">
-                <div
-                  class="bar-fill species"
-                  style="width: {(count / topArboles[0][1]) * 100}%"
-                ></div>
-                <span class="bar-value">{count}</span>
-              </div>
-            </div>
-          {/each}
-        </div>
-      </div>
-    </div>
-
-    <!-- Gráfica de Reportes por Grupo -->
-    <div class="charts-grid" style="margin-bottom: 1.5rem;">
-      <div class="chart-card">
-        <h3>
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
             <circle cx="9" cy="7" r="4" />
             <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -492,7 +516,9 @@
               <div class="bar-container">
                 <div
                   class="bar-fill grupo-bar"
-                  style="width: {(count / Math.max(...Object.values(reportesPorGrupo))) * 100}%"
+                  style="width: {(count /
+                    Math.max(...Object.values(reportesPorGrupo))) *
+                    100}%"
                 ></div>
                 <span class="bar-value">{count}</span>
               </div>
@@ -524,13 +550,13 @@
               <th>Fecha</th>
               <th>Grupo</th>
               <th>Tipo Intervención</th>
-              <th>Árbol</th>
-              <th>Individuos</th>
+              <th>Detalle</th>
+              <th>Impacto</th>
               <th>Ubicación</th>
             </tr>
           </thead>
           <tbody>
-            {#each filteredReportes.slice(0, 10) as reporte}
+            {#each pagedReportes as reporte}
               <tr>
                 <td
                   >{reporte.fecha_registro
@@ -540,7 +566,7 @@
                     : "N/A"}</td
                 >
                 <td>
-                  <span class="badge grupo">{reporte.grupo || 'N/A'}</span>
+                  <span class="badge grupo">{reporte.grupo || "N/A"}</span>
                 </td>
                 <td>
                   <span
@@ -553,12 +579,14 @@
                     {reporte.tipo_intervencion}
                   </span>
                 </td>
-                <td class="arbol-cell">{reporte.tipo_arbol || "N/A"}</td>
+                <td class="detalle-cell">{getDetalle(reporte)}</td>
                 <td class="center"
-                  >{reporte.numero_individuos_intervenidos || 0}</td
+                  >{getImpacto(reporte)} {getImpactoLabel(reporte)}</td
                 >
                 <td class="location-cell">
-                  {#if reporte.comuna}
+                  {#if reporte.direccion}
+                    {reporte.direccion}
+                  {:else if reporte.comuna}
                     Comuna {reporte.comuna}
                   {:else if reporte.barrio}
                     {reporte.barrio}
@@ -574,6 +602,46 @@
             {/each}
           </tbody>
         </table>
+      </div>
+      <!-- Paginador -->
+      <div class="pagination">
+        <div class="pagination-info">
+          Mostrando {Math.min(
+            (currentPage - 1) * pageSize + 1,
+            filteredReportes.length,
+          )}
+          – {Math.min(currentPage * pageSize, filteredReportes.length)}
+          de {filteredReportes.length}
+        </div>
+        <div class="pagination-controls">
+          <select bind:value={pageSize} on:change={() => (currentPage = 1)}>
+            <option value={10}>10 / pág</option>
+            <option value={15}>15 / pág</option>
+            <option value={25}>25 / pág</option>
+            <option value={50}>50 / pág</option>
+          </select>
+          <button
+            class="pg-btn"
+            disabled={currentPage <= 1}
+            on:click={() => (currentPage = 1)}>«</button
+          >
+          <button
+            class="pg-btn"
+            disabled={currentPage <= 1}
+            on:click={() => currentPage--}>‹</button
+          >
+          <span class="pg-current">{currentPage} / {totalPages}</span>
+          <button
+            class="pg-btn"
+            disabled={currentPage >= totalPages}
+            on:click={() => currentPage++}>›</button
+          >
+          <button
+            class="pg-btn"
+            disabled={currentPage >= totalPages}
+            on:click={() => (currentPage = totalPages)}>»</button
+          >
+        </div>
       </div>
     </div>
   {/if}
@@ -638,7 +706,7 @@
 
   .filters-row {
     display: grid;
-    grid-template-columns: 2fr repeat(5, 1fr) auto;
+    grid-template-columns: 2fr repeat(4, 1fr) auto;
     gap: 0.75rem;
     margin-bottom: 1rem;
   }
@@ -783,10 +851,6 @@
     font-weight: 500;
   }
 
-  .bar-label.small {
-    font-size: 0.8125rem;
-  }
-
   .bar-container {
     position: relative;
     display: flex;
@@ -813,10 +877,6 @@
 
   .bar-fill.mantenimiento {
     background: linear-gradient(90deg, #3b82f6, #2563eb);
-  }
-
-  .bar-fill.species {
-    background: linear-gradient(90deg, #059669, #047857);
   }
 
   .bar-fill.grupo-bar {
@@ -882,7 +942,7 @@
     text-align: center;
   }
 
-  td.arbol-cell {
+  td.detalle-cell {
     max-width: 250px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -925,6 +985,72 @@
   .badge.grupo {
     background: #ede9fe;
     color: #5b21b6;
+  }
+
+  /* Paginación */
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e2e8f0;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .pagination-info {
+    font-size: 0.8125rem;
+    color: #64748b;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .pagination-controls select {
+    padding: 0.375rem 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    background: white;
+    outline: none;
+    margin-right: 0.5rem;
+  }
+
+  .pg-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    color: #334155;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .pg-btn:hover:not(:disabled) {
+    background: #f0fdf4;
+    border-color: #059669;
+    color: #059669;
+  }
+
+  .pg-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .pg-current {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #1e293b;
+    padding: 0 0.5rem;
   }
 
   /* Loading */
@@ -1037,7 +1163,7 @@
       min-height: 400px;
     }
 
-    td.arbol-cell {
+    td.detalle-cell {
       max-width: 150px;
     }
   }

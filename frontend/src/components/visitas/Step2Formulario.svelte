@@ -155,16 +155,18 @@
         <div class="gps-success">
           <div class="gps-grid">
             <div class="gps-field">
-              <label>Latitud</label>
+              <label for="gps-lat">Latitud</label>
               <input
+                id="gps-lat"
                 type="text"
                 value={coordenadas.latitude.toFixed(6)}
                 readonly
               />
             </div>
             <div class="gps-field">
-              <label>Longitud</label>
+              <label for="gps-lng">Longitud</label>
               <input
+                id="gps-lng"
                 type="text"
                 value={coordenadas.longitude.toFixed(6)}
                 readonly
@@ -240,13 +242,11 @@
         {:else if grupoFormType === "vivero"}
           <!-- ── Campos VIVERO: filas dinámicas de plantas ── -->
           <div class="field">
+            <!-- svelte-ignore a11y-label-has-associated-control -->
             <label>Tipos de Plantas <span class="required">*</span></label>
             {#each tiposPlantas as planta, i}
               <div class="planta-row">
-                <select
-                  bind:value={planta.nombre}
-                  class="planta-nombre"
-                >
+                <select bind:value={planta.nombre} class="planta-nombre">
                   <option value="" disabled>Seleccionar planta</option>
                   <option value="Cintas">Cintas</option>
                   <option value="Roelias">Roelias</option>
