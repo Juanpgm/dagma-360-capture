@@ -1,7 +1,7 @@
 <script lang="ts">
-    import type { Reporte } from "../../types/visitas";
+    import type { ReporteIntervencion } from "../../api/visitas";
 
-    export let reporte: Reporte;
+    export let reporte: ReporteIntervencion;
 
     function formatDate(dateString: string) {
         if (!dateString) return "";

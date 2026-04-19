@@ -12,24 +12,8 @@
     await authStore.logout();
   };
 
-  function openVisita(): void {
-    currentView = "visita";
-  }
-
-  function openReportes(): void {
-    currentView = "reportes";
-  }
-
-  function openConvocatorias(): void {
-    currentView = "convocatorias";
-  }
-
-  function openDashboard(): void {
-    currentView = "dashboard";
-  }
-
-  function goHome(): void {
-    currentView = "home";
+  function navigate(view: View): void {
+    currentView = view;
   }
 
   $: currentUser = $authStore.user;
@@ -54,405 +38,341 @@
 </script>
 
 {#if currentView === "visita"}
-  <VisitaVerificacion onClose={goHome} />
-{:else if currentView === "reportes"}
-  <div class="view-container">
-    <header class="header">
-      <button class="btn-back" on:click={goHome}>← Volver</button>
-      <div class="brand">DAGMA Parques</div>
-      <div class="header-right">
-        <div class="user-chip">
-          <div class="user-avatar">
-            {userAvatarLetter}
-          </div>
-          <div class="user-meta">
-            <span class="user-name">{userFullName}</span>
-            <div class="user-subline">
-              <span class="user-detail"
-                ><strong>Grupo:</strong> {userGrupo}</span
-              >
-              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
-            </div>
-          </div>
-        </div>
-        <button class="btn-logout" on:click={handleLogout}>
-          Cerrar sesion
-        </button>
-      </div>
-    </header>
-    <KanbanReportes />
-  </div>
-{:else if currentView === "convocatorias"}
-  <div class="view-container">
-    <header class="header">
-      <button class="btn-back" on:click={goHome}>← Volver</button>
-      <div class="brand">DAGMA Parques</div>
-      <div class="header-right">
-        <div class="user-chip">
-          <div class="user-avatar">
-            {userAvatarLetter}
-          </div>
-          <div class="user-meta">
-            <span class="user-name">{userFullName}</span>
-            <div class="user-subline">
-              <span class="user-detail"
-                ><strong>Grupo:</strong> {userGrupo}</span
-              >
-              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
-            </div>
-          </div>
-        </div>
-        <button class="btn-logout" on:click={handleLogout}>
-          Cerrar sesion
-        </button>
-      </div>
-    </header>
-    <Convocatorias />
-  </div>
-{:else if currentView === "dashboard"}
-  <div class="view-container">
-    <header class="header">
-      <button class="btn-back" on:click={goHome}>← Volver</button>
-      <div class="brand">DAGMA Parques</div>
-      <div class="header-right">
-        <div class="user-chip">
-          <div class="user-avatar">
-            {userAvatarLetter}
-          </div>
-          <div class="user-meta">
-            <span class="user-name">{userFullName}</span>
-            <div class="user-subline">
-              <span class="user-detail"
-                ><strong>Grupo:</strong> {userGrupo}</span
-              >
-              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
-            </div>
-          </div>
-        </div>
-        <button class="btn-logout" on:click={handleLogout}>
-          Cerrar sesion
-        </button>
-      </div>
-    </header>
-    <Dashboard />
-  </div>
+  <VisitaVerificacion onClose={() => navigate("home")} />
 {:else}
-  <div class="home-container">
-    <header class="header header-home">
-      <div class="brand">DAGMA Parques</div>
+  <div class="shell">
+    <header class="header" class:sticky={currentView === "home"}>
+      {#if currentView !== "home"}
+        <button class="btn-back" on:click={() => navigate("home")}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Volver
+        </button>
+      {/if}
+      <div class="brand">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4-4 8-7.5 8-12a8 8 0 1 0-16 0c0 4.5 4 8 8 12z"/><circle cx="12" cy="10" r="3"/></svg>
+        DAGMA 360
+      </div>
       <div class="header-right">
         <div class="user-chip">
-          <div class="user-avatar">
-            {userAvatarLetter}
-          </div>
+          <div class="user-avatar">{userAvatarLetter}</div>
           <div class="user-meta">
             <span class="user-name">{userFullName}</span>
-            <div class="user-subline">
-              <span class="user-detail"
-                ><strong>Grupo:</strong> {userGrupo}</span
-              >
-              <span class="user-detail"><strong>Rol:</strong> {userRol}</span>
-            </div>
+            <span class="user-detail">{userGrupo} · {userRol}</span>
           </div>
         </div>
-        <button class="btn-logout" on:click={handleLogout}>
-          Cerrar sesion
+        <button class="btn-icon" on:click={handleLogout} title="Cerrar sesión">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         </button>
       </div>
     </header>
 
-    <div class="convocatorias-banner">
-      <div class="banner-text">
-        <h3>Programación - Plan Distrito Verde</h3>
-        <p>Consulta las actividades programadas y sus detalles</p>
-      </div>
-      <button class="btn-convocatorias" on:click={openConvocatorias}>
-        Ver Programación
-      </button>
-    </div>
+    {#if currentView === "reportes"}
+      <KanbanReportes />
+    {:else if currentView === "convocatorias"}
+      <Convocatorias />
+    {:else if currentView === "dashboard"}
+      <Dashboard />
+    {:else}
+      <main class="home-content">
+        <section class="banner" on:click={() => navigate("convocatorias")} on:keydown={(e) => e.key === 'Enter' && navigate("convocatorias")} role="button" tabindex="0">
+          <div class="banner-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <div class="banner-text">
+            <span class="banner-title">Programación — Plan Distrito Verde</span>
+            <span class="banner-sub">Consulta las actividades programadas</span>
+          </div>
+          <svg class="banner-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </section>
 
-    <div class="content">
-      <div class="welcome">
-        <h2>Bienvenido</h2>
-        <p>Sistema de Informacion de Parques</p>
+        <section class="welcome">
+          <h2>Bienvenido</h2>
+          <p>Gestión ambiental integral</p>
+        </section>
 
         <div class="actions-grid">
-          <button class="action-card primary" on:click={openVisita}>
-            <div class="action-icon">🌳</div>
-            <h3 class="action-title">Reconocimiento</h3>
-            <p class="action-description">Registrar reconocimiento</p>
+          <button class="action-card primary" on:click={() => navigate("visita")}>
+            <div class="action-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 1 0 0-5 1.5 1.5 0 0 1 0-3"/><path d="M14.5 10a4 4 0 0 0 0-8"/><path d="M8.5 10a4 4 0 0 1 0-8"/><path d="M2 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 0 1 0-5C3.5 5 3 3.5 3 2"/><path d="M12 22V10"/><path d="M2 10h20"/></svg>
+            </div>
+            <h3 class="action-title">Intervención</h3>
+            <p class="action-desc">Registrar intervención ambiental</p>
           </button>
 
-          <button class="action-card" on:click={openReportes}>
-            <div class="action-icon">📊</div>
+          <button class="action-card" on:click={() => navigate("reportes")}>
+            <div class="action-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </div>
             <h3 class="action-title">Reportes</h3>
-            <p class="action-description">Historial de reconocimientos</p>
+            <p class="action-desc">Historial de intervenciones</p>
           </button>
 
-          <button class="action-card" on:click={openDashboard}>
-            <div class="action-icon">📈</div>
+          <button class="action-card" on:click={() => navigate("dashboard")}>
+            <div class="action-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
             <h3 class="action-title">Dashboard</h3>
-            <p class="action-description">Panel de control</p>
+            <p class="action-desc">Panel analítico</p>
           </button>
         </div>
-      </div>
-    </div>
+      </main>
+    {/if}
   </div>
 {/if}
 
 <style>
-  .view-container,
-  .home-container {
+  .shell {
     min-height: 100vh;
     min-height: 100dvh;
-    background-color: var(--surface);
+    background-color: var(--background);
   }
 
+  /* Header */
   .header {
-    background-color: white;
-    padding: 1rem 1.5rem;
-    box-shadow: 0 1px 3px var(--shadow);
+    background: var(--surface);
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
   }
-
-  .header-home {
+  .header.sticky {
     position: sticky;
     top: 0;
     z-index: 10;
+    backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.9);
   }
 
   .brand {
-    color: var(--primary);
-    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-primary);
+    font-size: 1.125rem;
     font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-right: auto;
+  }
+  .brand svg {
+    color: var(--primary);
   }
 
   .header-right {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.5rem;
   }
 
   .user-chip {
     display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    background: var(--surface);
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.9rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    border-radius: var(--radius);
     border: 1px solid var(--border);
+    background: var(--surface-alt);
   }
 
   .user-avatar {
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
-    background: linear-gradient(
-      135deg,
-      var(--primary) 0%,
-      var(--primary-dark) 100%
-    );
+    background: var(--primary);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
+    font-weight: 600;
+    font-size: 0.8125rem;
   }
 
   .user-meta {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
     line-height: 1.2;
   }
 
   .user-name {
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-primary);
-    font-size: 0.85rem;
+    font-size: 0.8125rem;
   }
 
   .user-detail {
-    color: var(--text-secondary);
-    font-size: 0.74rem;
-  }
-
-  .user-subline {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    flex-wrap: wrap;
+    color: var(--text-muted);
+    font-size: 0.6875rem;
   }
 
   .btn-back {
-    background-color: transparent;
-    color: var(--primary);
-    border: 1px solid var(--primary);
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: none;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius);
     font-weight: 500;
-    font-size: 0.875rem;
-    transition: all 0.2s;
-    cursor: pointer;
+    font-size: 0.8125rem;
+    transition: all var(--transition);
   }
-
   .btn-back:hover {
-    background-color: var(--primary);
-    color: white;
+    background: var(--surface-alt);
+    color: var(--text-primary);
   }
 
-  .btn-logout {
-    background-color: transparent;
-    color: var(--error);
-    border: 1px solid var(--error);
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    transition: all 0.2s;
-  }
-
-  .btn-logout:hover {
-    background-color: var(--error);
-    color: white;
-  }
-
-  .convocatorias-banner {
-    margin: 1.5rem;
-    padding: 1.25rem 1.5rem;
-    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-    border-radius: 1rem;
-    border: 2px solid var(--border);
+  .btn-icon {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .banner-text h3 {
-    color: var(--primary-dark);
-    font-size: 1.1rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .banner-text p {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-  }
-
-  .btn-convocatorias {
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 0.75rem;
-    padding: 0.75rem 1.25rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-convocatorias:hover {
-    background: var(--primary-dark);
-    transform: translateY(-1px);
-  }
-
-  .content {
-    padding: 1rem 1.5rem 2.5rem;
-    display: flex;
     justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-muted);
+    transition: all var(--transition);
+  }
+  .btn-icon:hover {
+    color: var(--error);
+    border-color: var(--error);
+    background: rgba(220, 38, 38, 0.04);
+  }
+
+  /* Home Content */
+  .home-content {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 3rem;
+  }
+
+  .banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition);
+    margin-bottom: 2rem;
+  }
+  .banner:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow);
+  }
+  .banner-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius);
+    background: var(--surface-alt);
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+  .banner-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .banner-title {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+  }
+  .banner-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .banner-arrow {
+    color: var(--text-muted);
+    flex-shrink: 0;
   }
 
   .welcome {
     text-align: center;
-    background: white;
-    padding: 2.5rem;
-    border-radius: 1rem;
-    box-shadow: 0 4px 6px var(--shadow);
-    max-width: 900px;
-    width: 100%;
-  }
-
-  .welcome h2 {
-    color: var(--text-primary);
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .welcome p {
-    color: var(--text-secondary);
-    font-size: 1rem;
     margin-bottom: 1.5rem;
+  }
+  .welcome h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  .welcome p {
+    color: var(--text-muted);
+    font-size: 0.9375rem;
   }
 
   .actions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
   }
 
   .action-card {
-    background: white;
-    border: 2px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.625rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.5rem 1rem;
     text-align: center;
     cursor: pointer;
-    transition: all 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
+    transition: all var(--transition);
   }
-
-  .action-card.primary {
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-    border-color: #059669;
-  }
-
-  .action-card:hover:not(:disabled) {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  .action-card:hover {
     border-color: var(--primary);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  .action-card.primary {
+    border-color: var(--primary);
+    background: linear-gradient(180deg, rgba(5, 150, 105, 0.04) 0%, var(--surface) 100%);
   }
 
   .action-icon {
-    font-size: 3rem;
-    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-md);
+    background: var(--surface-alt);
+    color: var(--text-secondary);
+  }
+  .action-card.primary .action-icon {
+    background: rgba(5, 150, 105, 0.08);
+    color: var(--primary);
   }
 
   .action-title {
-    font-size: 1rem;
-    font-weight: 700;
+    font-size: 0.875rem;
+    font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 0.25rem;
   }
 
-  .action-description {
+  .action-desc {
     font-size: 0.75rem;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     margin: 0;
+    line-height: 1.4;
   }
 
-  @media (max-width: 768px) {
-    .header {
-      flex-direction: column;
-      align-items: stretch;
+  @media (max-width: 640px) {
+    .user-meta {
+      display: none;
     }
-
-    .header-right {
-      justify-content: space-between;
-      flex-wrap: wrap;
-    }
-
-    .convocatorias-banner {
-      flex-direction: column;
-      align-items: flex-start;
-      margin: 1rem;
-    }
-
     .actions-grid {
       grid-template-columns: 1fr;
+    }
+    .home-content {
+      padding: 1rem;
     }
   }
 </style>

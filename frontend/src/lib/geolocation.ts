@@ -13,6 +13,14 @@ interface GeolocationOptions {
   maximumAge?: number;
 }
 
+/** Coordenadas por defecto — Plaza de Caicedo, Cali */
+export const DEFAULT_COORDS: Coordenadas = {
+  latitude: 3.4516,
+  longitude: -76.5320,
+  accuracy: 0,
+  timestamp: Date.now(),
+};
+
 /**
  * Verificación de disponibilidad de geolocalización
  */
@@ -75,20 +83,24 @@ export async function getCurrentPosition(
         resolve(coords);
       },
       (error) => {
-        let errorMessage = 'Error al obtener ubicación';
-        
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = 'Permiso de ubicación denegado. Por favor, habilita el acceso a la ubicación en la configuración de tu navegador o dispositivo.';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Ubicación no disponible. Verifica que el GPS esté activado y que tengas conexión con satélites.';
-            break;
-          case error.TIMEOUT:
-            errorMessage = 'Tiempo de espera agotado al obtener ubicación. Inténtalo de nuevo en un lugar con mejor señal GPS.';
-            break;
+        // En entorno de desarrollo (o cuando el permiso es denegado/no disponible),
+        // usar coordenadas por defecto en lugar de bloquear el flujo.
+        if (
+          error.code === error.PERMISSION_DENIED ||
+          error.code === error.POSITION_UNAVAILABLE
+        ) {
+          console.warn(
+            '[geolocation] GPS no disponible, usando coordenadas por defecto (Cali):',
+            error.message,
+          );
+          resolve({ ...DEFAULT_COORDS, timestamp: Date.now() });
+          return;
         }
-        
+
+        let errorMessage = 'Error al obtener ubicación';
+        if (error.code === error.TIMEOUT) {
+          errorMessage = 'Tiempo de espera agotado al obtener ubicación. Inténtalo de nuevo.';
+        }
         reject(new Error(errorMessage));
       },
       defaultOptions

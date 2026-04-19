@@ -1,7 +1,7 @@
 /**
  * Store de Seguimiento de Reportes/Reconocimientos
  * Gestiona reportes con estados y seguimiento de avances
- * Conectado con el endpoint /grupo-operativo/reportes
+ * Conectado con el endpoint unificado /grupos/{key}/reportes_intervenciones
  */
 
 import { writable, derived } from 'svelte/store';
@@ -12,7 +12,8 @@ import type {
   RegistroAvanceReporte,
   EvidenciaReporte,
 } from '../types/reportes';
-import { getReportes } from '../api/visitas';
+import { obtenerReportes } from '../api/visitas';
+import { GRUPO_KEYS } from '../lib/grupos';
 import { generateAvanceId } from '../types/reportes';
 
 /* ============================================================
@@ -46,45 +47,57 @@ function createReportesStore() {
       update((state) => ({ ...state, loading: true, error: null }));
       
       try {
-        const response = await getReportes();
+        const resultados = await Promise.allSettled(
+          GRUPO_KEYS.map((key) => obtenerReportes(key))
+        );
         
-        if (response.success) {
-          // Convertir reportes básicos a reportes con seguimiento
-          const reportesConSeguimiento: ReporteConSeguimiento[] = response.data.map((reporte) => ({
-            ...reporte,
-            nombre_parque: reporte.nombre_parque || 'Parque sin nombre',
-            tipo_intervencion: reporte.tipo_intervencion || 'Sin especificar',
-            descripcion_intervencion: reporte.descripcion_intervencion || 'Sin descripción',
-            direccion: reporte.direccion || 'Sin dirección',
-            estado: 'notificado' as EstadoReporte, // Estado inicial por defecto
-            prioridad: 'media' as PrioridadReporte,
-            porcentaje_avance: 0,
-            historial: [
-              {
-                id: generateAvanceId(),
-                reporte_id: reporte.id,
-                fecha: reporte.fecha_registro,
-                autor: 'Sistema',
-                descripcion: 'Reporte creado y notificado',
-                estado_anterior: 'notificado' as EstadoReporte,
-                estado_nuevo: 'notificado' as EstadoReporte,
-                porcentaje: 0,
-                evidencias: [],
-              },
-            ],
-            updated_at: reporte.fecha_registro,
-          }));
-          
-          update((state) => ({
-            ...state,
-            reportes: reportesConSeguimiento,
-            loading: false,
-          }));
-        } else {
-          throw new Error('No se pudieron cargar los reportes');
-        }
+        const grupoLabels = ['Cuadrilla', 'Vivero', 'Gobernanza', 'Ecosistemas', 'UMATA'];
+        const allReportes: any[] = [];
+        
+        resultados.forEach((resultado, index) => {
+          if (resultado.status === 'fulfilled' && resultado.value?.data) {
+            resultado.value.data.forEach((r: any) => {
+              allReportes.push({ ...r, grupo: r.grupo || grupoLabels[index] });
+            });
+          }
+        });
+        
+        const reportesConSeguimiento: ReporteConSeguimiento[] = allReportes.map((reporte) => ({
+          id: reporte.id,
+          upid: reporte.id,
+          nombre_parque: reporte.direccion || reporte.descripcion_intervencion || 'Sin nombre',
+          tipo_intervencion: reporte.tipo_intervencion || 'Sin especificar',
+          descripcion_intervencion: reporte.descripcion_intervencion || 'Sin descripción',
+          direccion: reporte.direccion || 'Sin dirección',
+          coordinates: reporte.coordinates || { type: 'Point', coordinates: [-76.532, 3.4516] },
+          photosUrl: reporte.photosUrl || [],
+          photos_uploaded: reporte.photos_uploaded || 0,
+          fecha_registro: reporte.fecha_registro || reporte.timestamp || new Date().toISOString(),
+          estado: 'notificado' as EstadoReporte,
+          prioridad: 'media' as PrioridadReporte,
+          porcentaje_avance: 0,
+          historial: [
+            {
+              id: generateAvanceId(),
+              reporte_id: reporte.id,
+              fecha: reporte.fecha_registro || reporte.timestamp || new Date().toISOString(),
+              autor: 'Sistema',
+              descripcion: 'Reporte creado y notificado',
+              estado_anterior: 'notificado' as EstadoReporte,
+              estado_nuevo: 'notificado' as EstadoReporte,
+              porcentaje: 0,
+              evidencias: [],
+            },
+          ],
+          updated_at: reporte.fecha_registro || reporte.timestamp || new Date().toISOString(),
+        }));
+        
+        update((state) => ({
+          ...state,
+          reportes: reportesConSeguimiento,
+          loading: false,
+        }));
       } catch (error) {
-        console.error('Error al cargar reportes:', error);
         update((state) => ({
           ...state,
           loading: false,

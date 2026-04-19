@@ -148,8 +148,9 @@
     return { backgroundColor: bgColor, color: "white" };
   }
 
-  function formatDate(dateString: string): string {
-    const date = new Date(dateString);
+  function formatDate(dateString: string | number): string {
+    const date = new Date(typeof dateString === 'number' ? dateString : dateString);
+    if (isNaN(date.getTime())) return '—';
     return date.toLocaleDateString("es-CO", {
       day: "2-digit",
       month: "short",
@@ -382,131 +383,129 @@
     ></div>
     <aside class="detail-panel">
       <div class="panel-header">
-        <h3>Detalle del Reporte</h3>
-        <button class="close-panel" on:click={closeDetail}>✕</button>
+        <div class="panel-header-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <h3>Detalle del Reporte</h3>
+        </div>
+        <button class="close-panel" on:click={closeDetail} title="Cerrar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="panel-body">
-        <!-- Estado y Prioridad -->
-        <div class="panel-row">
-          <span class="panel-label">Estado</span>
-          <span
-            class="panel-estado"
-            style="background: {getSelectedReporteEstadoColor()}; color: white; padding: 0.25rem 0.75rem; border-radius: 4px;"
-          >
-            {selectedReporte.estado}
-          </span>
-        </div>
-        <div class="panel-row">
-          <span class="panel-label">Prioridad</span>
-          <span
-            class="panel-prioridad"
-            style="background: {getPrioridadColor(
-              selectedReporte.prioridad,
-            )}; color: white;">{selectedReporte.prioridad}</span
-          >
-        </div>
-        <div class="panel-row">
-          <span class="panel-label">Avance</span>
-          <div class="panel-avance">
-            <div class="panel-avance-bar">
-              <div
-                class="panel-avance-fill"
-                style="width: {selectedReporte.porcentaje_avance}%"
-              ></div>
-            </div>
-            <strong>{selectedReporte.porcentaje_avance}%</strong>
-          </div>
-        </div>
-        {#if selectedReporte.encargado}
+
+        <!-- Badges de estado/prioridad/avance -->
+        <div class="panel-status-card">
           <div class="panel-row">
-            <span class="panel-label">Encargado</span>
-            <span>{selectedReporte.encargado}</span>
+            <span class="panel-label">Estado</span>
+            <span class="panel-estado" style="background: {getSelectedReporteEstadoColor()}">
+              {selectedReporte.estado}
+            </span>
           </div>
-        {/if}
-
-        <hr />
-
-        <!-- Información del Parque -->
-        <h4>🏞️ Información del Parque</h4>
-        <div class="panel-info">
-          {selectedReporte.nombre_parque || "Parque sin nombre"}
+          <div class="panel-row">
+            <span class="panel-label">Prioridad</span>
+            <span class="panel-prioridad" style="background: {getPrioridadColor(selectedReporte.prioridad)}">
+              {selectedReporte.prioridad}
+            </span>
+          </div>
+          <div class="panel-row panel-row-avance">
+            <span class="panel-label">Avance</span>
+            <div class="panel-avance">
+              <div class="panel-avance-bar">
+                <div class="panel-avance-fill" style="width: {selectedReporte.porcentaje_avance}%"></div>
+              </div>
+              <span class="panel-avance-pct">{selectedReporte.porcentaje_avance}%</span>
+            </div>
+          </div>
+          {#if selectedReporte.encargado}
+            <div class="panel-row">
+              <span class="panel-label">Encargado</span>
+              <span class="panel-value">{selectedReporte.encargado}</span>
+            </div>
+          {/if}
         </div>
-        <div class="panel-info-sm">
-          📍 {selectedReporte.direccion || "Sin dirección"}
-        </div>
-        <div class="panel-info-sm">ID: {selectedReporte.upid || "Sin ID"}</div>
 
-        <hr />
+        <!-- Información -->
+        <div class="panel-section">
+          <div class="panel-section-header">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Información
+          </div>
+          <p class="panel-info-title">{selectedReporte.nombre_parque || 'Sin nombre'}</p>
+          <div class="panel-meta-row">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>{selectedReporte.direccion || 'Sin dirección'}</span>
+          </div>
+          <div class="panel-meta-row panel-meta-id">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 3h-8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>
+            <span>{selectedReporte.upid || 'Sin ID'}</span>
+          </div>
+        </div>
 
         <!-- Intervención -->
-        <h4>🔧 Intervención</h4>
-        <div class="panel-tags">
-          <span class="panel-tag"
-            >{selectedReporte.tipo_intervencion || "Sin especificar"}</span
-          >
+        <div class="panel-section">
+          <div class="panel-section-header">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            Intervención
+          </div>
+          <span class="panel-tag">{selectedReporte.tipo_intervencion || 'Sin especificar'}</span>
+          <p class="panel-desc">{selectedReporte.descripcion_intervencion || 'Sin descripción'}</p>
+          {#if selectedReporte.observaciones}
+            <p class="panel-obs">{selectedReporte.observaciones}</p>
+          {/if}
         </div>
-        <p class="panel-desc">
-          {selectedReporte.descripcion_intervencion || "Sin descripción"}
-        </p>
-        {#if selectedReporte.observaciones}
-          <p class="panel-obs">💬 {selectedReporte.observaciones}</p>
-        {/if}
-
-        <hr />
 
         <!-- Evidencias Fotográficas -->
         {#if selectedReporte.photosUrl && selectedReporte.photosUrl.length > 0}
-          <h4>
-            Evidencias Fotográficas ({selectedReporte.photos_uploaded})
-          </h4>
-          <div class="photos-grid">
-            {#each selectedReporte.photosUrl as photo}
-              <a href={photo} target="_blank" rel="noopener noreferrer">
-                <img src={photo} alt="Evidencia" class="photo-thumb" />
-              </a>
-            {/each}
+          <div class="panel-section">
+            <div class="panel-section-header">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Evidencias <span class="section-count">{selectedReporte.photos_uploaded}</span>
+            </div>
+            <div class="photos-grid">
+              {#each selectedReporte.photosUrl as photo}
+                <a href={photo} target="_blank" rel="noopener noreferrer" class="photo-link">
+                  <img src={photo} alt="Evidencia" class="photo-thumb" loading="lazy" />
+                </a>
+              {/each}
+            </div>
           </div>
-          <hr />
         {/if}
 
         <!-- Historial -->
-        <h4>Historial de Gestión ({selectedReporte.historial.length})</h4>
-        <div class="timeline">
-          {#each [...selectedReporte.historial].reverse() as entry (entry.id)}
-            <div class="timeline-item">
-              <div class="timeline-dot"></div>
-              <div class="timeline-content">
-                <div class="timeline-head">
-                  <strong>{entry.autor}</strong>
-                  <span class="timeline-date">{formatDate(entry.fecha)}</span>
-                </div>
-                <p class="timeline-desc">{entry.descripcion}</p>
-                {#if entry.estado_anterior !== entry.estado_nuevo}
-                  <span class="timeline-transition">
-                    {entry.estado_anterior} → {entry.estado_nuevo}
-                  </span>
-                {/if}
-                {#if entry.evidencias.length > 0}
-                  <div class="timeline-evidencias">
-                    {#each entry.evidencias as ev}
-                      <span class="evidence-chip">
-                        [{ev.tipo}] {ev.descripcion}
-                      </span>
-                    {/each}
+        <div class="panel-section">
+          <div class="panel-section-header">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Historial <span class="section-count">{selectedReporte.historial.length}</span>
+          </div>
+          <div class="timeline">
+            {#each [...selectedReporte.historial].reverse() as entry (entry.id)}
+              <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                  <div class="timeline-head">
+                    <strong>{entry.autor}</strong>
+                    <span class="timeline-date">{formatDate(entry.fecha)}</span>
                   </div>
-                {/if}
+                  <p class="timeline-desc">{entry.descripcion}</p>
+                  {#if entry.estado_anterior !== entry.estado_nuevo}
+                    <span class="timeline-transition">{entry.estado_anterior} → {entry.estado_nuevo}</span>
+                  {/if}
+                  {#if entry.evidencias.length > 0}
+                    <div class="timeline-evidencias">
+                      {#each entry.evidencias as ev}
+                        <span class="evidence-chip">[{ev.tipo}] {ev.descripcion}</span>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
               </div>
-            </div>
-          {/each}
+            {/each}
+          </div>
         </div>
-
-        <hr />
 
         <!-- Avance Form -->
         {#if !showAvanceForm}
-          <Button on:click={openAvanceForm}
-            >+ Registrar Avance / Cambiar Estado</Button
-          >
+          <Button on:click={openAvanceForm}>+ Registrar Avance / Cambiar Estado</Button>
         {:else}
           <div class="avance-form">
             <h4>Nuevo Registro de Avance</h4>
@@ -972,11 +971,12 @@
     color: #94a3b8;
   }
 
-  /* Detail Panel */
+  /* ── Detail Panel ── */
   .detail-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(15, 23, 42, 0.25);
+    backdrop-filter: blur(2px);
     z-index: 300;
   }
   .detail-panel {
@@ -985,166 +985,273 @@
     top: 0;
     bottom: 0;
     width: 420px;
-    max-width: 90vw;
-    background: white;
+    max-width: 92vw;
+    background: var(--surface);
     z-index: 301;
-    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+    box-shadow: -2px 0 32px rgba(15, 23, 42, 0.1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    border-left: 1px solid var(--border);
   }
+
   .panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem;
-    border-bottom: 1px solid #e2e8f0;
-    background: #f8fafc;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .panel-header-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
   }
   .panel-header h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
   }
   .close-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
     background: none;
-    border: none;
-    font-size: 1.2rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
     cursor: pointer;
-    color: #64748b;
+    transition: all var(--transition);
+    min-height: unset;
   }
+  .close-panel:hover {
+    background: var(--surface-alt);
+    color: var(--text-primary);
+  }
+
   .panel-body {
     flex: 1;
     overflow-y: auto;
     padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
   }
-  .panel-body hr {
-    border: none;
-    border-top: 1px solid #f1f5f9;
-    margin: 0.75rem 0;
-  }
-  .panel-body h4 {
-    font-size: 0.85rem;
-    font-weight: 700;
-    margin: 0 0 0.35rem;
-    color: #1e293b;
+
+  /* Status card */
+  .panel-status-card {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
   .panel-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.4rem;
+  }
+  .panel-row-avance {
+    align-items: center;
   }
   .panel-label {
     font-size: 0.75rem;
-    color: #94a3b8;
-    font-weight: 600;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .panel-value {
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+    font-weight: 500;
   }
   .panel-estado {
-    font-size: 0.8rem;
-    font-weight: 700;
+    font-size: 0.6875rem;
+    font-weight: 600;
     text-transform: capitalize;
+    color: white;
+    padding: 0.2rem 0.625rem;
+    border-radius: 20px;
+    letter-spacing: 0.01em;
   }
   .panel-prioridad {
-    padding: 0.15rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.72rem;
-    font-weight: 700;
+    font-size: 0.6875rem;
+    font-weight: 600;
     text-transform: uppercase;
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-sm);
+    letter-spacing: 0.04em;
   }
   .panel-avance {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.625rem;
   }
   .panel-avance-bar {
-    width: 100px;
-    height: 8px;
-    background: #e2e8f0;
-    border-radius: 4px;
+    width: 90px;
+    height: 5px;
+    background: var(--border);
+    border-radius: 99px;
     overflow: hidden;
   }
   .panel-avance-fill {
     height: 100%;
-    background: #2563eb;
-    border-radius: 4px;
+    background: var(--primary);
+    border-radius: 99px;
+    transition: width 0.4s ease;
   }
-  .panel-info {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #1e293b;
-  }
-  .panel-info-sm {
+  .panel-avance-pct {
     font-size: 0.75rem;
-    color: #64748b;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 2.5ch;
   }
-  .panel-tags {
+
+  /* Sections */
+  .panel-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+  .panel-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.125rem;
+  }
+  .section-count {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0 0.375rem;
+    border-radius: 99px;
+    margin-left: 0.125rem;
+  }
+  .panel-info-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+    margin: 0;
+  }
+  .panel-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+  .panel-meta-row svg {
+    flex-shrink: 0;
+    color: var(--text-muted);
+  }
+  .panel-meta-id {
+    color: var(--text-muted);
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 0.6875rem;
   }
   .panel-tag {
-    background: #eff6ff;
-    color: #1e40af;
+    display: inline-block;
+    background: rgba(5, 150, 105, 0.08);
+    color: var(--primary-dark);
+    border: 1px solid rgba(5, 150, 105, 0.2);
     padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.72rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.6875rem;
     font-weight: 600;
+    margin-bottom: 0.25rem;
   }
   .panel-desc {
-    font-size: 0.85rem;
-    color: #334155;
-    line-height: 1.5;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
     margin: 0;
   }
   .panel-obs {
-    font-size: 0.8rem;
-    color: #64748b;
+    font-size: 0.75rem;
+    color: var(--text-muted);
     font-style: italic;
-    margin: 0.25rem 0 0;
+    margin: 0;
+    padding: 0.375rem 0.5rem;
+    background: var(--surface-alt);
+    border-radius: var(--radius-sm);
+    border-left: 2px solid var(--border);
   }
 
   /* Photos */
   .photos-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 0.5rem;
-    margin-top: 0.5rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.375rem;
+    margin-top: 0.125rem;
+  }
+  .photo-link {
+    display: block;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: opacity var(--transition);
+  }
+  .photo-link:hover {
+    opacity: 0.85;
   }
   .photo-thumb {
     width: 100%;
-    height: 80px;
+    aspect-ratio: 1;
     object-fit: cover;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    display: block;
   }
 
   /* Timeline */
   .timeline {
     display: flex;
     flex-direction: column;
-    gap: 0;
-    margin-top: 0.5rem;
   }
   .timeline-item {
     display: flex;
-    gap: 0.6rem;
+    gap: 0.625rem;
     position: relative;
-    padding-bottom: 0.75rem;
+    padding-bottom: 0.875rem;
+  }
+  .timeline-item:last-child {
+    padding-bottom: 0;
   }
   .timeline-item:not(:last-child)::before {
     content: "";
     position: absolute;
     left: 5px;
-    top: 14px;
+    top: 13px;
     bottom: 0;
-    width: 2px;
-    background: #e2e8f0;
+    width: 1px;
+    background: var(--border);
   }
   .timeline-dot {
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
     border-radius: 50%;
-    background: #2563eb;
+    background: var(--primary);
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--primary);
     flex-shrink: 0;
     margin-top: 3px;
   }
@@ -1155,31 +1262,35 @@
   .timeline-head {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: baseline;
+    gap: 0.5rem;
   }
   .timeline-head strong {
     font-size: 0.75rem;
-    color: #1e293b;
+    font-weight: 600;
+    color: var(--text-primary);
   }
   .timeline-date {
-    font-size: 0.65rem;
-    color: #94a3b8;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    white-space: nowrap;
   }
   .timeline-desc {
-    font-size: 0.78rem;
-    color: #475569;
-    margin: 0.15rem 0;
-    line-height: 1.4;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin: 0.2rem 0 0;
+    line-height: 1.45;
   }
   .timeline-transition {
     display: inline-block;
-    font-size: 0.65rem;
-    background: #f0f7ff;
-    color: #2563eb;
+    font-size: 0.6875rem;
+    background: var(--surface-alt);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
     padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    font-weight: 600;
-    margin-top: 0.15rem;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    margin-top: 0.25rem;
   }
   .timeline-evidencias {
     display: flex;
@@ -1188,41 +1299,46 @@
     margin-top: 0.25rem;
   }
   .evidence-chip {
-    font-size: 0.65rem;
-    background: #f1f5f9;
-    padding: 0.15rem 0.4rem;
-    border-radius: 3px;
+    font-size: 0.6875rem;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius-sm);
   }
 
   /* Avance form */
   .avance-form {
-    background: #f8fafc;
-    padding: 0.75rem;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    background: var(--surface-alt);
+    padding: 0.875rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
   }
   .avance-form h4 {
     margin-bottom: 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-primary);
   }
   .mensaje-exito {
-    background: #dcfce7;
-    color: #166534;
+    background: rgba(22, 163, 74, 0.08);
+    color: var(--success);
+    border: 1px solid rgba(22, 163, 74, 0.2);
     padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 600;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    font-weight: 500;
     margin-bottom: 0.75rem;
-    text-align: center;
   }
   .mensaje-error {
-    background: #fee2e2;
-    color: #991b1b;
+    background: rgba(220, 38, 38, 0.06);
+    color: var(--error);
+    border: 1px solid rgba(220, 38, 38, 0.15);
     padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 600;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    font-weight: 500;
     margin-bottom: 0.75rem;
-    text-align: center;
   }
   .field {
     margin-bottom: 0.75rem;
@@ -1230,61 +1346,67 @@
   .field label {
     display: block;
     font-size: 0.75rem;
-    font-weight: 600;
-    color: #475569;
+    font-weight: 500;
+    color: var(--text-secondary);
     margin-bottom: 0.25rem;
   }
   .field-hint {
-    font-size: 0.7rem;
+    font-size: 0.6875rem;
     font-weight: 400;
-    color: #94a3b8;
-    font-style: italic;
+    color: var(--text-muted);
   }
   .field input,
   .field select,
   .field textarea {
     width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    font-size: 0.8rem;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.8125rem;
     font-family: inherit;
-    transition: border-color 0.2s;
+    background: var(--surface);
+    color: var(--text-primary);
+    transition: border-color var(--transition), box-shadow var(--transition);
+    min-height: unset;
   }
   .field input:focus,
   .field select:focus,
   .field textarea:focus {
     outline: none;
-    border-color: #2563eb;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
   }
   .field input:disabled,
   .field select:disabled,
   .field textarea:disabled {
-    background: #f1f5f9;
-    color: #94a3b8;
+    background: var(--surface-alt);
+    color: var(--text-muted);
     cursor: not-allowed;
   }
   .field input[type="range"] {
     padding: 0;
+    min-height: unset;
+    height: 4px;
+    accent-color: var(--primary);
   }
   .char-count {
-    font-size: 0.7rem;
-    color: #94a3b8;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
     margin-top: 0.25rem;
     text-align: right;
   }
   .avance-marks {
     display: flex;
     justify-content: space-between;
-    font-size: 0.65rem;
-    color: #94a3b8;
-    margin-top: 0.25rem;
-    padding: 0 0.25rem;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    margin-top: 0.375rem;
   }
   .avance-actions {
     display: flex;
     gap: 0.5rem;
     justify-content: flex-end;
+    margin-top: 0.25rem;
   }
 
   @media (max-width: 768px) {

@@ -1,14 +1,14 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { createEventDispatcher } from "svelte";
-    import { getReportes } from "../../api/visitas";
-    import type { Reporte } from "../../types/visitas";
+    import { obtenerReportes, type ReporteIntervencion } from "../../api/visitas";
+    import { GRUPO_KEYS } from "../../lib/grupos";
     import ReportCard from "./ReportCard.svelte";
     import Button from "../ui/Button.svelte";
 
     const dispatch = createEventDispatcher();
 
-    let reportes: Reporte[] = [];
+    let reportes: ReporteIntervencion[] = [];
     let isLoading = true;
     let error: string | null = null;
     let searchTerm = "";
@@ -21,14 +21,20 @@
         isLoading = true;
         error = null;
         try {
-            const response = await getReportes();
-            if (response.success) {
-                reportes = response.data;
-            } else {
-                error = "No se pudieron cargar los reportes.";
+            const resultados = await Promise.allSettled(
+                GRUPO_KEYS.map((key) => obtenerReportes(key))
+            );
+            const todos: ReporteIntervencion[] = [];
+            resultados.forEach((r) => {
+                if (r.status === "fulfilled" && r.value?.data) {
+                    todos.push(...r.value.data);
+                }
+            });
+            reportes = todos;
+            if (reportes.length === 0) {
+                error = "No hay reportes disponibles.";
             }
         } catch (e) {
-            console.error("Error loading history:", e);
             error = "Error de conexión al cargar el historial.";
         } finally {
             isLoading = false;
@@ -43,10 +49,10 @@
         if (!searchTerm) return true;
         const term = searchTerm.toLowerCase();
         return (
-            (r.nombre_parque && r.nombre_parque.toLowerCase().includes(term)) ||
+            (r.direccion && r.direccion.toLowerCase().includes(term)) ||
             (r.tipo_intervencion &&
                 r.tipo_intervencion.toLowerCase().includes(term)) ||
-            (r.direccion && r.direccion.toLowerCase().includes(term))
+            (r.descripcion_intervencion && r.descripcion_intervencion.toLowerCase().includes(term))
         );
     });
 </script>

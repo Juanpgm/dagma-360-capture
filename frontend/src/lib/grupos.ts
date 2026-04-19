@@ -25,73 +25,58 @@ export const GRUPOS_DAGMA = [
   "IEC",
 ] as const;
 
-// ============================================
-// Tipos de formulario por grupo
-// ============================================
+export type GrupoFormType = 'cuadrilla' | 'vivero' | 'gobernanza' | 'ecosistemas' | 'umata';
 
-export type GrupoFormType = 'cuadrilla' | 'vivero' | 'gobernanza' | 'ecosistemas' | 'umata' | 'operativo';
+export type GrupoKey = 'cuadrilla' | 'vivero' | 'gobernanza' | 'ecosistemas' | 'umata';
+
+export const GRUPO_KEYS: GrupoKey[] = ['cuadrilla', 'vivero', 'gobernanza', 'ecosistemas', 'umata'];
 
 export interface GrupoConfig {
   formType: GrupoFormType;
-  slug: string;
+  slug: GrupoKey;
   postEndpoint: string;
   getEndpoint: string;
   label: string;
 }
 
-// ============================================
-// Mapeo de grupo normalizado → configuración
-// ============================================
-
-const GRUPO_ENDPOINT_MAP: Record<string, GrupoConfig> = {
+const GRUPO_ENDPOINT_MAP: Record<GrupoKey, GrupoConfig> = {
   cuadrilla: {
     formType: 'cuadrilla',
-    slug: 'grupo-cuadrilla',
-    postEndpoint: '/grupo-cuadrilla/reporte_intervencion',
-    getEndpoint: '/grupo-cuadrilla/reportes_intervenciones',
+    slug: 'cuadrilla',
+    postEndpoint: '/grupos/cuadrilla/reporte_intervencion',
+    getEndpoint: '/grupos/cuadrilla/reportes_intervenciones',
     label: 'Cuadrilla',
   },
   vivero: {
     formType: 'vivero',
-    slug: 'grupo-vivero',
-    postEndpoint: '/grupo-vivero/reporte_intervencion',
-    getEndpoint: '/grupo-vivero/reportes_intervenciones',
+    slug: 'vivero',
+    postEndpoint: '/grupos/vivero/reporte_intervencion',
+    getEndpoint: '/grupos/vivero/reportes_intervenciones',
     label: 'Vivero',
   },
   gobernanza: {
     formType: 'gobernanza',
-    slug: 'grupo-gobernanza',
-    postEndpoint: '/grupo-gobernanza/reporte_intervencion',
-    getEndpoint: '/grupo-gobernanza/reportes_intervenciones',
+    slug: 'gobernanza',
+    postEndpoint: '/grupos/gobernanza/reporte_intervencion',
+    getEndpoint: '/grupos/gobernanza/reportes_intervenciones',
     label: 'Gobernanza',
   },
   ecosistemas: {
     formType: 'ecosistemas',
-    slug: 'grupo-ecosistemas',
-    postEndpoint: '/grupo-ecosistemas/reporte_intervencion',
-    getEndpoint: '/grupo-ecosistemas/reportes_intervenciones',
+    slug: 'ecosistemas',
+    postEndpoint: '/grupos/ecosistemas/reporte_intervencion',
+    getEndpoint: '/grupos/ecosistemas/reportes_intervenciones',
     label: 'Ecosistemas',
   },
   umata: {
     formType: 'umata',
-    slug: 'grupo-umata',
-    postEndpoint: '/grupo-umata/reporte_intervencion',
-    getEndpoint: '/grupo-umata/reportes_intervenciones',
+    slug: 'umata',
+    postEndpoint: '/grupos/umata/reporte_intervencion',
+    getEndpoint: '/grupos/umata/reportes_intervenciones',
     label: 'UMATA',
   },
 };
 
-const OPERATIVO_DEFAULT: GrupoConfig = {
-  formType: 'operativo',
-  slug: 'grupo-operativo',
-  postEndpoint: '/grupo-operativo/reconocimiento',
-  getEndpoint: '',
-  label: 'Operativo',
-};
-
-/**
- * Normaliza un string: minúsculas, quita acentos.
- */
 function normalize(str: string): string {
   return str
     .toLowerCase()
@@ -100,22 +85,18 @@ function normalize(str: string): string {
     .trim();
 }
 
-/**
- * Determina la configuración de grupo a partir del array de grupos del usuario.
- * Prioridad: primera coincidencia gana. Si no hay match → operativo.
- * "Ecosistemas Y UMATA" mapea a Ecosistemas.
- */
 export function getGrupoConfig(userGroups: string[]): GrupoConfig {
   for (const group of userGroups) {
     const normalized = normalize(group);
-
-    // Coincidencia directa por clave del mapa
     for (const [key, config] of Object.entries(GRUPO_ENDPOINT_MAP)) {
       if (normalized === key || normalized.includes(key)) {
         return config;
       }
     }
   }
+  return GRUPO_ENDPOINT_MAP.cuadrilla;
+}
 
-  return OPERATIVO_DEFAULT;
+export function getGrupoConfigByKey(key: GrupoKey): GrupoConfig {
+  return GRUPO_ENDPOINT_MAP[key];
 }

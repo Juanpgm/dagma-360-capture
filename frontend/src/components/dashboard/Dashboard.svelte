@@ -1,13 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
-    obtenerReportesIntervenciones,
-    obtenerReportesVivero,
-    obtenerReportesGobernanza,
-    obtenerReportesEcosistemas,
-    obtenerReportesUmata,
+    obtenerReportes,
     type ReporteIntervencion,
   } from "../../api/visitas";
+  import { GRUPO_KEYS } from "../../lib/grupos";
   import KPICard from "./KPICard.svelte";
   import MapaIntervenciones from "./MapaIntervenciones.svelte";
   import MapaCoropletico from "./MapaCoropletico.svelte";
@@ -174,17 +171,10 @@
     try {
       loading = true;
       error = null;
-      console.log(
-        "🔄 Dashboard: Iniciando carga de reportes de todos los grupos...",
-      );
 
-      const resultados = await Promise.allSettled([
-        obtenerReportesIntervenciones(),
-        obtenerReportesVivero(),
-        obtenerReportesGobernanza(),
-        obtenerReportesEcosistemas(),
-        obtenerReportesUmata(),
-      ]);
+      const resultados = await Promise.allSettled(
+        GRUPO_KEYS.map((key) => obtenerReportes(key)),
+      );
 
       const grupoLabels = [
         "Cuadrilla",
@@ -196,12 +186,6 @@
       let todosReportes: ReporteIntervencion[] = [];
 
       resultados.forEach((resultado, index) => {
-        console.log(
-          `📋 ${grupoLabels[index]}: status=${resultado.status}`,
-          resultado.status === "fulfilled"
-            ? `data=${resultado.value?.data?.length ?? "NO DATA"}`
-            : `reason=${(resultado as PromiseRejectedResult).reason?.message}`,
-        );
         if (resultado.status === "fulfilled" && resultado.value?.data) {
           const dataConGrupo = resultado.value.data.map(
             (r: ReporteIntervencion) => ({
@@ -210,38 +194,19 @@
             }),
           );
           todosReportes = [...todosReportes, ...dataConGrupo];
-          console.log(
-            `✅ ${grupoLabels[index]}: ${resultado.value.data.length} reportes`,
-          );
-        } else if (resultado.status === "rejected") {
-          console.warn(
-            `⚠️ ${grupoLabels[index]}: Error al cargar -`,
-            (resultado as PromiseRejectedResult).reason?.message,
-          );
         }
       });
 
-      console.log(
-        "📊 Dashboard: Total de reportes combinados:",
-        todosReportes.length,
-      );
-
       if (todosReportes.length === 0) {
-        console.warn("⚠️ Dashboard: No hay reportes disponibles");
         error = "No hay reportes de intervenciones disponibles";
         reportes = [];
         filteredReportes = [];
       } else {
         reportes = todosReportes;
         filteredReportes = reportes;
-        console.log(
-          "✓ Dashboard: Reportes asignados al estado:",
-          reportes.length,
-        );
       }
     } catch (err: any) {
       error = err.message || "Error al cargar los reportes";
-      console.error("❌ Dashboard Error:", err);
       reportes = [];
       filteredReportes = [];
     } finally {

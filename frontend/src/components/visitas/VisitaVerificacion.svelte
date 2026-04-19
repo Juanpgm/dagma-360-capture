@@ -7,21 +7,11 @@
   } from "../../stores/visitaStore";
   import { authStore } from "../../stores/authStore";
   import {
-    registrarReconocimiento,
-    registrarIntervencionCuadrilla,
-    registrarIntervencionVivero,
-    registrarIntervencionGobernanza,
-    registrarIntervencionEcosistemas,
-    registrarIntervencionUmata,
+    registrarIntervencion,
+    type RegistrarIntervencionParams,
   } from "../../api/visitas";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
-  import type {
-    PlantaEntry,
-    IntervencionViveroData,
-    IntervencionGobernanzaData,
-    IntervencionEcosistemasData,
-    IntervencionUmataData,
-  } from "../../types/visitas";
+  import type { PlantaEntry } from "../../types/visitas";
   import { getGrupoConfig, type GrupoConfig } from "../../lib/grupos";
   import Stepper from "../ui/Stepper.svelte";
   import Button from "../ui/Button.svelte";
@@ -129,7 +119,7 @@
                   ? unidadMedida &&
                     unidadesImpactadas != null &&
                     unidadesImpactadas > 0
-                  : true) // operativo: sin campos extra
+                  : true) // otros: sin campos extra específicos
         : $isCurrentStepValid;
   $: currentStep = state.currentStep;
 
@@ -221,28 +211,9 @@
     if (currentStep === 1) {
       const permissionStatus = await visitaStore.checkGPSPermission();
 
-      if (permissionStatus === "unavailable") {
-        // GPS no disponible en el navegador
-        modalTitle = "GPS No Disponible";
-        modalMessage =
-          "Tu navegador o dispositivo no soporta geolocalización. Necesitas un navegador moderno con capacidad GPS para registrar reconocimientos.";
-        modalType = "error";
-        modalShowCancel = false;
-        modalConfirmText = "Entendido";
-        modalOpen = true;
-        return;
-      }
-
-      if (permissionStatus === "denied") {
-        // Permiso denegado - mostrar instrucciones
-        modalTitle = "Permiso GPS Requerido";
-        modalMessage =
-          "El acceso a la ubicación ha sido denegado. Por favor, habilita el permiso de ubicación en la configuración de tu navegador y recarga la página para continuar.";
-        modalType = "warning";
-        modalShowCancel = false;
-        modalConfirmText = "Entendido";
-        modalOpen = true;
-        return;
+      if (permissionStatus === "unavailable" || permissionStatus === "denied") {
+        // Sin GPS o permiso denegado → continuar con coordenadas por defecto (Cali)
+        // No bloqueamos el flujo; geolocation.ts ya aplica el fallback al capturar.
       }
 
       // Si el permiso es 'prompt', el navegador pedirá permiso automáticamente cuando intentemos capturar
@@ -371,17 +342,17 @@
         }
       }
 
-      // Validación final de coordenadas
+      // Validación final de coordenadas — fallback a Cali si todo falla
       if (!finalCoordenadas) {
-        throw new Error(
-          "No se pudo obtener una ubicación válida. Por favor intente capturar el GPS nuevamente o seleccione una actividad con ubicación registrada.",
-        );
+        finalCoordenadas = { latitude: 3.4516, longitude: -76.5320, accuracy: 0, timestamp: Date.now() };
+        finalCoordinatesType = "Point";
+        finalCoordinatesData = JSON.stringify([-76.5320, 3.4516]);
       }
 
       let response;
 
-      // Campos comunes para grupos con endpoint de intervención
-      const commonIntervencionFields = {
+      // Campos comunes para el endpoint unificado
+      const commonFields = {
         tipo_intervencion: tipoIntervencion,
         descripcion_intervencion: descripcionIntervencion,
         registrado_por:
@@ -401,9 +372,14 @@
           ]),
       };
 
+      const params: RegistrarIntervencionParams = {
+        common: commonFields,
+        direccion: direccion || "Sin dirección registrada",
+      };
+
+      // Campos específicos por grupo
       switch (grupoConfig.formType) {
         case "cuadrilla": {
-          // Validaciones CUADRILLA
           if (!nombreComun || !nombreCientifico) {
             throw new Error("Debe seleccionar una especie de árbol");
           }
@@ -412,24 +388,14 @@
               "Debe indicar el número de individuos intervenidos",
             );
           }
-          if (!state.selectedActividad?.id) {
-            throw new Error("ID de actividad no disponible");
-          }
-
-          const dataCuadrilla = {
-            tipo_arbol: `${nombreComun} (${nombreCientifico})`,
-            ...commonIntervencionFields,
-            numero_individuos_intervenidos: individuosIntervenidos,
-          };
-
-          console.log("📤 Enviando intervención CUADRILLA:", dataCuadrilla);
-          response = await registrarIntervencionCuadrilla(
-            dataCuadrilla,
-            photoFiles,
-          );
+          params.arboles_data = JSON.stringify([
+            {
+              especie: `${nombreComun} (${nombreCientifico})`,
+              cantidad: individuosIntervenidos,
+            },
+          ]);
           break;
         }
-
         case "vivero": {
           const plantasValidas = tiposPlantas.filter(
             (p) => p.nombre && p.cantidad > 0,
@@ -441,37 +407,17 @@
           plantasValidas.forEach((p) => {
             tiposPlantasDict[p.nombre] = p.cantidad;
           });
-
-          const dataVivero: IntervencionViveroData = {
-            ...commonIntervencionFields,
-            tipos_plantas: JSON.stringify(tiposPlantasDict),
-            direccion: direccion || "Sin dirección registrada",
-          };
-
-          console.log("📤 Enviando intervención VIVERO:", dataVivero);
-          response = await registrarIntervencionVivero(dataVivero, photoFiles);
+          params.tipos_plantas = JSON.stringify(tiposPlantasDict);
           break;
         }
-
-        case "gobernanza": {
+        case "gobernanza":
+        case "umata": {
           if (!unidadesImpactadas || unidadesImpactadas < 1) {
             throw new Error("Debe indicar las unidades impactadas");
           }
-
-          const dataGobernanza: IntervencionGobernanzaData = {
-            ...commonIntervencionFields,
-            unidades_impactadas: unidadesImpactadas,
-            direccion: direccion || "Sin dirección registrada",
-          };
-
-          console.log("📤 Enviando intervención GOBERNANZA:", dataGobernanza);
-          response = await registrarIntervencionGobernanza(
-            dataGobernanza,
-            photoFiles,
-          );
+          params.unidades_impactadas = unidadesImpactadas;
           break;
         }
-
         case "ecosistemas": {
           if (!unidadMedida) {
             throw new Error("Debe seleccionar una unidad de medida");
@@ -479,66 +425,17 @@
           if (!unidadesImpactadas || unidadesImpactadas < 1) {
             throw new Error("Debe indicar las unidades impactadas");
           }
-
-          const dataEcosistemas: IntervencionEcosistemasData = {
-            ...commonIntervencionFields,
-            unidad_medida: unidadMedida,
-            unidades_impactadas: unidadesImpactadas,
-            direccion: direccion || "Sin dirección registrada",
-          };
-
-          console.log("📤 Enviando intervención ECOSISTEMAS:", dataEcosistemas);
-          response = await registrarIntervencionEcosistemas(
-            dataEcosistemas,
-            photoFiles,
-          );
+          params.unidad_medida = unidadMedida;
+          params.unidades_impactadas = unidadesImpactadas;
           break;
-        }
-
-        case "umata": {
-          if (!unidadesImpactadas || unidadesImpactadas < 1) {
-            throw new Error("Debe indicar las unidades impactadas");
-          }
-
-          const dataUmata: IntervencionUmataData = {
-            ...commonIntervencionFields,
-            unidades_impactadas: unidadesImpactadas,
-            direccion: direccion || "Sin dirección registrada",
-          };
-
-          console.log("📤 Enviando intervención UMATA:", dataUmata);
-          response = await registrarIntervencionUmata(dataUmata, photoFiles);
-          break;
-        }
-
-        default: {
-          // Flujo estándar (grupo operativo)
-          const reconocimiento: Record<string, any> = {
-            upid: state.selectedActividad.id,
-            nombre_up:
-              state.selectedActividad.objetivo_actividad ||
-              state.data.nombre_up ||
-              "Actividad sin objetivo",
-            tipo_intervencion: tipoIntervencion,
-            descripcion_intervencion: descripcionIntervencion,
-            direccion:
-              direccion ||
-              state.selectedActividad.punto_encuentro?.direccion ||
-              "Sin dirección registrada",
-            observaciones: observaciones || "",
-            coordenadas_gps: finalCoordenadas,
-            coordinates_type: finalCoordinatesType,
-            coordinates_data:
-              finalCoordinatesData ||
-              JSON.stringify([
-                finalCoordenadas.longitude,
-                finalCoordenadas.latitude,
-              ]),
-          };
-
-          response = await registrarReconocimiento(reconocimiento, photoFiles);
         }
       }
+
+      response = await registrarIntervencion(
+        grupoConfig.slug,
+        params,
+        photoFiles,
+      );
 
       if (response.success) {
         submitSuccess = true;
