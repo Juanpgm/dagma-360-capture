@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { reportesStore } from "../../stores/reportesStore";
+  import { permissions } from "../../stores/authStore";
   import {
     KANBAN_COLUMNS_REPORTES,
     getPrioridadColor,
@@ -26,8 +27,18 @@
   let mensajeExito = "";
   let mensajeError = "";
 
+  let _avanceTimeout: ReturnType<typeof setTimeout>;
+
   onMount(async () => {
-    await reportesStore.cargarReportes();
+    try {
+      await reportesStore.cargarReportes();
+    } catch (e: any) {
+      console.error('Error al cargar reportes:', e);
+    }
+  });
+
+  onDestroy(() => {
+    clearTimeout(_avanceTimeout);
   });
 
   $: allReportes = $reportesStore.reportes;
@@ -127,7 +138,7 @@
       mensajeExito = "Avance registrado exitosamente";
 
       // Cerrar formulario después de 1.5 segundos
-      setTimeout(() => {
+      _avanceTimeout = setTimeout(() => {
         showAvanceForm = false;
         mensajeExito = "";
       }, 1500);
@@ -149,7 +160,7 @@
   }
 
   function formatDate(dateString: string | number): string {
-    const date = new Date(typeof dateString === 'number' ? dateString : dateString);
+    const date = new Date(dateString);
     if (isNaN(date.getTime())) return '—';
     return date.toLocaleDateString("es-CO", {
       day: "2-digit",
@@ -504,9 +515,10 @@
         </div>
 
         <!-- Avance Form -->
-        {#if !showAvanceForm}
-          <Button on:click={openAvanceForm}>+ Registrar Avance / Cambiar Estado</Button>
-        {:else}
+        {#if $permissions.canEdit}
+          {#if !showAvanceForm}
+            <Button on:click={openAvanceForm}>+ Registrar Avance / Cambiar Estado</Button>
+          {:else}
           <div class="avance-form">
             <h4>Nuevo Registro de Avance</h4>
 
@@ -603,6 +615,7 @@
               </Button>
             </div>
           </div>
+        {/if}
         {/if}
       </div>
     </aside>

@@ -1,6 +1,41 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { ApiClient } from "../../lib/api-client";
+  import { getUsers } from "../../api/admin";
+  import { authStore, permissions } from "../../stores/authStore";
+  import CambiarRolModal from "./CambiarRolModal.svelte";
+  import { ROLE_LABELS } from '../../lib/permissions';
+  import { verificarRegistroPersonalOperativo, VerificarRegistroResult } from '../../api/verificarPersonal';
+  // Estado para verificación de registro
+  let verificando = false;
+  let verificacionResultados: VerificarRegistroResult[] = [];
+  let verificacionError = "";
+
+  async function verificarPersonal() {
+    verificando = true;
+    verificacionError = "";
+    try {
+      const ids = personalFiltrado.map(p => p.id);
+      if (!ids.length) {
+        verificacionResultados = [];
+        return;
+      }
+      const res = await verificarRegistroPersonalOperativo(ids);
+      verificacionResultados = [...(res.registrados || []), ...(res.no_registrados || [])];
+    } catch (e: any) {
+      verificacionError = e?.message ?? "Error al verificar registro";
+    } finally {
+      verificando = false;
+    }
+  }
+
+  // Local mapping to avoid Svelte type errors
+  const ROLE_LABELS_MAP = {
+    operador: ROLE_LABELS.operador,
+    lider: ROLE_LABELS.lider,
+    administrador: ROLE_LABELS.administrador,
+    desarrollador: ROLE_LABELS.desarrollador
+  };
 
   // ── Types ──
 
@@ -21,20 +56,72 @@
     [key: string]: any;
   }
 
+  interface UsuarioSistema {
+    id: string;        // igual al uid de Firebase Auth
+    uid: string;
+    nombre_completo: string;
+    full_name?: string;
+    email?: string;
+    cellphone?: string;
+    grupo?: string;
+    nombre_centro_gestor?: string;
+    role?: string;
+    rol?: string;
+    [key: string]: any;
+  }
+
   // ── State ──
 
   let grupos: Grupo[] = [];
   let personal: PersonalOperativo[] = [];
+  let usuarios: UsuarioSistema[] = [];
   let loadingGrupos = true;
   let loadingPersonal = true;
+  let loadingUsuarios = true;
   let errorGrupos = "";
   let errorPersonal = "";
+  let errorUsuarios = "";
 
   let selectedGrupoId: string | null = null;
   $: selectedGrupo = grupos.find((g) => g.id === selectedGrupoId) ?? null;
   $: personalFiltrado = selectedGrupoId
     ? personal.filter((p) => p.grupo === selectedGrupo?.nombre)
     : personal;
+  $: usuariosFiltrado = selectedGrupoId
+    ? usuarios.filter((u) => (u.grupo ?? u.nombre_centro_gestor) === selectedGrupo?.nombre)
+    : usuarios;
+
+  // ── Permissions ──
+
+  /** Grupos visibles para el usuario: líder ve solo su grupo, admin/dev ven todos */
+  $: gruposVisibles = $permissions.canSeeAllGroups
+    ? grupos
+    : grupos.filter((g) => g.nombre === $authStore.user?.grupo);
+
+  /** Líder: auto-select su propio grupo al cargar */
+  $: if (!$permissions.canSeeAllGroups && gruposVisibles.length > 0 && selectedGrupoId === null) {
+    selectedGrupoId = gruposVisibles[0].id;
+  }
+
+  // ── Modal cambiar rol ──
+
+  let showRolModal = false;
+  let rolModalPersona: UsuarioSistema | null = null;
+
+  function openRolModal(usuario: UsuarioSistema) {
+    rolModalPersona = usuario;
+    showRolModal = true;
+  }
+
+  function closeRolModal() {
+    showRolModal = false;
+    rolModalPersona = null;
+  }
+
+  async function handleRolChanged() {
+    closeRolModal();
+    await fetchUsuarios();
+  }
 
   // ── Modal nuevo personal ──
 
@@ -42,6 +129,7 @@
   let saving = false;
   let saveError = "";
   let saveSuccess = false;
+  let _closeModalTimeout: ReturnType<typeof setTimeout>;
 
   let form = {
     nombre_completo: "",
@@ -92,6 +180,24 @@
     }
   }
 
+  async function fetchUsuarios() {
+    loadingUsuarios = true;
+    errorUsuarios = "";
+    try {
+      const data = await getUsers();
+      usuarios = data.map((u) => ({
+        ...u,
+        id: u.uid ?? u.id ?? "",
+        uid: u.uid ?? u.id ?? "",
+        nombre_completo: u.nombre_completo ?? u.full_name ?? u.displayName ?? u.email ?? "—",
+      }));
+    } catch (e: any) {
+      errorUsuarios = e?.message ?? "Error al obtener usuarios del sistema";
+    } finally {
+      loadingUsuarios = false;
+    }
+  }
+
   async function handleSubmit() {
     if (!form.nombre_completo.trim()) {
       saveError = "El nombre completo es requerido";
@@ -110,7 +216,7 @@
       await ApiClient.post("/personal_operativo", payload);
       saveSuccess = true;
       await fetchPersonal();
-      setTimeout(() => {
+      _closeModalTimeout = setTimeout(() => {
         closeModal();
       }, 1200);
     } catch (e: any) {
@@ -123,7 +229,21 @@
   onMount(() => {
     fetchGrupos();
     fetchPersonal();
+    fetchUsuarios();
   });
+
+  onDestroy(() => {
+    clearTimeout(_closeModalTimeout);
+  });
+
+  // Helper to normalize role string to Role type for label lookup
+  /**
+   * @param {string} r
+   * @returns {'operador'|'lider'|'administrador'|'desarrollador'}
+   */
+  function toRole(r: string) {
+    return ['operador','lider','administrador','desarrollador'].includes(r) ? r as 'operador'|'lider'|'administrador'|'desarrollador' : 'operador';
+  }
 </script>
 
 <div class="page">
@@ -143,10 +263,12 @@
         <p class="page-subtitle">Gestión de grupos operativos y personal asignado</p>
       </div>
     </div>
+    {#if $permissions.canAssignInGroup($authStore.user?.grupo ?? '') || $permissions.canSeeAllGroups}
     <button class="btn-primary" on:click={openModal}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Agregar Personal
     </button>
+    {/if}
   </div>
 
   <div class="layout">
@@ -169,6 +291,7 @@
       {:else if grupos.length === 0}
         <div class="empty-state-sm">No hay grupos registrados</div>
       {:else}
+        {#if $permissions.canSeeAllGroups}
         <button
           class="grupo-item"
           class:active={selectedGrupoId === null}
@@ -176,10 +299,11 @@
         >
           <div class="grupo-dot all"></div>
           <span>Todos los grupos</span>
-          <span class="grupo-count">{personal.length}</span>
+          <span class="grupo-count">{personal.length + usuarios.length}</span>
         </button>
-        {#each grupos as grupo (grupo.id)}
-          {@const count = personal.filter((p) => p.grupo === grupo.nombre).length}
+        {/if}
+        {#each gruposVisibles as grupo (grupo.id)}
+          {@const count = personal.filter((p) => p.grupo === grupo.nombre).length + usuarios.filter((u) => (u.grupo ?? u.nombre_centro_gestor) === grupo.nombre).length}
           <button
             class="grupo-item"
             class:active={selectedGrupoId === grupo.id}
@@ -203,22 +327,22 @@
             Todo el Personal Operativo
           {/if}
         </div>
-        <span class="count-badge">{personalFiltrado.length}</span>
+        <span class="count-badge">{personalFiltrado.length + usuariosFiltrado.length}</span>
       </div>
 
-      {#if loadingPersonal}
+      {#if loadingPersonal || loadingUsuarios}
         <div class="loading-cards">
           {#each Array(4) as _}
             <div class="skeleton-card"></div>
           {/each}
         </div>
-      {:else if errorPersonal}
+      {:else if errorPersonal || errorUsuarios}
         <div class="error-state centered">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          {errorPersonal}
-          <button class="btn-retry" on:click={fetchPersonal}>Reintentar</button>
+          {errorPersonal || errorUsuarios}
+          <button class="btn-retry" on:click={() => { fetchPersonal(); fetchUsuarios(); }}>Reintentar</button>
         </div>
-      {:else if personalFiltrado.length === 0}
+      {:else if personalFiltrado.length === 0 && usuariosFiltrado.length === 0}
         <div class="empty-state">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -229,33 +353,114 @@
           <button class="btn-primary sm" on:click={openModal}>Agregar Personal</button>
         </div>
       {:else}
-        <div class="personal-grid">
-          {#each personalFiltrado as persona (persona.id)}
-            <div class="persona-card">
-              <div class="persona-avatar">
-                {(persona.nombre_completo?.[0] ?? "?").toUpperCase()}
-              </div>
-              <div class="persona-info">
-                <div class="persona-name">{persona.nombre_completo}</div>
-                {#if persona.email}
-                  <div class="persona-cargo">{persona.email}</div>
-                {/if}
-                {#if persona.numero_contacto}
-                  <div class="persona-id">{persona.numero_contacto}</div>
-                {/if}
-              </div>
-              <div class="persona-meta">
-                {#if persona.grupo}
-                  <span class="tag group-tag">{persona.grupo}</span>
-                {/if}
-              </div>
+        <!-- ── Operarios (personal_operativo) ── -->
+        {#if personalFiltrado.length > 0}
+          <div class="list-section-label">Operarios
+            <button class="btn-verificar" on:click={verificarPersonal} disabled={verificando} style="margin-left:1em;">
+              {verificando ? 'Verificando...' : 'Verificar registro en app'}
+            </button>
+          </div>
+          {#if verificacionError}
+            <div class="error-msg">{verificacionError}</div>
+          {/if}
+          {#if verificacionResultados.length > 0}
+            <div class="verificacion-resultados">
+              <div><b>Resultado de verificación:</b></div>
+              <ul>
+                {#each verificacionResultados as p}
+                  <li>
+                    <span>{p.nombre_completo}</span>
+                    {#if p.registrado}
+                      <span style="color:#4ade80;"> ✔ Registrado</span>
+                    {:else}
+                      <span style="color:#fb7185;"> ✖ No registrado</span>
+                    {/if}
+                    {#if p.email}
+                      <span style="color:#888;"> ({p.email})</span>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
             </div>
-          {/each}
-        </div>
+          {/if}
+          <div class="personal-grid">
+            {#each personalFiltrado as persona (persona.id)}
+              <div class="persona-card">
+                <div class="persona-avatar">
+                  {(persona.nombre_completo?.[0] ?? "?").toUpperCase()}
+                </div>
+                <div class="persona-info">
+                  <div class="persona-name">{persona.nombre_completo}</div>
+                  <div class="persona-sub">
+                    {#if persona.grupo}<span class="sub-grupo">{persona.grupo}</span><span class="sub-sep">·</span>{/if}
+                    <span class="sub-role sub-role-operador">operador</span>
+                  </div>
+                  {#if persona.email}
+                    <div class="persona-cargo">{persona.email}</div>
+                  {/if}
+                  {#if persona.numero_contacto}
+                    <div class="persona-id">{persona.numero_contacto}</div>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+        <!-- ── Usuarios del sistema (admin/users, con control de rol) ── -->
+        {#if $permissions.canManageUsers && usuariosFiltrado.length > 0}
+          <div class="list-section-label">Usuarios del Sistema</div>
+          <div class="personal-grid">
+            {#each usuariosFiltrado as usuario (usuario.id)}
+              <div class="persona-card" class:can-edit={$permissions.canChangeRoles}>
+                {#if $permissions.canChangeRoles}
+                  <button class="btn-edit-rol" on:click={() => openRolModal(usuario)} title="Cambiar rol">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                {/if}
+                <div class="persona-avatar">
+                  {(usuario.nombre_completo?.[0] ?? "?").toUpperCase()}
+                </div>
+                <div class="persona-info">
+                  <div class="persona-name">{usuario.nombre_completo}</div>
+                  {#if usuario.grupo || usuario.nombre_centro_gestor || usuario.role || usuario.rol}
+                    <div class="persona-sub">
+                      {#if usuario.grupo ?? usuario.nombre_centro_gestor}<span class="sub-grupo">{usuario.grupo ?? usuario.nombre_centro_gestor}</span>{/if}
+                      {#if (usuario.grupo ?? usuario.nombre_centro_gestor) && (usuario.role || usuario.rol)}<span class="sub-sep">·</span>{/if}
+                      {#if usuario.role || usuario.rol}
+                        {@const rolNorm = usuario.role ?? usuario.rol ?? 'operador'}
+                        <span class="sub-role sub-role-{toRole(rolNorm)}">{ROLE_LABELS_MAP[toRole(rolNorm)]}</span>
+                      {/if}
+                    </div>
+                  {/if}
+                  {#if usuario.email}
+                    <div class="persona-cargo">{usuario.email}</div>
+                  {/if}
+                  {#if usuario.cellphone}
+                    <div class="persona-id">{usuario.cellphone}</div>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
       {/if}
     </main>
   </div>
 </div>
+
+<!-- Modal: Cambiar Rol -->
+{#if showRolModal && rolModalPersona}
+  <CambiarRolModal
+    persona={rolModalPersona}
+    currentUserPermissions={{
+      assignableRoles: $permissions.assignableRoles,
+      canChangeRoles: $permissions.canChangeRoles
+    }}
+    on:close={closeRolModal}
+    on:changed={handleRolChanged}
+  />
+{/if}
 
 <!-- Modal: Nuevo Personal -->
 {#if showModal}
@@ -429,6 +634,22 @@
     padding: 0.25rem 0.5rem 0.5rem;
   }
 
+  .list-section-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 0.75rem 1rem 0.25rem;
+    border-top: 1px solid var(--border-light);
+    margin-top: 0.25rem;
+  }
+  .list-section-label:first-child {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0.25rem;
+  }
+
   .grupo-item {
     display: flex;
     align-items: center;
@@ -597,29 +818,52 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .persona-meta {
+  /* Inline sub-line: grupo · rol */
+  .persona-sub {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.25rem;
-  }
-
-  .tag {
-    font-size: 0.625rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    padding: 0.15rem 0.45rem;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--surface-alt);
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 2px;
+    font-size: 0.6875rem;
     color: var(--text-muted);
   }
+  .sub-sep { opacity: 0.35; }
+  .sub-grupo { color: var(--text-secondary); }
+  .sub-role { font-weight: 500; text-transform: capitalize; }
+  .sub-role-operador     { color: #64748b; }
+  .sub-role-lider        { color: #2563eb; }
+  .sub-role-administrador{ color: #7c3aed; }
+  .sub-role-desarrollador{ color: #dc2626; }
 
-  .group-tag {
-    color: var(--accent);
-    border-color: color-mix(in srgb, var(--accent) 25%, transparent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  /* Floating edit-rol button — appears on card hover */
+  .persona-card {
+    position: relative;
+  }
+  .btn-edit-rol {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+  }
+  .persona-card.can-edit:hover .btn-edit-rol {
+    opacity: 1;
+  }
+  .btn-edit-rol:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 25%, transparent);
   }
 
   .tag-active {
