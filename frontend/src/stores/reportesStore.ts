@@ -62,7 +62,7 @@ function createReportesStore() {
           }
         });
         
-        const reportesConSeguimiento: ReporteConSeguimiento[] = allReportes.map((reporte) => ({
+        const reportesConSeguimiento = allReportes.map((reporte) => ({
           id: reporte.id,
           upid: reporte.id,
           nombre_parque: reporte.direccion || reporte.descripcion_intervencion || 'Sin nombre',
@@ -90,7 +90,7 @@ function createReportesStore() {
             },
           ],
           updated_at: reporte.fecha_registro || reporte.timestamp || new Date().toISOString(),
-        }));
+        })) as ReporteConSeguimiento[];
         
         update((state) => ({
           ...state,
@@ -104,6 +104,13 @@ function createReportesStore() {
           error: 'Error al cargar los reportes',
         }));
       }
+    },
+
+    /**
+     * No-op: cache removed.
+     */
+    invalidarCacheReportes: () => {
+      // no-op
     },
 
     /**

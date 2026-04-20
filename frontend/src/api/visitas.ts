@@ -45,9 +45,7 @@ export interface ReportesIntervencionResponse {
 // ── Helpers ──
 
 function buildApiUrl(path: string): string {
-  return import.meta.env.DEV
-    ? `/api${path}`
-    : `${import.meta.env.VITE_API_URL}${path}`;
+  return `/api${path}`;
 }
 
 function appendCommonFields(formData: FormData, data: IntervencionCommonData): void {

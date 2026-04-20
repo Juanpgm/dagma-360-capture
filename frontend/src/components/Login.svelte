@@ -1,11 +1,12 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { login, registerUser } from "../api/auth";
-  import { GRUPOS_DAGMA } from "../lib/grupos";
+  import { getGruposNombres } from "../lib/grupos";
   import { authStore } from "../stores/authStore";
 
   type AuthMode = "login" | "register";
 
-  const grupos: string[] = [...GRUPOS_DAGMA];
+  let grupos: string[] = [];
 
   let mode: AuthMode = "login";
   let email = "";
@@ -20,6 +21,19 @@
   let error = "";
   let success = "";
   let loading = false;
+  let loadingGrupos = false;
+
+  onMount(async () => {
+    loadingGrupos = true;
+    try {
+      grupos = await getGruposNombres();
+    } catch (err) {
+      console.error("Error al cargar grupos:", err);
+      grupos = [];
+    } finally {
+      loadingGrupos = false;
+    }
+  });
 
   const normalizeText = (value: string): string =>
     value

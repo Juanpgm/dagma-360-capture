@@ -18,6 +18,14 @@
   ],
   "rewrites": [
     {
+      "source": "/api-capturas/:path*",
+      "destination": "https://gestorproyectoapi-production.up.railway.app/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://web-production-2d737.up.railway.app/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

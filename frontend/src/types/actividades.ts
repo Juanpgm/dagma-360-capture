@@ -25,9 +25,22 @@ export interface ActividadPlanDistritoVerde {
   telefono?: string;
   marca_temporal?: string; // ISO 8601 timestamp
   estado_actividad?: "Programada" | "En ejecución" | "Finalizada"; // Estado de la actividad
+  personal_asignado?: {
+    id?: string;
+    nombre_completo: string;
+    numero_contacto?: number;
+    telefono?: string;
+    grupo: string;
+    actividad_id?: string;
+    email?: string;
+    actividad_document_id?: string;
+    marca_temporal?: string;
+  }[];
+  /** @deprecated Use personal_asignado */
   grupo?: {
     id?: string;
     nombre_completo: string;
+    numero_contacto?: number;
     telefono?: string;
     grupo: string;
     actividad_id?: string;

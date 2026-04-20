@@ -1,3 +1,4 @@
+
 export const GRUPOS_DAGMA = [
   "Dirección",
   "Ecosistemas Y UMATA",
@@ -99,4 +100,79 @@ export function getGrupoConfig(userGroups: string[]): GrupoConfig {
 
 export function getGrupoConfigByKey(key: GrupoKey): GrupoConfig {
   return GRUPO_ENDPOINT_MAP[key];
+}
+
+// --- API: GET /grupos ---
+
+export interface GrupoAPILider {
+  nombre: string | null;
+  email: string | null;
+  numero_contacto: string | null;
+}
+
+export interface GrupoAPIItem {
+  id: string;
+  nombre: string;
+  email: string;
+  lider: GrupoAPILider;
+}
+
+const GRUPOS_API_URL = '/api/grupos';
+
+/**
+ * Obtiene los grupos desde GET /grupos.
+ * Devuelve la lista completa con id, nombre, email y lider.
+ */
+export async function getGruposAPI(): Promise<GrupoAPIItem[]> {
+  const res = await fetch(GRUPOS_API_URL, {
+    method: 'GET',
+    headers: { accept: 'application/json' },
+  });
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+
+  const json = await res.json();
+  const rows: any[] = Array.isArray(json)
+    ? json
+    : Array.isArray(json?.data)
+      ? json.data
+      : [];
+
+  return rows
+    .filter((item) => item && item.nombre)
+    .map((item): GrupoAPIItem => ({
+      id: item.id || '',
+      nombre: (item.nombre || '').toString().trim(),
+      email: (item.email || '').toString().trim(),
+      lider: {
+        nombre: item.lider?.nombre || null,
+        email: item.lider?.email || null,
+        numero_contacto: item.lider?.numero_contacto || null,
+      },
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+/**
+ * Devuelve solo los nombres de grupo (string[]) desde la API.
+ */
+export async function getGruposNombres(): Promise<string[]> {
+  const grupos = await getGruposAPI();
+  return grupos.map((g) => g.nombre);
+}
+
+/**
+ * Devuelve los líderes extraídos de GET /grupos.
+ * Compatible con LiderGrupoOption { nombre, grupo }.
+ */
+export async function getLideresFromGrupos(): Promise<{ nombre: string; grupo: string }[]> {
+  const grupos = await getGruposAPI();
+  return grupos
+    .filter((g) => g.lider.nombre)
+    .map((g) => ({
+      nombre: g.lider.nombre!,
+      grupo: g.nombre,
+    }));
 }

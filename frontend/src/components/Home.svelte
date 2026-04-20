@@ -4,8 +4,9 @@
   import KanbanReportes from "./history/KanbanReportes.svelte";
   import Convocatorias from "./convocatorias/Convocatorias.svelte";
   import Dashboard from "./dashboard/Dashboard.svelte";
+  import GestionGrupos from "./grupos/GestionGrupos.svelte";
 
-  type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard";
+  type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard" | "grupos";
   let currentView: View = "home";
 
   const handleLogout: () => Promise<void> = async () => {
@@ -72,6 +73,8 @@
       <Convocatorias />
     {:else if currentView === "dashboard"}
       <Dashboard />
+    {:else if currentView === "grupos"}
+      <GestionGrupos />
     {:else}
       <main class="home-content">
         <section class="banner" on:click={() => navigate("convocatorias")} on:keydown={(e) => e.key === 'Enter' && navigate("convocatorias")} role="button" tabindex="0">
@@ -113,6 +116,19 @@
             </div>
             <h3 class="action-title">Dashboard</h3>
             <p class="action-desc">Panel analítico</p>
+          </button>
+
+          <button class="action-card" on:click={() => navigate("grupos")}>
+            <div class="action-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <h3 class="action-title">Grupos y Personal</h3>
+            <p class="action-desc">Gestionar grupos y personal</p>
           </button>
         </div>
       </main>

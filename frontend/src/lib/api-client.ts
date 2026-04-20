@@ -2,11 +2,8 @@
 import { authStore } from '../stores/authStore';
 import { get } from 'svelte/store';
 
-// En desarrollo: usa el proxy /api -> https://railway.app
-// En producción: usa la URL completa de VITE_API_URL
-const API_BASE_URL = import.meta.env.DEV 
-  ? '/api'
-  : (import.meta.env.VITE_API_URL || 'https://web-production-2d737.up.railway.app');
+// Siempre usa el proxy /api (Vite en dev, Vercel rewrites en producción)
+const API_BASE_URL = '/api';
 
 function resolveUrl(endpoint: string): string {
   if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
@@ -23,6 +20,9 @@ interface ApiRequestOptions {
  * Cliente HTTP con autenticación automática
  */
 export class ApiClient {
+  /** In-flight GET requests — prevents duplicate simultaneous calls */
+  private static _inflight = new Map<string, Promise<unknown>>();
+
   /**
    * Obtiene headers con autenticación
    */
@@ -57,34 +57,41 @@ export class ApiClient {
   }
 
   /**
-   * GET request
+   * GET request with in-flight deduplication
    */
   static async get<T = any>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
-    try {
-      const headers = await this.getHeaders(options.requireAuth ?? true);
-      const requestUrl = resolveUrl(endpoint);
-      console.log(`[API] GET ${requestUrl}`);
-      
-      const response = await fetch(requestUrl, {
-        method: 'GET',
-        headers
-      });
+    const requestUrl = resolveUrl(endpoint);
 
-      console.log(`[API] Response status: ${response.status}`);
+    // Reuse an in-flight request for the same URL to avoid duplicate network calls
+    const existing = ApiClient._inflight.get(requestUrl) as Promise<T> | undefined;
+    if (existing) return existing;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[API] Error response:`, errorText);
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const promise = (async () => {
+      try {
+        const headers = await this.getHeaders(options.requireAuth ?? true);
+        if (import.meta.env.DEV) console.log(`[API] GET ${requestUrl}`);
+
+        const response = await fetch(requestUrl, { method: 'GET', headers });
+
+        if (!response.ok) {
+          if (import.meta.env.DEV) {
+            const errorText = await response.text();
+            console.error(`[API] Error response:`, errorText);
+          }
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response.json() as Promise<T>;
+      } catch (error) {
+        if (import.meta.env.DEV) console.error(`[API] Request failed:`, error);
+        throw error;
+      } finally {
+        ApiClient._inflight.delete(requestUrl);
       }
+    })();
 
-      const data = await response.json();
-      console.log(`[API] Response data:`, data);
-      return data;
-    } catch (error) {
-      console.error(`[API] Request failed:`, error);
-      throw error;
-    }
+    ApiClient._inflight.set(requestUrl, promise as Promise<unknown>);
+    return promise;
   }
 
   /**
@@ -95,6 +102,25 @@ export class ApiClient {
     const requestUrl = resolveUrl(endpoint);
     const response = await fetch(requestUrl, {
       method: 'POST',
+      headers,
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * PATCH request
+   */
+  static async patch<T = any>(endpoint: string, data: any, options: ApiRequestOptions = {}): Promise<T> {
+    const headers = await this.getHeaders(options.requireAuth ?? true);
+    const requestUrl = resolveUrl(endpoint);
+    const response = await fetch(requestUrl, {
+      method: 'PATCH',
       headers,
       body: JSON.stringify(data)
     });
@@ -128,13 +154,17 @@ export class ApiClient {
   /**
    * DELETE request
    */
-  static async delete<T = any>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
+  static async delete<T = any>(endpoint: string, options: ApiRequestOptions = {}, body?: any): Promise<T> {
     const headers = await this.getHeaders(options.requireAuth ?? true);
     const requestUrl = resolveUrl(endpoint);
-    const response = await fetch(requestUrl, {
+    const fetchOptions: RequestInit = {
       method: 'DELETE',
-      headers
-    });
+      headers,
+    };
+    if (body !== undefined) {
+      fetchOptions.body = JSON.stringify(body);
+    }
+    const response = await fetch(requestUrl, fetchOptions);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

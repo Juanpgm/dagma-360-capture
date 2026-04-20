@@ -1,7 +1,7 @@
 // API Cliente para "Artefacto de Captura #360"
 import { getAuthHeaders } from './auth';
 
-const API_BASE_URL = 'https://gestorproyectoapi-production.up.railway.app';
+const API_BASE_URL = '/api-capturas';
 
 /**
  * Interfaces para el artefacto de captura

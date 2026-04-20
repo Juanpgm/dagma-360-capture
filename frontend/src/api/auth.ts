@@ -1,7 +1,7 @@
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web-production-2d737.up.railway.app';
+const API_BASE_URL = '/api';
 const USE_FIREBASE = import.meta.env.VITE_USE_FIREBASE === 'true';
 
 interface LoginCredentials {
@@ -35,11 +35,9 @@ const fetchAdminUserByEmail = async (
   token: string
 ): Promise<Record<string, any> | null> => {
   try {
-    const url = new URL(`${API_BASE_URL}/admin/users`);
-    url.searchParams.set('limit', '1');
-    url.searchParams.set('email', email);
+    const url = `${API_BASE_URL}/admin/users?limit=1&email=${encodeURIComponent(email)}`;
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

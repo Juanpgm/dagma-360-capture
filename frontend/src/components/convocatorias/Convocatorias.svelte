@@ -5,12 +5,17 @@
     eliminarActividadPlanDistritoVerde,
     getActividadesPlanDistritoVerde,
     getGoogleMapsUrl,
-    getLideresGrupo,
+    getPersonalOperativo,
     modificarActividadPlanDistritoVerde,
+    reemplazarPersonalAsignado,
+    getActividadPorId,
+    agregarPersonalAsignado,
+    crearPersonalOperativo,
   } from "../../api/actividades";
-  import { GRUPOS_DAGMA } from "../../lib/grupos";
+
+  import { getGruposNombres, getLideresFromGrupos } from "../../lib/grupos";
   import { authStore } from "../../stores/authStore";
-  import type { LiderGrupoOption } from "../../api/actividades";
+  import type { LiderGrupoOption, PersonalOperativoItem } from "../../api/actividades";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
 
   // Estado
@@ -48,9 +53,7 @@
   let headerSectionElement: HTMLDivElement | null = null;
   let showBackToTopButton = false;
   let timeNow = new Date(); // Variable reactiva para actualizar contadores
-  const gruposCatalogo = [...new Set(GRUPOS_DAGMA)].sort((a, b) =>
-    a.localeCompare(b, "es"),
-  );
+  let gruposCatalogo: string[] = [];
   const tiposJornadaDefault = [
     "Jornada de Limpieza",
     "Jornada de Siembra",
@@ -81,6 +84,22 @@
   let personalSeleccionadoAsignacion: PersonalGrupoItem[] = [];
   let personalAsignadoPorActividad: Record<string, PersonalGrupoItem[]> = {};
 
+  // Estado de edición inline del personal asignado (por actividad)
+  let personalMarcadoParaQuitar: Record<string, Record<string, boolean>> = {};
+  let guardandoPersonal: Record<string, boolean> = {};
+
+  // Estado para modal "Crear miembro de equipo"
+  let isCrearMiembroModalOpen = false;
+  let crearMiembroNombre = "";
+  let crearMiembroEmail = "";
+  let crearMiembroTelefono = "";
+  let crearMiembroGrupo = "";
+  let crearMiembroLoading = false;
+  let crearMiembroError = "";
+  // Paso de confirmación tras crear
+  let isConfirmarAsignacionNuevoOpen = false;
+  let nuevoMiembroCreado: { id: string; nombre_completo: string; email: string; numero_contacto: number; grupo: string } | null = null;
+
   let tipoJornadaForm = "";
   let fechaActividadForm = "";
   let horaEncuentroForm = "";
@@ -102,65 +121,22 @@
     nombreCompleto: string;
     telefono: string;
     grupo: string;
+    email: string;
   }
 
   interface PersonalGrupoApiItem {
     id?: string;
     nombre_completo?: string;
+    numero_contacto?: number | string;
     telefono?: string;
     grupo?: string;
+    email?: string;
   }
 
-  const personalDummyCatalogo: PersonalGrupoItem[] = [
-    {
-      id: "reaccion-1",
-      nombreCompleto: "Laura Camila Rojas",
-      telefono: "3001234501",
-      grupo: "REACCIÓN",
-    },
-    {
-      id: "reaccion-2",
-      nombreCompleto: "Julián Andrés Peña",
-      telefono: "3001234502",
-      grupo: "REACCIÓN",
-    },
-    {
-      id: "iec-1",
-      nombreCompleto: "Mónica Andrea Cardona",
-      telefono: "3001234503",
-      grupo: "IEC-Gobernanza",
-    },
-    {
-      id: "iec-2",
-      nombreCompleto: "Santiago López Mejía",
-      telefono: "3001234504",
-      grupo: "IEC-Gobernanza",
-    },
-    {
-      id: "cuadrilla-1",
-      nombreCompleto: "Diana Marcela Arboleda",
-      telefono: "3001234505",
-      grupo: "CUADRILLA",
-    },
-    {
-      id: "cuadrilla-2",
-      nombreCompleto: "Carlos Eduardo Benítez",
-      telefono: "3001234506",
-      grupo: "CUADRILLA",
-    },
-    {
-      id: "hidrico-1",
-      nombreCompleto: "Natalia Gómez Ruiz",
-      telefono: "3001234507",
-      grupo: "HIDRICO",
-    },
-    {
-      id: "hidrico-2",
-      nombreCompleto: "Felipe Andrés Vásquez",
-      telefono: "3001234508",
-      grupo: "HIDRICO",
-    },
-  ];
+  let personalCatalogo: PersonalGrupoItem[] = [];
+  let personalDisponibleAsignacion: PersonalGrupoItem[] = [];
+  let loadingPersonal = false;
+  let errorPersonal = "";
 
   function normalizeSearchValue(value: string): string {
     return value
@@ -230,13 +206,17 @@
     currentUser?.telefono ||
     currentUser?.phone ||
     "No registrado";
+  $: currentUserGrupo =
+    currentUser?.grupo ||
+    currentUser?.grupo_nombre ||
+    currentUser?.grupoName ||
+    "";
 
   $: gruposActividadAsignacion =
     actividadAsignacionActual?.grupos_requeridos?.filter(Boolean) || [];
 
-  $: personalDisponibleAsignacion = personalDummyCatalogo.filter((persona) =>
-    gruposActividadAsignacion.includes(persona.grupo),
-  );
+  // Mostrar todo el personal operativo (sin filtro por grupo) para permitir asignación libre
+  $: personalDisponibleAsignacion = personalCatalogo;
 
   $: filteredPersonalAsignacion = personalDisponibleAsignacion.filter(
     (persona) => {
@@ -277,15 +257,23 @@
       loading = true;
       error = "";
 
-      console.log("[Convocatorias] Iniciando carga de actividades...");
-      actividades = await getActividadesPlanDistritoVerde();
-      console.log("[Convocatorias] Actividades cargadas:", actividades.length);
+      // Cargar actividades, líderes y catálogo de grupos en paralelo
+      const [actividadesCargadas, lideresCargados, gruposNombresCargados] = await Promise.allSettled([
+        getActividadesPlanDistritoVerde(),
+        getLideresFromGrupos(),
+        getGruposNombres(),
+      ]);
+
+      if (actividadesCargadas.status === 'rejected') {
+        throw actividadesCargadas.reason;
+      }
+      actividades = actividadesCargadas.value;
+      lideresGrupoOptions = lideresCargados.status === 'fulfilled' ? lideresCargados.value : [];
+      gruposCatalogo = gruposNombresCargados.status === 'fulfilled' ? gruposNombresCargados.value : [];
 
       // Extraer opciones únicas para filtros
-      // Extraer todos los grupos de los arrays
       const allGrupos = actividades.flatMap((a) => a.grupos_requeridos || []);
       grupos = [...new Set(allGrupos)].sort();
-
       tiposJornada = [
         ...new Set(actividades.map((a) => a.tipo_jornada).filter(Boolean)),
       ].sort();
@@ -293,12 +281,8 @@
         ...new Set(actividades.map((a) => a.lider_actividad).filter(Boolean)),
       ].sort();
 
-      lideresGrupoOptions = await getLideresGrupo();
-
       filteredActividades = actividades;
-      console.log("[Convocatorias] Filtros configurados correctamente");
     } catch (err) {
-      console.error("[Convocatorias] Error al cargar actividades:", err);
       error = "Error al cargar las actividades. Por favor, intenta de nuevo.";
     } finally {
       loading = false;
@@ -311,10 +295,10 @@
     const handleResize = () => updateBackToTopVisibility();
     window.addEventListener("resize", handleResize);
 
-    // Actualizar el contador de tiempo cada segundo
+    // Actualizar el contador de tiempo cada 30 segundos (suficiente para fechas de jornada)
     const timeInterval = setInterval(() => {
       timeNow = new Date();
-    }, 1000);
+    }, 30000);
 
     return () => {
       window.removeEventListener("resize", handleResize);
@@ -593,7 +577,7 @@
     }
   }
 
-  function openAsignarPersonalModal(actividad: ActividadPlanDistritoVerde) {
+  async function openAsignarPersonalModal(actividad: ActividadPlanDistritoVerde) {
     if (!actividad?.id) return;
 
     actividadAsignacionActual = actividad;
@@ -603,6 +587,26 @@
     personalSeleccionadoAsignacion = [
       ...getPersonalAsignadoActividad(actividad.id),
     ];
+
+    // Cargar personal operativo desde el backend
+    loadingPersonal = true;
+    errorPersonal = "";
+    try {
+      const data = await getPersonalOperativo();
+      personalCatalogo = data.map((item) => ({
+        id: item.id,
+        nombreCompleto: item.nombre_completo,
+        telefono: item.numero_contacto || "No registrado",
+        grupo: item.grupo,
+        email: item.email,
+      }));
+    } catch (err) {
+      console.error("Error al cargar personal operativo:", err);
+      errorPersonal = "Error al cargar el personal operativo.";
+      personalCatalogo = [];
+    } finally {
+      loadingPersonal = false;
+    }
   }
 
   function closeAsignarPersonalModal() {
@@ -611,6 +615,113 @@
     asignacionDropdownOpen = false;
     asignacionSearchQuery = "";
     personalSeleccionadoAsignacion = [];
+  }
+
+  // --- Crear miembro de equipo ---
+  function openCrearMiembroModal() {
+    crearMiembroNombre = "";
+    crearMiembroEmail = "";
+    crearMiembroTelefono = "";
+    crearMiembroGrupo = "";
+    crearMiembroError = "";
+    crearMiembroLoading = false;
+    isCrearMiembroModalOpen = true;
+  }
+
+  function closeCrearMiembroModal() {
+    isCrearMiembroModalOpen = false;
+    crearMiembroError = "";
+  }
+
+  async function submitCrearMiembro() {
+    if (!crearMiembroNombre.trim() || !crearMiembroEmail.trim() || !crearMiembroTelefono.trim() || !crearMiembroGrupo) {
+      crearMiembroError = "Todos los campos son obligatorios.";
+      return;
+    }
+    const numContacto = parseInt(crearMiembroTelefono.replace(/\D/g, ''));
+    if (!numContacto || numContacto < 1000000) {
+      crearMiembroError = "El número de contacto no es válido.";
+      return;
+    }
+    crearMiembroLoading = true;
+    crearMiembroError = "";
+    try {
+      const result = await crearPersonalOperativo({
+        nombre_completo: crearMiembroNombre.trim(),
+        email: crearMiembroEmail.trim(),
+        numero_contacto: numContacto,
+        grupo: crearMiembroGrupo,
+      });
+      // Guardar datos del miembro creado para la confirmación
+      nuevoMiembroCreado = {
+        id: result.data?.id || '',
+        nombre_completo: crearMiembroNombre.trim(),
+        email: crearMiembroEmail.trim(),
+        numero_contacto: numContacto,
+        grupo: crearMiembroGrupo,
+      };
+      // Refrescar catálogo de personal
+      try {
+        const data = await getPersonalOperativo();
+        personalCatalogo = data.map((item) => ({
+          id: item.id,
+          nombreCompleto: item.nombre_completo,
+          telefono: item.numero_contacto || "No registrado",
+          grupo: item.grupo,
+          email: item.email,
+        }));
+      } catch (_) { /* catálogo se actualizará luego */ }
+      // Cerrar modal de creación y abrir confirmación
+      isCrearMiembroModalOpen = false;
+      isConfirmarAsignacionNuevoOpen = true;
+    } catch (err: any) {
+      console.error("Error al crear personal operativo:", err);
+      crearMiembroError = err?.message || "Error al crear el miembro de equipo.";
+    } finally {
+      crearMiembroLoading = false;
+    }
+  }
+
+  async function confirmarAsignarNuevoMiembro(asignar: boolean) {
+    isConfirmarAsignacionNuevoOpen = false;
+    if (asignar && nuevoMiembroCreado && actividadAsignacionActual?.id) {
+      try {
+        await agregarPersonalAsignado(actividadAsignacionActual.id, {
+          nombre_completo: nuevoMiembroCreado.nombre_completo,
+          email: nuevoMiembroCreado.email,
+          numero_contacto: nuevoMiembroCreado.numero_contacto,
+          grupo: nuevoMiembroCreado.grupo,
+        });
+        // Agregar a la selección local
+        const nuevoItem: PersonalGrupoItem = {
+          id: nuevoMiembroCreado.id || `nuevo-${Date.now()}`,
+          nombreCompleto: nuevoMiembroCreado.nombre_completo,
+          telefono: String(nuevoMiembroCreado.numero_contacto),
+          grupo: nuevoMiembroCreado.grupo,
+          email: nuevoMiembroCreado.email,
+        };
+        personalSeleccionadoAsignacion = [...personalSeleccionadoAsignacion, nuevoItem];
+        // Re-fetch para actualizar el estado local
+        const actFresca = await getActividadPorId(actividadAsignacionActual.id);
+        if (actFresca) {
+          const idx = actividades.findIndex((a) => a.id === actividadAsignacionActual!.id);
+          if (idx >= 0) {
+            actividades[idx] = { ...actFresca };
+            actividades = [...actividades];
+          }
+        }
+        convocatoriaFeedbackType = "success";
+        convocatoriaFeedback = `${nuevoMiembroCreado.nombre_completo} fue creado(a) y asignado(a) a la actividad.`;
+      } catch (err) {
+        console.error("Error al asignar nuevo miembro:", err);
+        convocatoriaFeedbackType = "error";
+        convocatoriaFeedback = "El miembro fue creado pero no se pudo asignar a la actividad.";
+      }
+    } else {
+      convocatoriaFeedbackType = "success";
+      convocatoriaFeedback = `${nuevoMiembroCreado?.nombre_completo || 'Nuevo miembro'} fue registrado(a) en el equipo.`;
+    }
+    nuevoMiembroCreado = null;
   }
 
   function toggleAsignacionDropdown() {
@@ -622,12 +733,19 @@
   }
 
   function toggleIntegranteAsignacion(persona: PersonalGrupoItem) {
-    const exists = personalSeleccionadoAsignacion.some(
-      (item) => item.id === persona.id,
-    );
+    // Check by email (unique identifier) to prevent duplicates
+    const existsByEmail = persona.email
+      ? personalSeleccionadoAsignacion.some(
+          (item) => item.email.toLowerCase() === persona.email.toLowerCase(),
+        )
+      : personalSeleccionadoAsignacion.some((item) => item.id === persona.id);
 
-    personalSeleccionadoAsignacion = exists
-      ? personalSeleccionadoAsignacion.filter((item) => item.id !== persona.id)
+    personalSeleccionadoAsignacion = existsByEmail
+      ? personalSeleccionadoAsignacion.filter((item) =>
+          persona.email
+            ? item.email.toLowerCase() !== persona.email.toLowerCase()
+            : item.id !== persona.id,
+        )
       : [...personalSeleccionadoAsignacion, persona];
   }
 
@@ -637,19 +755,71 @@
     );
   }
 
-  function confirmarAsignacionPersonal() {
-    if (actividadAsignacionActual?.id) {
-      personalAsignadoPorActividad = {
-        ...personalAsignadoPorActividad,
-        [actividadAsignacionActual.id]: [...personalSeleccionadoAsignacion],
-      };
+  async function confirmarAsignacionPersonal() {
+    if (!actividadAsignacionActual?.id || totalIntegrantesAsignados === 0) {
+      closeAsignarPersonalModal();
+      return;
     }
 
-    convocatoriaFeedbackType = "success";
-    convocatoriaFeedback =
-      totalIntegrantesAsignados > 0
-        ? `Se asignaron ${totalIntegrantesAsignados} integrante(s) a la actividad ${actividadAsignacionActual?.tipo_jornada || "seleccionada"}. (Datos dummy)`
-        : "No se seleccionaron integrantes.";
+    const actividadId = actividadAsignacionActual.id;
+
+    try {
+      // Build PUT payload from all selected personnel
+      const personalParaPut = personalSeleccionadoAsignacion.map((persona) => ({
+        nombre_completo: persona.nombreCompleto,
+        email: persona.email,
+        numero_contacto: parseInt(String(persona.telefono).replace(/\D/g, '')) || 0,
+        grupo: persona.grupo,
+      }));
+
+      // PUT: overwrite personal_asignado in Firestore document field
+      await reemplazarPersonalAsignado(actividadId, personalParaPut);
+
+      // Re-fetch the activity to confirm the backend state
+      const actFresca = await getActividadPorId(actividadId);
+
+      if (actFresca) {
+        const rawFresco = (actFresca.personal_asignado || []) as PersonalGrupoApiItem[];
+        const personalFresco = deduplicarPersonal(
+          rawFresco
+            .filter((item) => item.nombre_completo)
+            .map((item, index) => ({
+              id: item.id || `${actividadId}-${index}`,
+              nombreCompleto: item.nombre_completo || '-',
+              telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
+              grupo: item.grupo || '-',
+              email: item.email || '',
+            }))
+        );
+
+        personalAsignadoPorActividad = {
+          ...personalAsignadoPorActividad,
+          [actividadId]: personalFresco,
+        };
+
+        const idx = actividades.findIndex((a) => a.id === actividadId);
+        if (idx >= 0) {
+          actividades[idx] = { ...actFresca };
+          actividades = [...actividades];
+        }
+
+        convocatoriaFeedbackType = "success";
+        convocatoriaFeedback = `Se asignaron ${personalFresco.length} integrante(s) a la actividad ${actividadAsignacionActual?.tipo_jornada || "seleccionada"}.`;
+      } else {
+        // Fallback: use local selection
+        personalAsignadoPorActividad = {
+          ...personalAsignadoPorActividad,
+          [actividadId]: [...personalSeleccionadoAsignacion],
+        };
+
+        convocatoriaFeedbackType = "success";
+        convocatoriaFeedback = `Se asignaron ${totalIntegrantesAsignados} integrante(s) a la actividad ${actividadAsignacionActual?.tipo_jornada || "seleccionada"}.`;
+      }
+    } catch (err) {
+      console.error("Error al asignar personal:", err);
+      convocatoriaFeedbackType = "error";
+      convocatoriaFeedback = "Error al asignar personal a la actividad.";
+    }
 
     closeAsignarPersonalModal();
   }
@@ -673,26 +843,144 @@
     return palette[hash % palette.length];
   }
 
+  function deduplicarPersonal(list: PersonalGrupoItem[]): PersonalGrupoItem[] {
+    const seen = new Map<string, PersonalGrupoItem>();
+    for (const p of list) {
+      const key = p.email ? p.email.toLowerCase() : `${p.nombreCompleto}::${p.grupo}`.toLowerCase();
+      if (!seen.has(key)) seen.set(key, p);
+    }
+    return [...seen.values()];
+  }
+
   function getPersonalAsignadoActividad(
     actividadId: string | undefined,
   ): PersonalGrupoItem[] {
     if (!actividadId) return [];
 
     if (personalAsignadoPorActividad[actividadId]) {
-      return personalAsignadoPorActividad[actividadId] || [];
+      return deduplicarPersonal(personalAsignadoPorActividad[actividadId] || []);
     }
 
     const actividad = actividades.find((item) => item.id === actividadId);
-    const grupoApi = (actividad?.grupo || []) as PersonalGrupoApiItem[];
+    const raw = (actividad?.personal_asignado || actividad?.grupo || []) as PersonalGrupoApiItem[];
 
-    return grupoApi
+    const mapped = raw
       .filter((item) => item.nombre_completo && item.grupo)
       .map((item, index) => ({
         id: item.id || `${actividadId}-${index}`,
         nombreCompleto: item.nombre_completo || "-",
-        telefono: item.telefono || "No registrado",
+        telefono: String(item.numero_contacto || item.telefono || "No registrado"),
         grupo: item.grupo || "-",
+        email: item.email || "",
       }));
+
+    return deduplicarPersonal(mapped);
+  }
+
+  function tieneMarcadosParaQuitar(actividadId: string): boolean {
+    const m = personalMarcadoParaQuitar[actividadId];
+    return m ? Object.values(m).some(Boolean) : false;
+  }
+
+  function estaMarcadoParaQuitar(actividadId: string, email: string): boolean {
+    return personalMarcadoParaQuitar[actividadId]?.[email.toLowerCase()] === true;
+  }
+
+  function toggleMarcarParaQuitar(actividadId: string, personaEmail: string) {
+    const key = personaEmail.toLowerCase();
+    const current = personalMarcadoParaQuitar[actividadId] ?? {};
+    const isMarked = current[key] === true;
+    personalMarcadoParaQuitar = {
+      ...personalMarcadoParaQuitar,
+      [actividadId]: { ...current, [key]: !isMarked },
+    };
+  }
+
+  function cancelarEdicionPersonal(actividadId: string) {
+    const { [actividadId]: _, ...rest } = personalMarcadoParaQuitar;
+    personalMarcadoParaQuitar = rest;
+  }
+
+  async function confirmarEdicionPersonal(actividadId: string) {
+    guardandoPersonal = { ...guardandoPersonal, [actividadId]: true };
+    try {
+      const marcados = personalMarcadoParaQuitar[actividadId] ?? {};
+      const todosActuales = getPersonalAsignadoActividad(actividadId);
+      const personasAEliminar = todosActuales.filter(
+        (p) => marcados[p.email.toLowerCase()] === true
+      );
+      const listaFinal = todosActuales.filter(
+        (p) => marcados[p.email.toLowerCase()] !== true
+      );
+
+      if (personasAEliminar.length === 0) {
+        cancelarEdicionPersonal(actividadId);
+        return;
+      }
+
+      // 1. Armar payload: la lista filtrada sin los marcados
+      const personalParaPut = listaFinal.map((p) => ({
+        nombre_completo: p.nombreCompleto,
+        email: p.email,
+        numero_contacto: parseInt(String(p.telefono).replace(/\D/g, '')) || 0,
+        grupo: p.grupo,
+      }));
+
+      // 2. PUT al endpoint que sobreescribe personal_asignado en Firestore
+      await reemplazarPersonalAsignado(actividadId, personalParaPut);
+
+      // 3. Re-fetch la actividad específica por su ID (GET fresco, sin caché)
+      const actFresca = await getActividadPorId(actividadId);
+
+      if (actFresca) {
+        // 5a. Parsear personal_asignado de la respuesta fresca del GET
+        const rawFresco = (actFresca.personal_asignado || []) as PersonalGrupoApiItem[];
+        const personalFresco = deduplicarPersonal(
+          rawFresco
+            .filter((item) => item.nombre_completo)
+            .map((item, index) => ({
+              id: item.id || `${actividadId}-${index}`,
+              nombreCompleto: item.nombre_completo || '-',
+              telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
+              grupo: item.grupo || '-',
+              email: item.email || '',
+            }))
+        );
+
+        // 6a. Actualizar estado local con la data del backend
+        personalAsignadoPorActividad = {
+          ...personalAsignadoPorActividad,
+          [actividadId]: personalFresco,
+        };
+
+        // 7a. Actualizar la actividad en el array local
+        const idx = actividades.findIndex((a) => a.id === actividadId);
+        if (idx >= 0) {
+          actividades[idx] = { ...actFresca };
+          actividades = [...actividades];
+        }
+
+        convocatoriaFeedbackType = "success";
+        convocatoriaFeedback = `Personal actualizado. ${personalFresco.length} persona(s) asignadas.`;
+      } else {
+        // 5b. Fallback: no se encontró la actividad en GET, usar la lista local
+        personalAsignadoPorActividad = {
+          ...personalAsignadoPorActividad,
+          [actividadId]: [...listaFinal],
+        };
+
+        convocatoriaFeedbackType = "success";
+        convocatoriaFeedback = `Personal actualizado. ${listaFinal.length} persona(s) asignadas.`;
+      }
+
+      cancelarEdicionPersonal(actividadId);
+    } catch (err) {
+      console.error("Error al actualizar personal:", err);
+      convocatoriaFeedbackType = "error";
+      convocatoriaFeedback = "Error al actualizar el personal asignado. Revisa la consola para más detalles.";
+    } finally {
+      guardandoPersonal = { ...guardandoPersonal, [actividadId]: false };
+    }
   }
 
   function getPersonalAsignadoPorGrupo(
@@ -926,8 +1214,18 @@
     loading = true;
     error = "";
     try {
-      console.log("[Convocatorias] Reintentando carga...");
-      actividades = await getActividadesPlanDistritoVerde();
+      const [actividadesCargadas, lideresCargados, gruposNombresCargados] = await Promise.allSettled([
+        getActividadesPlanDistritoVerde(),
+        getLideresFromGrupos(),
+        getGruposNombres(),
+      ]);
+
+      if (actividadesCargadas.status === 'rejected') {
+        throw actividadesCargadas.reason;
+      }
+      actividades = actividadesCargadas.value;
+      lideresGrupoOptions = lideresCargados.status === 'fulfilled' ? lideresCargados.value : [];
+      gruposCatalogo = gruposNombresCargados.status === 'fulfilled' ? gruposNombresCargados.value : [];
 
       const allGrupos = actividades.flatMap((a) => a.grupos_requeridos || []);
       grupos = [...new Set(allGrupos)].sort();
@@ -937,10 +1235,8 @@
       lideres = [
         ...new Set(actividades.map((a) => a.lider_actividad).filter(Boolean)),
       ].sort();
-      lideresGrupoOptions = await getLideresGrupo();
       filteredActividades = actividades;
     } catch (err) {
-      console.error("[Convocatorias] Error al reintentar:", err);
       error = "Error al cargar las actividades. Por favor, intenta de nuevo.";
     } finally {
       loading = false;
@@ -1441,31 +1737,53 @@
                         misma
                       </p>
                     {:else}
-                      <div class="personal-grupos-container">
-                        {#each getGruposAsignadosActividad(actividad.id) as grupo}
-                          <div class="personal-grupo-item">
-                            <span
-                              class={`lider-grupo-badge ${getGrupoColorClass(grupo)}`}
-                            >
-                              {grupo}
-                            </span>
-
-                            <div class="personal-listado">
-                              {#each getPersonalAsignadoPorGrupo(actividad.id, grupo) as personaAsignada}
-                                <div class="personal-item">
-                                  <div class="personal-item-row">
-                                    <span class="personal-label">Nombre:</span>
-                                    <span class="personal-value">{personaAsignada.nombreCompleto}</span>
-                                  </div>
-                                  <div class="personal-item-row">
-                                    <span class="personal-label">Grupo:</span>
-                                    <span class="personal-value">{personaAsignada.grupo}</span>
-                                  </div>
-                                </div>
-                              {/each}
+                      <div class="personal-asignado-list">
+                        {#each getPersonalAsignadoActividad(actividad.id) as persona}
+                          {@const marcado = personalMarcadoParaQuitar[actividad.id]?.[persona.email.toLowerCase()] === true}
+                          <div class="personal-asignado-card" class:personal-marcado-quitar={marcado}>
+                            <div class="personal-asignado-avatar">
+                              {persona.nombreCompleto.charAt(0).toUpperCase()}
                             </div>
+                            <div class="personal-asignado-info">
+                              <span class="personal-asignado-name">{persona.nombreCompleto}</span>
+                              {#if persona.email}
+                                <span class="personal-asignado-email">{persona.email}</span>
+                              {/if}
+                            </div>
+                            <span class={`personal-asignado-grupo-badge ${getGrupoColorClass(persona.grupo)}`}>
+                              {persona.grupo}
+                            </span>
+                            <button
+                              type="button"
+                              class="btn-quitar-persona"
+                              class:btn-quitar-activo={marcado}
+                              title={marcado ? "Deshacer" : "Quitar de la actividad"}
+                              on:click={() => toggleMarcarParaQuitar(actividad.id, persona.email)}
+                            >
+                              {marcado ? "↩" : "✕"}
+                            </button>
                           </div>
                         {/each}
+                      </div>
+                    {/if}
+                    {#if Object.values(personalMarcadoParaQuitar[actividad.id] ?? {}).some(Boolean)}
+                      <div class="personal-edit-actions">
+                        <button
+                          type="button"
+                          class="btn-cancelar-edicion"
+                          on:click={() => cancelarEdicionPersonal(actividad.id)}
+                          disabled={guardandoPersonal[actividad.id]}
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          class="btn-confirmar-edicion"
+                          on:click={() => confirmarEdicionPersonal(actividad.id)}
+                          disabled={guardandoPersonal[actividad.id]}
+                        >
+                          {guardandoPersonal[actividad.id] ? "Guardando..." : "Confirmar cambios"}
+                        </button>
                       </div>
                     {/if}
                   </details>
@@ -1936,11 +2254,7 @@
         </p>
       </div>
 
-      {#if gruposActividadAsignacion.length === 0}
-        <div class="asignacion-empty-groups">
-          Esta actividad no tiene grupos requeridos para asignar personal.
-        </div>
-      {:else}
+      {#if gruposActividadAsignacion.length > 0}
         <div class="asignacion-grupos-resumen">
           {#each gruposActividadAsignacion as grupoActividad}
             <span
@@ -1950,6 +2264,17 @@
             </span>
           {/each}
         </div>
+      {/if}
+
+      {#if loadingPersonal}
+        <div class="asignacion-empty-state" style="padding: 1rem; text-align: center; color: #888;">
+          Cargando personal operativo...
+        </div>
+      {:else if errorPersonal}
+        <div class="asignacion-empty-state" style="padding: 1rem; text-align: center; color: #e74c3c;">
+          {errorPersonal}
+        </div>
+      {:else}
 
         <div class="asignacion-dropdown">
           <button
@@ -2012,6 +2337,14 @@
                   {/each}
                 {/if}
               </div>
+              <button
+                type="button"
+                class="crear-miembro-btn"
+                on:click|stopPropagation={openCrearMiembroModal}
+              >
+                <span class="crear-miembro-icon">+</span>
+                Crear miembro de equipo
+              </button>
             </div>
           {/if}
         </div>
@@ -2056,6 +2389,102 @@
           disabled={totalIntegrantesAsignados === 0}
         >
           Asignar
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal: Crear miembro de equipo -->
+{#if isCrearMiembroModalOpen}
+  <div class="crear-miembro-overlay" on:click|self={closeCrearMiembroModal}>
+    <div class="crear-miembro-modal">
+      <div class="crear-miembro-header">
+        <h3>Crear miembro de equipo</h3>
+        <button type="button" class="crear-miembro-close" on:click={closeCrearMiembroModal}>✕</button>
+      </div>
+
+      {#if crearMiembroError}
+        <div class="crear-miembro-error">{crearMiembroError}</div>
+      {/if}
+
+      <div class="crear-miembro-form">
+        <label class="crear-miembro-label">
+          Nombre completo
+          <input
+            type="text"
+            class="crear-miembro-input"
+            bind:value={crearMiembroNombre}
+            placeholder="Ej: Juan Pérez López"
+          />
+        </label>
+
+        <label class="crear-miembro-label">
+          Email
+          <input
+            type="email"
+            class="crear-miembro-input"
+            bind:value={crearMiembroEmail}
+            placeholder="Ej: juan.perez@dagma.gov.co"
+          />
+        </label>
+
+        <label class="crear-miembro-label">
+          Número de contacto
+          <input
+            type="tel"
+            class="crear-miembro-input"
+            bind:value={crearMiembroTelefono}
+            placeholder="Ej: 3001234567"
+          />
+        </label>
+
+        <label class="crear-miembro-label">
+          Grupo
+          <select class="crear-miembro-input" bind:value={crearMiembroGrupo}>
+            <option value="">Seleccionar grupo...</option>
+            {#each gruposCatalogo as grupo}
+              <option value={grupo}>{grupo}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
+
+      <div class="crear-miembro-actions">
+        <button type="button" class="btn-secondary" on:click={closeCrearMiembroModal} disabled={crearMiembroLoading}>
+          Cancelar
+        </button>
+        <button type="button" class="btn-primary" on:click={submitCrearMiembro} disabled={crearMiembroLoading}>
+          {crearMiembroLoading ? 'Creando...' : 'Crear miembro'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal: Confirmar asignación del nuevo miembro -->
+{#if isConfirmarAsignacionNuevoOpen && nuevoMiembroCreado}
+  <div class="crear-miembro-overlay" on:click|self={() => confirmarAsignarNuevoMiembro(false)}>
+    <div class="crear-miembro-modal confirmar-asignar-modal">
+      <div class="crear-miembro-header">
+        <h3>Miembro creado exitosamente</h3>
+      </div>
+
+      <div class="confirmar-asignar-body">
+        <p class="confirmar-asignar-msg">
+          <strong>{nuevoMiembroCreado.nombre_completo}</strong> fue registrado(a) en el equipo.
+        </p>
+        <p class="confirmar-asignar-question">
+          ¿Deseas asignarlo(a) a esta actividad de inmediato?
+        </p>
+      </div>
+
+      <div class="crear-miembro-actions confirmar-asignar-actions">
+        <button type="button" class="btn-secondary" on:click={() => confirmarAsignarNuevoMiembro(false)}>
+          No, solo registrar
+        </button>
+        <button type="button" class="btn-primary" on:click={() => confirmarAsignarNuevoMiembro(true)}>
+          Sí, asignar de inmediato
         </button>
       </div>
     </div>
@@ -3204,6 +3633,175 @@
     padding: 0.7rem 0.8rem;
   }
 
+  .personal-asignado-list {
+    margin-top: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .personal-asignado-card {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 0.6rem;
+    background: var(--surface-alt);
+    border: 1px solid var(--border-light);
+    transition: background var(--transition);
+  }
+
+  .personal-asignado-card:hover {
+    background: var(--surface);
+    border-color: var(--border);
+  }
+
+  .personal-asignado-avatar {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .personal-asignado-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+  }
+
+  .personal-asignado-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .personal-asignado-email {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .personal-asignado-grupo-badge {
+    flex-shrink: 0;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .btn-quitar-persona {
+    flex-shrink: 0;
+    padding: 0.15rem 0.3rem;
+    border: none;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    line-height: 1;
+    opacity: 0.5;
+    transition: all var(--transition);
+  }
+
+  .btn-quitar-persona:hover {
+    opacity: 1;
+    color: var(--error);
+    background: rgba(220, 38, 38, 0.08);
+  }
+
+  .btn-quitar-activo {
+    opacity: 1;
+    color: var(--primary);
+  }
+
+  .btn-quitar-activo:hover {
+    color: var(--primary-dark);
+    background: rgba(5, 150, 105, 0.08);
+  }
+
+  .personal-marcado-quitar {
+    background: rgba(220, 38, 38, 0.04);
+    border-color: rgba(220, 38, 38, 0.2);
+    opacity: 0.55;
+  }
+
+  .personal-marcado-quitar .personal-asignado-name {
+    text-decoration: line-through;
+    color: var(--text-muted);
+  }
+
+  .personal-marcado-quitar .personal-asignado-email {
+    text-decoration: line-through;
+  }
+
+  .personal-marcado-quitar .personal-asignado-avatar {
+    background: var(--text-muted);
+  }
+
+  .personal-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-light);
+  }
+
+  .btn-cancelar-edicion {
+    padding: 0.35rem 0.8rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .btn-cancelar-edicion:hover {
+    background: var(--surface-alt);
+  }
+
+  .btn-confirmar-edicion {
+    padding: 0.35rem 0.8rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--primary);
+    background: var(--primary);
+    color: white;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .btn-confirmar-edicion:hover {
+    background: var(--primary-dark);
+  }
+
+  .btn-confirmar-edicion:disabled,
+  .btn-cancelar-edicion:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   .personal-grupos-container {
     margin-top: 0.75rem;
     display: flex;
@@ -3569,6 +4167,151 @@
     color: #6b7280;
     font-size: 0.85rem;
     padding: 0.5rem 0.35rem;
+  }
+
+  /* Botón "+ Crear miembro de equipo" en el dropdown */
+  .crear-miembro-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    padding: 0.55rem 0.6rem;
+    border: 1.5px dashed var(--primary);
+    border-radius: 0.6rem;
+    background: transparent;
+    color: var(--primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .crear-miembro-btn:hover {
+    background: rgba(5, 150, 105, 0.06);
+    border-color: #047857;
+  }
+  .crear-miembro-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* Modal overlay y contenedor para crear miembro / confirmar asignación */
+  .crear-miembro-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 400;
+    padding: 1rem;
+  }
+  .crear-miembro-modal {
+    background: #fff;
+    border-radius: 1rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+    width: 100%;
+    max-width: 420px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .crear-miembro-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .crear-miembro-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .crear-miembro-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.2rem;
+    line-height: 1;
+  }
+  .crear-miembro-close:hover {
+    color: var(--text-primary);
+  }
+  .crear-miembro-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    color: #dc2626;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.83rem;
+  }
+  .crear-miembro-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .crear-miembro-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .crear-miembro-input {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .crear-miembro-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.12);
+  }
+  .crear-miembro-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+
+  /* Confirmación tras crear miembro */
+  .confirmar-asignar-modal {
+    max-width: 400px;
+  }
+  .confirmar-asignar-body {
+    text-align: center;
+    padding: 0.25rem 0;
+  }
+  .confirmar-asignar-msg {
+    font-size: 0.92rem;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem;
+  }
+  .confirmar-asignar-question {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+  .confirmar-asignar-actions {
+    justify-content: center;
   }
 
   .asignacion-selected-list {

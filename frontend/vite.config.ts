@@ -38,23 +38,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/web-production-2d737\.up\.railway\.app\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
       }
     })
   ],
@@ -65,6 +49,12 @@ export default defineConfig({
         target: 'https://web-production-2d737.up.railway.app',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        secure: false
+      },
+      '/api-capturas': {
+        target: 'https://gestorproyectoapi-production.up.railway.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-capturas/, ''),
         secure: false
       }
     }

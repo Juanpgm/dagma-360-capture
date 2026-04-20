@@ -198,6 +198,13 @@ function createVisitaStore() {
     },
 
     /**
+     * No-op: cache removed.
+     */
+    invalidateActividades: () => {
+      // no-op
+    },
+
+    /**
      * Establece la lista de actividades
      */
     setActividades: (actividades: ActividadPlanDistritoVerde[]) => {
