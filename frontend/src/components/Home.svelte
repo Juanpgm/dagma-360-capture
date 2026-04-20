@@ -1,19 +1,42 @@
 <script lang="ts">
-  import { authStore } from "../stores/authStore";
-  import VisitaVerificacion from "./visitas/VisitaVerificacion.svelte";
-  import KanbanReportes from "./history/KanbanReportes.svelte";
-  import Convocatorias from "./convocatorias/Convocatorias.svelte";
-  import Dashboard from "./dashboard/Dashboard.svelte";
-  import GestionGrupos from "./grupos/GestionGrupos.svelte";
+  import { authStore, permissions } from "../stores/authStore";
 
   type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard" | "grupos";
   let currentView: View = "home";
 
-  const handleLogout: () => Promise<void> = async () => {
-    await authStore.logout();
+  // Lazy-loaded view components
+  let VisitaVerificacion: any = null;
+  let KanbanReportes: any = null;
+  let Convocatorias: any = null;
+  let Dashboard: any = null;
+  let GestionGrupos: any = null;
+
+  const viewLoaders: Record<string, () => Promise<{ default: any }>> = {
+    visita:        () => import("./visitas/VisitaVerificacion.svelte"),
+    reportes:      () => import("./history/KanbanReportes.svelte"),
+    convocatorias: () => import("./convocatorias/Convocatorias.svelte"),
+    dashboard:     () => import("./dashboard/Dashboard.svelte"),
+    grupos:        () => import("./grupos/GestionGrupos.svelte"),
   };
 
-  function navigate(view: View): void {
+  const handleLogout: () => Promise<void> = async () => {
+    try {
+      await authStore.logout();
+    } catch (e) {
+      console.error('Error al cerrar sesión:', e);
+    }
+  };
+
+  async function navigate(view: View): Promise<void> {
+    if (view === "grupos" && !$permissions.canManageUsers) return;
+    if (view !== "home" && viewLoaders[view]) {
+      const mod = await viewLoaders[view]();
+      if (view === "visita")        VisitaVerificacion = mod.default;
+      if (view === "reportes")      KanbanReportes     = mod.default;
+      if (view === "convocatorias") Convocatorias      = mod.default;
+      if (view === "dashboard")     Dashboard          = mod.default;
+      if (view === "grupos")        GestionGrupos      = mod.default;
+    }
     currentView = view;
   }
 
@@ -39,7 +62,11 @@
 </script>
 
 {#if currentView === "visita"}
-  <VisitaVerificacion onClose={() => navigate("home")} />
+  {#if VisitaVerificacion}
+    <svelte:component this={VisitaVerificacion} onClose={() => navigate("home")} />
+  {:else}
+    <div class="loading-view">Cargando…</div>
+  {/if}
 {:else}
   <div class="shell">
     <header class="header" class:sticky={currentView === "home"}>
@@ -68,13 +95,29 @@
     </header>
 
     {#if currentView === "reportes"}
-      <KanbanReportes />
+      {#if KanbanReportes}
+        <svelte:component this={KanbanReportes} />
+      {:else}
+        <div class="loading-view">Cargando…</div>
+      {/if}
     {:else if currentView === "convocatorias"}
-      <Convocatorias />
+      {#if Convocatorias}
+        <svelte:component this={Convocatorias} />
+      {:else}
+        <div class="loading-view">Cargando…</div>
+      {/if}
     {:else if currentView === "dashboard"}
-      <Dashboard />
+      {#if Dashboard}
+        <svelte:component this={Dashboard} />
+      {:else}
+        <div class="loading-view">Cargando…</div>
+      {/if}
     {:else if currentView === "grupos"}
-      <GestionGrupos />
+      {#if GestionGrupos}
+        <svelte:component this={GestionGrupos} />
+      {:else}
+        <div class="loading-view">Cargando…</div>
+      {/if}
     {:else}
       <main class="home-content">
         <section class="banner" on:click={() => navigate("convocatorias")} on:keydown={(e) => e.key === 'Enter' && navigate("convocatorias")} role="button" tabindex="0">
@@ -118,6 +161,7 @@
             <p class="action-desc">Panel analítico</p>
           </button>
 
+          {#if $permissions.canManageUsers}
           <button class="action-card" on:click={() => navigate("grupos")}>
             <div class="action-icon">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -130,6 +174,7 @@
             <h3 class="action-title">Grupos y Personal</h3>
             <p class="action-desc">Gestionar grupos y personal</p>
           </button>
+          {/if}
         </div>
       </main>
     {/if}
@@ -137,6 +182,15 @@
 {/if}
 
 <style>
+  .loading-view {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
   .shell {
     min-height: 100vh;
     min-height: 100dvh;
