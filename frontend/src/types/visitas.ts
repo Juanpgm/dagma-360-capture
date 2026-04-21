@@ -99,3 +99,16 @@ export interface IntervencionCommonData {
   coordinates_type: string;
   coordinates_data: string;
 }
+
+export interface Reporte {
+  id: string;
+  nombre_parque: string;
+  descripcion_intervencion: string;
+  tipo_intervencion: string;
+  fecha_registro: string;
+  direccion: string;
+  upid: string;
+  observaciones?: string;
+  photosUrl?: string[];
+  photos_uploaded?: number;
+}

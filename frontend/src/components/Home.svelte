@@ -27,15 +27,24 @@
     }
   };
 
+  let navigationError: string | null = null;
+
   async function navigate(view: View): Promise<void> {
     if (view === "grupos" && !$permissions.canManageUsers) return;
+    navigationError = null;
     if (view !== "home" && viewLoaders[view]) {
-      const mod = await viewLoaders[view]();
-      if (view === "visita")        VisitaVerificacion = mod.default;
-      if (view === "reportes")      KanbanReportes     = mod.default;
-      if (view === "convocatorias") Convocatorias      = mod.default;
-      if (view === "dashboard")     Dashboard          = mod.default;
-      if (view === "grupos")        GestionGrupos      = mod.default;
+      try {
+        const mod = await viewLoaders[view]();
+        if (view === "visita")        VisitaVerificacion = mod.default;
+        if (view === "reportes")      KanbanReportes     = mod.default;
+        if (view === "convocatorias") Convocatorias      = mod.default;
+        if (view === "dashboard")     Dashboard          = mod.default;
+        if (view === "grupos")        GestionGrupos      = mod.default;
+      } catch (e) {
+        console.error("Error al cargar módulo:", view, e);
+        navigationError = "No se pudo cargar el módulo. Intenta de nuevo.";
+        return;
+      }
     }
     currentView = view;
   }
@@ -48,12 +57,16 @@
     currentUser?.email ||
     "Usuario";
   $: userGrupo = currentUser?.grupo || "No asignado";
-  $: userRol =
+  import { normalizeRole, ROLE_LABELS, ROLE_COLORS } from "../lib/permissions";
+  $: userRolRaw =
     currentUser?.rol ||
     currentUser?.role ||
     (Array.isArray(currentUser?.roles) && currentUser.roles.length > 0
       ? currentUser.roles[0]
-      : "No asignado");
+      : "operador");
+  $: userRolNorm = normalizeRole(userRolRaw);
+  $: userRolLabel = ROLE_LABELS[userRolNorm] || "No asignado";
+  $: userRolColor = ROLE_COLORS[userRolNorm] || "#64748b";
   $: userAvatarLetter = (
     userFullName?.[0] ||
     currentUser?.email?.[0] ||
@@ -85,7 +98,7 @@
           <div class="user-avatar">{userAvatarLetter}</div>
           <div class="user-meta">
             <span class="user-name">{userFullName}</span>
-            <span class="user-detail">{userGrupo} · {userRol}</span>
+            <span class="user-detail">{userGrupo} · <span style="color:{userRolColor};font-weight:500">{userRolLabel}</span></span>
           </div>
         </div>
         <button class="btn-icon" on:click={handleLogout} title="Cerrar sesión">
@@ -120,6 +133,9 @@
       {/if}
     {:else}
       <main class="home-content">
+        {#if navigationError}
+          <div class="nav-error">{navigationError}</div>
+        {/if}
         <section class="banner" on:click={() => navigate("convocatorias")} on:keydown={(e) => e.key === 'Enter' && navigate("convocatorias")} role="button" tabindex="0">
           <div class="banner-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -182,6 +198,15 @@
 {/if}
 
 <style>
+  .nav-error {
+    background: #fee2e2;
+    color: #dc2626;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 0 1rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
   .loading-view {
     display: flex;
     align-items: center;

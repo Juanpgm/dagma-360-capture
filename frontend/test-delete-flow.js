@@ -1,23 +1,4 @@
-/**
- * TEST: Flujo completo DELETE personal_asignado
- * 
- * Ejecutar en la consola del navegador (F12 → Console) estando en la app.
- * 
- * Verifica:
- * 1. GET lee datos frescos (sin caché)
- * 2. DELETE elimina de la DB
- * 3. GET post-DELETE refleja los cambios
- */
-
-async function testDeleteFlow() {
-  const API = '/api';
-  const ts = Date.now();
-  
-  console.log('=== TEST 1: GET actividades sin caché ===');
-  const r1 = await fetch(`${API}/actividades?_t=${ts}`, {
-    headers: { 'Accept': 'application/json' },
-    cache: 'no-store',
-  });
+// Archivo limpiado. No usar scripts de prueba dummie.
   const d1 = await r1.json();
   const actividades = d1.data || d1 || [];
   const conPersonal = actividades.filter(a => a.personal_asignado && a.personal_asignado.length > 0);

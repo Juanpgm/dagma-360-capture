@@ -12,7 +12,9 @@
   } from "../../api/visitas";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
   import type { PlantaEntry } from "../../types/visitas";
-  import { getGrupoConfig, type GrupoConfig } from "../../lib/grupos";
+  import type { GrupoFormType, GrupoKey } from "../../lib/grupos";
+  import { GRUPO_KEYS } from "../../lib/grupos";
+  // import { getGrupoConfig, type GrupoConfig } from "../../lib/grupos";
   import Stepper from "../ui/Stepper.svelte";
   import Button from "../ui/Button.svelte";
   import Modal from "../ui/Modal.svelte";
@@ -96,8 +98,9 @@
   $: state = $visitaStore;
   $: currentUser = $authStore.user;
   $: userGrupo = extractUserGroups(currentUser);
-  $: grupoConfig = getGrupoConfig(userGrupo);
-  $: isCuadrilla = grupoConfig.formType === "cuadrilla";
+  // Determinar el tipo de formulario según el grupo del usuario
+  $: grupoFormType = ((Array.isArray(userGrupo) ? userGrupo[0] : userGrupo || '') as string).toLowerCase() as GrupoFormType;
+  $: isCuadrilla = grupoFormType === "cuadrilla";
   $: canContinue =
     currentStep === 3
       ? photoFiles.length > 0
@@ -106,16 +109,16 @@
           descripcionIntervencion &&
           (isCuadrilla || direccion) &&
           // Validación específica por grupo
-          (grupoConfig.formType === "cuadrilla"
+          (grupoFormType === "cuadrilla"
             ? individuosIntervenidos != null &&
               individuosIntervenidos > 0 &&
               nombreCientifico
-            : grupoConfig.formType === "vivero"
+            : grupoFormType === "vivero"
               ? tiposPlantas.some((p) => p.nombre && p.cantidad > 0)
-              : grupoConfig.formType === "gobernanza" ||
-                  grupoConfig.formType === "umata"
+                : grupoFormType === "gobernanza" || 
+                  grupoFormType === "umata"
                 ? unidadesImpactadas != null && unidadesImpactadas > 0
-                : grupoConfig.formType === "ecosistemas"
+                : grupoFormType === "ecosistemas"
                   ? unidadMedida &&
                     unidadesImpactadas != null &&
                     unidadesImpactadas > 0
@@ -188,20 +191,20 @@
         direccion: direccion,
         observaciones: observaciones,
       };
-      if (grupoConfig.formType === "cuadrilla") {
+      if (grupoFormType === "cuadrilla") {
         updatePayload.individuos_intervenidos = individuosIntervenidos;
         updatePayload.nombre_cientifico = nombreCientifico;
         updatePayload.nombre_comun = nombreComun;
       }
-      if (grupoConfig.formType === "vivero") {
+      if (grupoFormType === "vivero") {
         updatePayload.tipos_plantas = tiposPlantas;
       }
       if (
-        ["gobernanza", "ecosistemas", "umata"].includes(grupoConfig.formType)
+        ["gobernanza", "ecosistemas", "umata"].includes(grupoFormType)
       ) {
         updatePayload.unidades_impactadas = unidadesImpactadas;
       }
-      if (grupoConfig.formType === "ecosistemas") {
+      if (grupoFormType === "ecosistemas") {
         updatePayload.unidad_medida = unidadMedida;
       }
       visitaStore.updateData(updatePayload);
@@ -272,20 +275,20 @@
         direccion: direccion,
         observaciones: observaciones,
       };
-      if (grupoConfig.formType === "cuadrilla") {
+      if (grupoFormType === "cuadrilla") {
         updatePayload.individuos_intervenidos = individuosIntervenidos;
         updatePayload.nombre_cientifico = nombreCientifico;
         updatePayload.nombre_comun = nombreComun;
       }
-      if (grupoConfig.formType === "vivero") {
+      if (grupoFormType === "vivero") {
         updatePayload.tipos_plantas = tiposPlantas;
       }
       if (
-        ["gobernanza", "ecosistemas", "umata"].includes(grupoConfig.formType)
+        ["gobernanza", "ecosistemas", "umata"].includes(grupoFormType)
       ) {
         updatePayload.unidades_impactadas = unidadesImpactadas;
       }
-      if (grupoConfig.formType === "ecosistemas") {
+      if (grupoFormType === "ecosistemas") {
         updatePayload.unidad_medida = unidadMedida;
       }
       visitaStore.updateData(updatePayload);
@@ -360,7 +363,7 @@
           currentUser?.displayName ||
           currentUser?.email ||
           "Usuario",
-        grupo: currentUser?.grupo || userGrupo[0] || grupoConfig.label,
+        grupo: currentUser?.grupo || userGrupo[0] || grupoFormType,
         id_actividad: state.selectedActividad?.id || "",
         observaciones: observaciones || "",
         coordinates_type: finalCoordinatesType,
@@ -378,7 +381,7 @@
       };
 
       // Campos específicos por grupo
-      switch (grupoConfig.formType) {
+      switch (grupoFormType) {
         case "cuadrilla": {
           if (!nombreComun || !nombreCientifico) {
             throw new Error("Debe seleccionar una especie de árbol");
@@ -431,8 +434,11 @@
         }
       }
 
+      if (!GRUPO_KEYS.includes(grupoFormType as GrupoKey)) {
+        throw new Error(`El grupo "${grupoFormType}" no es válido para registrar intervenciones`);
+      }
       response = await registrarIntervencion(
-        grupoConfig.slug,
+        grupoFormType as GrupoKey,
         params,
         photoFiles,
       );
@@ -543,7 +549,7 @@
         onCaptureGPS={handleCaptureGPS}
         isLoading={state.isLoading}
         {isCuadrilla}
-        grupoFormType={grupoConfig.formType}
+        grupoFormType={grupoFormType}
         bind:individuosIntervenidos
         bind:nombreCientifico
         bind:nombreComun

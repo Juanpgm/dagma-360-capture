@@ -176,29 +176,15 @@
         GRUPO_KEYS.map((key) => obtenerReportes(key)),
       );
 
-      const grupoLabels = [
-        "Cuadrilla",
-        "Vivero",
-        "Gobernanza",
-        "Ecosistemas",
-        "UMATA",
-      ];
       let todosReportes: ReporteIntervencion[] = [];
-
-      resultados.forEach((resultado, index) => {
+      resultados.forEach((resultado) => {
         if (resultado.status === "fulfilled" && resultado.value?.data) {
-          const dataConGrupo = resultado.value.data.map(
-            (r: ReporteIntervencion) => ({
-              ...r,
-              grupo: r.grupo || grupoLabels[index],
-            }),
-          );
-          todosReportes = [...todosReportes, ...dataConGrupo];
+          todosReportes = [...todosReportes, ...resultado.value.data];
         }
       });
 
       if (todosReportes.length === 0) {
-        error = "No hay reportes de intervenciones disponibles";
+        error = "No hay reportes de intervenciones disponibles.\n\nRegistre una intervención desde el módulo correspondiente para visualizar datos en el dashboard.";
         reportes = [];
         filteredReportes = [];
       } else {

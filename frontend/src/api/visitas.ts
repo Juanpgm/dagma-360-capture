@@ -3,6 +3,7 @@ import type {
   IntervencionCommonData,
 } from '../types/visitas';
 import type { GrupoKey } from '../lib/grupos';
+import { ApiClient } from '../lib/api-client';
 
 // ── Types ──
 
@@ -44,8 +45,13 @@ export interface ReportesIntervencionResponse {
 
 // ── Helpers ──
 
+// Permite alternar entre proxy local o API externa
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 function buildApiUrl(path: string): string {
-  return `/api${path}`;
+  if (API_BASE.endsWith('/') && path.startsWith('/')) {
+    return API_BASE + path.slice(1);
+  }
+  return API_BASE + path;
 }
 
 function appendCommonFields(formData: FormData, data: IntervencionCommonData): void {
@@ -161,6 +167,7 @@ export async function registrarIntervencion(
 
 // ── GET: Obtener reportes de intervención (unificado) ──
 
+
 export async function obtenerReportes(
   grupoKey: GrupoKey,
   filters?: { id?: string; id_actividad?: string; grupo?: string }
@@ -173,16 +180,11 @@ export async function obtenerReportes(
   const qs = params.toString();
   if (qs) url += `?${qs}`;
 
-  const token = localStorage.getItem('auth_token');
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { ...(token && { 'Authorization': `Bearer ${token}` }) },
-  });
-
-  if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
-
-  const responseData = await response.json();
+  // Usa ApiClient centralizado para autenticación y manejo de errores
+  const responseData = await ApiClient.get<ReportesIntervencionResponse>(
+    url,
+    { requireAuth: true }
+  );
   const normalizedData = (responseData.data || []).map(normalizeReporte);
   return { ...responseData, data: normalizedData };
 }

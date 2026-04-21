@@ -2397,7 +2397,8 @@
 
 <!-- Modal: Crear miembro de equipo -->
 {#if isCrearMiembroModalOpen}
-  <div class="crear-miembro-overlay" on:click|self={closeCrearMiembroModal}>
+  <div class="crear-miembro-overlay" role="dialog" aria-modal="true">
+    <button type="button" aria-label="Cerrar modal" class="overlay-close-btn" on:click={closeCrearMiembroModal} on:keydown={(e) => { if (e.key === 'Escape') closeCrearMiembroModal(); }} tabindex="0"></button>
     <div class="crear-miembro-modal">
       <div class="crear-miembro-header">
         <h3>Crear miembro de equipo</h3>
@@ -2464,7 +2465,8 @@
 
 <!-- Modal: Confirmar asignación del nuevo miembro -->
 {#if isConfirmarAsignacionNuevoOpen && nuevoMiembroCreado}
-  <div class="crear-miembro-overlay" on:click|self={() => confirmarAsignarNuevoMiembro(false)}>
+  <div class="crear-miembro-overlay" role="dialog" aria-modal="true">
+    <button type="button" aria-label="Cerrar modal" class="overlay-close-btn" on:click={() => confirmarAsignarNuevoMiembro(false)} on:keydown={(e) => { if (e.key === 'Escape') confirmarAsignarNuevoMiembro(false); }} tabindex="0"></button>
     <div class="crear-miembro-modal confirmar-asignar-modal">
       <div class="crear-miembro-header">
         <h3>Miembro creado exitosamente</h3>

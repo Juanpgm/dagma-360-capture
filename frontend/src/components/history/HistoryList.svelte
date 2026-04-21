@@ -25,7 +25,7 @@
                 GRUPO_KEYS.map((key) => obtenerReportes(key))
             );
             const todos: ReporteIntervencion[] = [];
-            resultados.forEach((r) => {
+            resultados.forEach((r: PromiseSettledResult<any>) => {
                 if (r.status === "fulfilled" && r.value?.data) {
                     todos.push(...r.value.data);
                 }

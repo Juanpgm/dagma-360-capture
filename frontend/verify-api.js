@@ -1,22 +1,5 @@
 
-import fetch from 'node-fetch';
-
-const API_URL = 'https://web-production-2d737.up.railway.app';
-const OLD_API_URL = 'https://gestorproyectoapi-production.up.railway.app';
-
-async function checkUrl(url, label) {
-  console.log(`\n--- Checking ${label} (${url}) ---`);
-  try {
-    const start = Date.now();
-    const response = await fetch(url + '/init/parques', {
-        method: 'GET',
-        headers: {
-            'Accept': 'application/json'
-        }
-    });
-    const time = Date.now() - start;
-    console.log(`Status: ${response.status} ${response.statusText}`);
-    console.log(`Time: ${time}ms`);
+// Archivo limpiado. No usar scripts de prueba dummie.
     
     if (response.ok) {
         const data = await response.json();

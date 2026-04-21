@@ -4,8 +4,9 @@
   import { getUsers } from "../../api/admin";
   import { authStore, permissions } from "../../stores/authStore";
   import CambiarRolModal from "./CambiarRolModal.svelte";
-  import { ROLE_LABELS } from '../../lib/permissions';
-  import { verificarRegistroPersonalOperativo, VerificarRegistroResult } from '../../api/verificarPersonal';
+   import { normalizeRole, ROLE_LABELS, ROLE_COLORS } from "../../lib/permissions";
+  import { verificarRegistroPersonalOperativo } from '../../api/verificarPersonal';
+  import type { VerificarRegistroResult } from '../../api/verificarPersonal';
   // Estado para verificación de registro
   let verificando = false;
   let verificacionResultados: VerificarRegistroResult[] = [];
@@ -428,8 +429,8 @@
                       {#if usuario.grupo ?? usuario.nombre_centro_gestor}<span class="sub-grupo">{usuario.grupo ?? usuario.nombre_centro_gestor}</span>{/if}
                       {#if (usuario.grupo ?? usuario.nombre_centro_gestor) && (usuario.role || usuario.rol)}<span class="sub-sep">·</span>{/if}
                       {#if usuario.role || usuario.rol}
-                        {@const rolNorm = usuario.role ?? usuario.rol ?? 'operador'}
-                        <span class="sub-role sub-role-{toRole(rolNorm)}">{ROLE_LABELS_MAP[toRole(rolNorm)]}</span>
+                        {@const rolNorm = normalizeRole(usuario.role ?? usuario.rol ?? 'operador')}
+                        <span class="sub-role" style="color:{ROLE_COLORS[rolNorm]};font-weight:500">{ROLE_LABELS[rolNorm]}</span>
                       {/if}
                     </div>
                   {/if}
@@ -830,10 +831,6 @@
   .sub-sep { opacity: 0.35; }
   .sub-grupo { color: var(--text-secondary); }
   .sub-role { font-weight: 500; text-transform: capitalize; }
-  .sub-role-operador     { color: #64748b; }
-  .sub-role-lider        { color: #2563eb; }
-  .sub-role-administrador{ color: #7c3aed; }
-  .sub-role-desarrollador{ color: #dc2626; }
 
   /* Floating edit-rol button — appears on card hover */
   .persona-card {
@@ -866,15 +863,6 @@
     border-color: color-mix(in srgb, var(--primary) 25%, transparent);
   }
 
-  .tag-active {
-    color: var(--success);
-    border-color: color-mix(in srgb, var(--success) 30%, transparent);
-    background: color-mix(in srgb, var(--success) 10%, transparent);
-  }
-
-  .tag-inactive {
-    color: var(--text-muted);
-  }
 
   /* ── States ──────────────────────────────────────────── */
   .loading-list {
@@ -1094,10 +1082,6 @@
     gap: 0.375rem;
   }
 
-  .field-row {
-    display: flex;
-    align-items: center;
-  }
 
   .label {
     font-size: 0.8125rem;
@@ -1135,46 +1119,8 @@
     cursor: pointer;
   }
 
-  .toggle-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    cursor: pointer;
-  }
 
-  .toggle {
-    position: relative;
-    width: 40px;
-    height: 22px;
-    border-radius: 999px;
-    background: var(--border);
-    border: none;
-    cursor: pointer;
-    transition: background var(--transition);
-    padding: 0;
-    flex-shrink: 0;
-  }
 
-  .toggle.on {
-    background: var(--primary);
-  }
-
-  .toggle-thumb {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: white;
-    transition: transform var(--transition);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
-  }
-
-  .toggle.on .toggle-thumb {
-    transform: translateX(18px);
-  }
 
   .alert {
     display: flex;

@@ -1,6 +1,6 @@
 <script lang="ts">
-    import type { ReporteIntervencion } from "../../api/visitas";
 
+    import type { ReporteIntervencion } from "../../api/visitas";
     export let reporte: ReporteIntervencion;
 
     function formatDate(dateString: string) {
@@ -30,9 +30,9 @@
     <div class="card-content">
         <div class="card-header">
             <h3 class="card-title">
-                {reporte.nombre_parque || "Parque sin nombre"}
+                {reporte.barrio_vereda || reporte.barrio || reporte.comuna_corregimiento || "Sin nombre"}
             </h3>
-            <span class="card-date">{formatDate(reporte.fecha_registro)}</span>
+            <span class="card-date">{formatDate(reporte.fecha_registro || reporte.timestamp)}</span>
         </div>
 
         <div class="card-details">

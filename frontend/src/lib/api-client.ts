@@ -2,14 +2,25 @@
 import { authStore } from '../stores/authStore';
 import { get } from 'svelte/store';
 
-// Siempre usa el proxy /api (Vite en dev, Vercel rewrites en producción)
-const API_BASE_URL = '/api';
+
+// Permite alternar entre proxy local o API externa
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 function resolveUrl(endpoint: string): string {
   if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
     return endpoint;
   }
-  return `${API_BASE_URL}${endpoint}`;
+  if (API_BASE_URL.endsWith('/') && endpoint.startsWith('/')) {
+    return API_BASE_URL + endpoint.slice(1);
+  }
+  return API_BASE_URL + endpoint;
+}
+
+/** Emits a browser event so any toast/notification component can display a permissions error */
+function notifyForbidden() {
+  window.dispatchEvent(new CustomEvent('api:forbidden', {
+    detail: { message: 'No tienes permisos para realizar esta acción' }
+  }));
 }
 
 interface ApiRequestOptions {
@@ -74,6 +85,7 @@ export class ApiClient {
         const response = await fetch(requestUrl, { method: 'GET', headers });
 
         if (!response.ok) {
+          if (response.status === 403) notifyForbidden();
           if (import.meta.env.DEV) {
             const errorText = await response.text();
             console.error(`[API] Error response:`, errorText);
@@ -107,6 +119,7 @@ export class ApiClient {
     });
 
     if (!response.ok) {
+      if (response.status === 403) notifyForbidden();
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -126,6 +139,7 @@ export class ApiClient {
     });
 
     if (!response.ok) {
+      if (response.status === 403) notifyForbidden();
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -145,6 +159,7 @@ export class ApiClient {
     });
 
     if (!response.ok) {
+      if (response.status === 403) notifyForbidden();
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -167,6 +182,7 @@ export class ApiClient {
     const response = await fetch(requestUrl, fetchOptions);
 
     if (!response.ok) {
+      if (response.status === 403) notifyForbidden();
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 

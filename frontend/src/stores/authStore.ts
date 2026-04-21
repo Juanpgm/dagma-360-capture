@@ -1,7 +1,8 @@
-import { writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import { logout as firebaseLogout } from '../api/auth';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { buildPermissions } from '../lib/permissions';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -196,5 +197,8 @@ const createAuthStore = () => {
 };
 
 export const authStore = createAuthStore();
+
+/** Derived store with computed permissions — use in Svelte templates as $permissions */
+export const permissions = derived(authStore, ($auth) => buildPermissions($auth.user));
 
 export const initAuth = () => authStore.init();

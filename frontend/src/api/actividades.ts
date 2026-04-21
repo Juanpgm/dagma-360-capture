@@ -67,16 +67,7 @@ export function getGoogleMapsUrl(geometry: { coordinates: [number, number] }): s
  * Obtiene catálogo de líderes de grupo
  */
 export async function getLideresGrupo(): Promise<LiderGrupoOption[]> {
-  const httpResponse = await fetch(LIDERES_GRUPO_URL, {
-    method: 'GET',
-    headers: { accept: 'application/json' },
-  });
-
-  if (!httpResponse.ok) {
-    throw new Error(`HTTP ${httpResponse.status}: ${httpResponse.statusText}`);
-  }
-
-  const response = await httpResponse.json();
+  const response = await ApiClient.get<any>('/personal_operativo');
 
   const rows = Array.isArray(response)
     ? response
@@ -175,16 +166,7 @@ export interface PersonalOperativoItem {
 }
 
 export async function getPersonalOperativo(): Promise<PersonalOperativoItem[]> {
-  const httpResponse = await fetch(LIDERES_GRUPO_URL, {
-    method: 'GET',
-    headers: { accept: 'application/json' },
-  });
-
-  if (!httpResponse.ok) {
-    throw new Error(`HTTP ${httpResponse.status}: ${httpResponse.statusText}`);
-  }
-
-  const response = await httpResponse.json();
+  const response = await ApiClient.get<any>('/personal_operativo');
   const rows = Array.isArray(response)
     ? response
     : Array.isArray(response?.data)
