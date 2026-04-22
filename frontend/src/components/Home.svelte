@@ -143,17 +143,17 @@
         </section>
 
         <div class="actions-list">
-          <section class="banner" on:click={() => navigate("convocatorias")} on:keydown={(e) => e.key === 'Enter' && navigate("convocatorias")} role="button" tabindex="0">
-            <div class="banner-icon">
+          <button class="action-card" on:click={() => navigate("convocatorias")}>
+            <div class="action-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             </div>
-            <div class="banner-text">
-              <span class="banner-title">Programación — Plan Distrito Verde</span>
-              <span class="banner-sub">Consulta las actividades programadas</span>
+            <div class="action-text">
+              <span class="action-title">Programación — Plan Distrito Verde</span>
+              <span class="action-desc">Consulta las actividades programadas</span>
             </div>
-            <svg class="banner-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </section>
-          <button class="action-card primary" on:click={() => navigate("visita")}>
+            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button class="action-card" on:click={() => navigate("visita")}>
             <div class="action-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 1 0 0-5 1.5 1.5 0 0 1 0-3"/><path d="M14.5 10a4 4 0 0 0 0-8"/><path d="M8.5 10a4 4 0 0 1 0-8"/><path d="M2 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 0 1 0-5C3.5 5 3 3.5 3 2"/><path d="M12 22V10"/><path d="M2 10h20"/></svg>
             </div>
@@ -354,53 +354,6 @@
     padding: 1.5rem 1.25rem 3rem;
   }
 
-  .banner {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.875rem 1rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all var(--transition);
-    width: 100%;
-    text-align: left;
-  }
-  .banner:hover {
-    border-color: var(--primary);
-    box-shadow: var(--shadow);
-  }
-  .banner-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius);
-    background: var(--surface-alt);
-    color: var(--primary);
-    flex-shrink: 0;
-  }
-  .banner-text {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-  .banner-title {
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: var(--text-primary);
-  }
-  .banner-sub {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-  .banner-arrow {
-    color: var(--text-muted);
-    flex-shrink: 0;
-  }
-
   .welcome {
     margin-bottom: 1.25rem;
   }
@@ -438,13 +391,6 @@
     border-color: var(--primary);
     box-shadow: var(--shadow);
   }
-  .action-card.primary {
-    border-color: var(--primary);
-    background: rgba(5, 150, 105, 0.03);
-  }
-  .action-card.primary:hover {
-    background: rgba(5, 150, 105, 0.06);
-  }
 
   .action-icon {
     display: flex;
@@ -456,10 +402,6 @@
     background: var(--surface-alt);
     color: var(--text-secondary);
     flex-shrink: 0;
-  }
-  .action-card.primary .action-icon {
-    background: rgba(5, 150, 105, 0.08);
-    color: var(--primary);
   }
 
   .action-text {
