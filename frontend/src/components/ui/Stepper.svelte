@@ -61,7 +61,9 @@
       >
         <div class="step-indicator">
           {#if status === "completed"}
-            <span class="check-icon">✓</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
           {:else}
             <span class="step-number">{index + 1}</span>
           {/if}
@@ -180,10 +182,6 @@
     border-color: var(--primary-dark);
   }
 
-  .check-icon {
-    font-size: 1rem;
-  }
-
   .step-label {
     font-size: 0.625rem;
     color: var(--text-secondary);
@@ -234,9 +232,6 @@
       font-size: 0.75rem;
     }
 
-    .check-icon {
-      font-size: 0.875rem;
-    }
   }
 
   /* Dark mode removed */

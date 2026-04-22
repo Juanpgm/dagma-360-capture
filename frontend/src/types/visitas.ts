@@ -66,14 +66,15 @@ export type StepValidation = {
 
 export interface ReconocimientoResponse {
   success: boolean;
-  id: string;
+  id: string | null;
   message: string;
-  coordinates: {
+  nombre_parque?: string | null;
+  coordinates?: {
     type: string;
     coordinates: [number, number];
-  };
-  photosUrl: string[];
-  photos_uploaded: number;
+  } | null;
+  photosUrl?: string[] | null;
+  photos_uploaded?: number | null;
   timestamp: string;
 }
 
@@ -86,6 +87,11 @@ export type { GrupoFormType };
 
 export interface PlantaEntry {
   nombre: string;
+  cantidad: number;
+}
+
+export interface ArbolEntry {
+  especie: string; // "Nombre común (Nombre científico)"
   cantidad: number;
 }
 

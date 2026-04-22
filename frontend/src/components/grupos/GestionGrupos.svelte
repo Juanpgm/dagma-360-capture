@@ -1,30 +1,29 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, tick } from "svelte";
   import { ApiClient } from "../../lib/api-client";
   import { getUsers } from "../../api/admin";
   import { authStore, permissions } from "../../stores/authStore";
   import CambiarRolModal from "./CambiarRolModal.svelte";
    import { normalizeRole, ROLE_LABELS, ROLE_COLORS } from "../../lib/permissions";
   import { verificarRegistroPersonalOperativo } from '../../api/verificarPersonal';
-  import type { VerificarRegistroResult } from '../../api/verificarPersonal';
+  import { GRUPO_DISPLAY_NAMES, type GrupoKey } from "../../lib/grupos";
+
+  function grupoLabel(g: string | null | undefined): string {
+    if (!g) return '';
+    return GRUPO_DISPLAY_NAMES[g as GrupoKey] ?? g.charAt(0).toUpperCase() + g.slice(1);
+  }
   // Estado para verificación de registro
   let verificando = false;
-  let verificacionResultados: VerificarRegistroResult[] = [];
-  let verificacionError = "";
+  let verificacionMap = new Map<string, boolean>(); // id → registrado
 
   async function verificarPersonal() {
     verificando = true;
-    verificacionError = "";
     try {
-      const ids = personalFiltrado.map(p => p.id);
-      if (!ids.length) {
-        verificacionResultados = [];
-        return;
-      }
-      const res = await verificarRegistroPersonalOperativo(ids);
-      verificacionResultados = [...(res.registrados || []), ...(res.no_registrados || [])];
+      // El endpoint verifica TODO el personal; filtramos por grupo si hay uno seleccionado
+      const grupo = selectedGrupo?.nombre;
+      verificacionMap = await verificarRegistroPersonalOperativo(grupo);
     } catch (e: any) {
-      verificacionError = e?.message ?? "Error al verificar registro";
+      console.warn('verificarPersonal error:', e?.message);
     } finally {
       verificando = false;
     }
@@ -103,6 +102,9 @@
   $: if (!$permissions.canSeeAllGroups && gruposVisibles.length > 0 && selectedGrupoId === null) {
     selectedGrupoId = gruposVisibles[0].id;
   }
+
+  // ── Tab activa: operarios | usuarios ──
+  let activeTab: 'operarios' | 'usuarios' = 'operarios';
 
   // ── Modal cambiar rol ──
 
@@ -227,10 +229,12 @@
     }
   }
 
-  onMount(() => {
-    fetchGrupos();
-    fetchPersonal();
-    fetchUsuarios();
+  onMount(async () => {
+    await fetchGrupos();
+    await fetchPersonal();
+    await fetchUsuarios();
+    await tick();
+    verificarPersonal();
   });
 
   onDestroy(() => {
@@ -325,10 +329,30 @@
           {#if selectedGrupo}
             Personal · <strong>{selectedGrupo.nombre}</strong>
           {:else}
-            Todo el Personal Operativo
+            Todo el Personal
           {/if}
         </div>
         <span class="count-badge">{personalFiltrado.length + usuariosFiltrado.length}</span>
+      </div>
+      <div class="panel-tabs">
+        <button
+          class="panel-tab"
+          class:active={activeTab === 'operarios'}
+          on:click={() => activeTab = 'operarios'}
+        >
+          Operarios
+          {#if personalFiltrado.length > 0}<span class="tab-count">{personalFiltrado.length}</span>{/if}
+        </button>
+        {#if $permissions.canManageUsers}
+          <button
+            class="panel-tab"
+            class:active={activeTab === 'usuarios'}
+            on:click={() => activeTab = 'usuarios'}
+          >
+            Usuarios del Sistema
+            {#if usuariosFiltrado.length > 0}<span class="tab-count">{usuariosFiltrado.length}</span>{/if}
+          </button>
+        {/if}
       </div>
 
       {#if loadingPersonal || loadingUsuarios}
@@ -355,35 +379,7 @@
         </div>
       {:else}
         <!-- ── Operarios (personal_operativo) ── -->
-        {#if personalFiltrado.length > 0}
-          <div class="list-section-label">Operarios
-            <button class="btn-verificar" on:click={verificarPersonal} disabled={verificando} style="margin-left:1em;">
-              {verificando ? 'Verificando...' : 'Verificar registro en app'}
-            </button>
-          </div>
-          {#if verificacionError}
-            <div class="error-msg">{verificacionError}</div>
-          {/if}
-          {#if verificacionResultados.length > 0}
-            <div class="verificacion-resultados">
-              <div><b>Resultado de verificación:</b></div>
-              <ul>
-                {#each verificacionResultados as p}
-                  <li>
-                    <span>{p.nombre_completo}</span>
-                    {#if p.registrado}
-                      <span style="color:#4ade80;"> ✔ Registrado</span>
-                    {:else}
-                      <span style="color:#fb7185;"> ✖ No registrado</span>
-                    {/if}
-                    {#if p.email}
-                      <span style="color:#888;"> ({p.email})</span>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
+        {#if activeTab === 'operarios' && personalFiltrado.length > 0}
           <div class="personal-grid">
             {#each personalFiltrado as persona (persona.id)}
               <div class="persona-card">
@@ -393,7 +389,7 @@
                 <div class="persona-info">
                   <div class="persona-name">{persona.nombre_completo}</div>
                   <div class="persona-sub">
-                    {#if persona.grupo}<span class="sub-grupo">{persona.grupo}</span><span class="sub-sep">·</span>{/if}
+                    {#if persona.grupo}<span class="sub-grupo">{grupoLabel(persona.grupo)}</span><span class="sub-sep">·</span>{/if}
                     <span class="sub-role sub-role-operador">operador</span>
                   </div>
                   {#if persona.email}
@@ -402,6 +398,13 @@
                   {#if persona.numero_contacto}
                     <div class="persona-id">{persona.numero_contacto}</div>
                   {/if}
+                  {#if verificacionMap.has(persona.id)}
+                    {#if verificacionMap.get(persona.id)}
+                      <span class="badge-app badge-app-si">✔ En app</span>
+                    {:else}
+                      <span class="badge-app badge-app-no">✖ Sin registro</span>
+                    {/if}
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -409,8 +412,7 @@
         {/if}
 
         <!-- ── Usuarios del sistema (admin/users, con control de rol) ── -->
-        {#if $permissions.canManageUsers && usuariosFiltrado.length > 0}
-          <div class="list-section-label">Usuarios del Sistema</div>
+        {#if activeTab === 'usuarios' && $permissions.canManageUsers && usuariosFiltrado.length > 0}
           <div class="personal-grid">
             {#each usuariosFiltrado as usuario (usuario.id)}
               <div class="persona-card" class:can-edit={$permissions.canChangeRoles}>
@@ -426,7 +428,7 @@
                   <div class="persona-name">{usuario.nombre_completo}</div>
                   {#if usuario.grupo || usuario.nombre_centro_gestor || usuario.role || usuario.rol}
                     <div class="persona-sub">
-                      {#if usuario.grupo ?? usuario.nombre_centro_gestor}<span class="sub-grupo">{usuario.grupo ?? usuario.nombre_centro_gestor}</span>{/if}
+                      {#if usuario.grupo ?? usuario.nombre_centro_gestor}<span class="sub-grupo">{grupoLabel(usuario.grupo ?? usuario.nombre_centro_gestor)}</span>{/if}
                       {#if (usuario.grupo ?? usuario.nombre_centro_gestor) && (usuario.role || usuario.rol)}<span class="sub-sep">·</span>{/if}
                       {#if usuario.role || usuario.rol}
                         {@const rolNorm = normalizeRole(usuario.role ?? usuario.rol ?? 'operador')}
@@ -635,22 +637,6 @@
     padding: 0.25rem 0.5rem 0.5rem;
   }
 
-  .list-section-label {
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    padding: 0.75rem 1rem 0.25rem;
-    border-top: 1px solid var(--border-light);
-    margin-top: 0.25rem;
-  }
-  .list-section-label:first-child {
-    border-top: none;
-    margin-top: 0;
-    padding-top: 0.25rem;
-  }
-
   .grupo-item {
     display: flex;
     align-items: center;
@@ -819,6 +805,24 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .badge-app {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .badge-app-si {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
+  .badge-app-no {
+    background: #fff1f2;
+    color: #e11d48;
+  }
+
   /* Inline sub-line: grupo · rol */
   .persona-sub {
     display: flex;
@@ -831,6 +835,54 @@
   .sub-sep { opacity: 0.35; }
   .sub-grupo { color: var(--text-secondary); }
   .sub-role { font-weight: 500; text-transform: capitalize; }
+
+  /* ── Panel tabs ─────────────────────────────────────── */
+  .panel-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border-light);
+    padding: 0 1rem;
+    background: var(--surface-alt);
+  }
+  .panel-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition);
+    margin-bottom: -1px;
+  }
+  .panel-tab:hover {
+    color: var(--text-secondary);
+  }
+  .panel-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+  .tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+  }
+  .panel-tab.active .tab-count {
+    background: var(--primary);
+    color: white;
+  }
 
   /* Floating edit-rol button — appears on card hover */
   .persona-card {

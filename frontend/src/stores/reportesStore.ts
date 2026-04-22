@@ -13,7 +13,7 @@ import type {
   EvidenciaReporte,
 } from '../types/reportes';
 import { obtenerReportes } from '../api/visitas';
-// Removed GRUPO_KEYS import as per the requirement
+import { GRUPO_KEYS } from '../lib/grupos';
 import { generateAvanceId } from '../types/reportes';
 
 /* ============================================================
@@ -47,16 +47,17 @@ function createReportesStore() {
       update((state) => ({ ...state, loading: true, error: null }));
       
       try {
-        // Removed GRUPO_KEYS usage as per the requirement
-        const resultados = await Promise.allSettled([]);
-        
-        const grupoLabels = ['Cuadrilla', 'Vivero', 'Gobernanza', 'Ecosistemas', 'UMATA'];
+        const resultados = await Promise.allSettled(
+          GRUPO_KEYS.map((key) => obtenerReportes(key))
+        );
+
         const allReportes: any[] = [];
-        
+
         resultados.forEach((resultado, index) => {
           if (resultado.status === 'fulfilled' && resultado.value?.data) {
+            const grupoKey = GRUPO_KEYS[index];
             resultado.value.data.forEach((r: any) => {
-              allReportes.push({ ...r, grupo: r.grupo || grupoLabels[index] });
+              allReportes.push({ ...r, grupo: r.grupo || grupoKey });
             });
           }
         });

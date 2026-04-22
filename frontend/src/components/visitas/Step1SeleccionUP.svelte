@@ -8,7 +8,6 @@
   export let onSelect: (actividad: ActividadPlanDistritoVerde) => void;
   export let onLoadActividades: () => Promise<void>;
   export let isLoading: boolean;
-  export let userGrupo: string | string[] | null = null;
 
   let searchTerm = "";
 
@@ -31,55 +30,7 @@
     { key: "observaciones", label: "Observaciones", width: "260px" },
   ];
 
-  const normalizeGroupValue = (value: string) =>
-    value
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase();
-
-  const splitGroupValue = (value: string) =>
-    value
-      .split(/[;,/|]/g)
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-  const toGroupStrings = (value: unknown): string[] => {
-    if (!value) return [];
-    if (Array.isArray(value)) {
-      return value.flatMap((item) => toGroupStrings(item));
-    }
-    if (typeof value === "string" || typeof value === "number") {
-      return splitGroupValue(String(value));
-    }
-    if (typeof value === "object") {
-      const nested =
-        (value as { grupo?: string; nombre?: string; name?: string }).grupo ||
-        (value as { nombre?: string }).nombre ||
-        (value as { name?: string }).name ||
-        "";
-      return nested ? splitGroupValue(String(nested)) : [];
-    }
-    return [];
-  };
-
-  $: normalizedUserGroups = toGroupStrings(userGrupo)
-    .map((grupo) => normalizeGroupValue(grupo))
-    .filter(Boolean);
-
-  $: actividadesPorGrupo = normalizedUserGroups.length
-    ? actividades.filter((actividad) => {
-        const normalizedActivityGroups = toGroupStrings(
-          actividad.grupos_requeridos || [],
-        ).map((grupo) => normalizeGroupValue(grupo));
-        return normalizedActivityGroups.some((grupo) =>
-          normalizedUserGroups.includes(grupo),
-        );
-      })
-    : [];
-
-  $: filteredActividades = actividadesPorGrupo.filter((actividad) => {
+  $: filteredActividades = actividades.filter((actividad) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     const direccion = actividad.punto_encuentro?.direccion || "";
@@ -182,9 +133,7 @@
             {#if filteredActividades.length === 0}
               <tr>
                 <td colspan={columns.length + 1} class="empty-state">
-                  {normalizedUserGroups.length === 0
-                    ? "No se pudo determinar el grupo del usuario"
-                    : "No se encontraron actividades para tu grupo"}
+                  No se encontraron actividades
                 </td>
               </tr>
             {:else}
@@ -389,122 +338,10 @@
     flex-wrap: wrap;
   }
 
-  /* GPS Indicator */
-  .gps-indicator {
-    display: flex;
-    align-items: center;
-  }
-
-  .gps-status {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    white-space: nowrap;
-  }
-
-  .gps-status.capturing {
-    background: #fef3c7;
-    color: #92400e;
-    border: 1px solid #fbbf24;
-  }
-
-  .gps-status.active {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #10b981;
-  }
-
-  .gps-status.inactive {
-    background: #f3f4f6;
-    color: #6b7280;
-    border: 1px solid #d1d5db;
-  }
-
-  .spinner-small {
-    width: 14px;
-    height: 14px;
-    border: 2px solid #fbbf24;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-  }
-
-  .btn-retry {
-    padding: 0.125rem 0.5rem;
-    background: white;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    color: #4b5563;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-retry:hover {
-    background: #f9fafb;
-    border-color: #9ca3af;
-  }
-
-  .btn-toggle-columns {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.875rem;
-    background: white;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    color: #374151;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-toggle-columns:hover {
-    background: #f9fafb;
-    border-color: #9ca3af;
-  }
-
   .results-count {
     font-size: 0.875rem;
     color: var(--text-secondary);
     white-space: nowrap;
-  }
-
-  /* Column Selector */
-  .column-selector {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    padding: 1rem;
-  }
-
-  .column-selector-title {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #374151;
-    margin-bottom: 0.75rem;
-  }
-
-  .column-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 0.5rem;
-  }
-
-  .column-option {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: #374151;
-    cursor: pointer;
-  }
-
-  .column-option input[type="checkbox"] {
-    cursor: pointer;
   }
 
   /* Table */
@@ -728,43 +565,6 @@
     color: var(--text-secondary);
   }
 
-  /* Status Badges */
-  .badge {
-    display: inline-block;
-    padding: 0.25rem 0.625rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.025em;
-  }
-
-  .badge-success {
-    background-color: #d1fae5;
-    color: #065f46;
-  }
-
-  .badge-warning {
-    background-color: #fef3c7;
-    color: #92400e;
-  }
-
-  .badge-info {
-    background-color: #dbeafe;
-    color: #1e40af;
-  }
-
-  .badge-secondary {
-    background-color: #f3f4f6;
-    color: #374151;
-  }
-
-  .badge-default {
-    background-color: #e5e7eb;
-    color: #6b7280;
-  }
-
-  /* Selected Preview */
   /* Responsive */
   @media (max-width: 768px) {
     .toolbar {
@@ -778,10 +578,6 @@
 
     .toolbar-actions {
       justify-content: space-between;
-    }
-
-    .column-options {
-      grid-template-columns: 1fr;
     }
 
     .table-container {

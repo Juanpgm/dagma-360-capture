@@ -10,6 +10,24 @@ export const GRUPO_KEYS: GrupoKey[] = [
 	"umata"
 ];
 
+// Nombres para mostrar en UI — UMATA siempre en mayúsculas completas
+export const GRUPO_DISPLAY_NAMES: Record<GrupoKey, string> = {
+	cuadrilla: "Cuadrilla",
+	vivero: "Vivero",
+	gobernanza: "Gobernanza",
+	ecosistemas: "Ecosistemas",
+	umata: "UMATA",
+};
+
+// Descripción corta por grupo para UI de selección
+export const GRUPO_DESCRIPTIONS: Record<GrupoKey, string> = {
+	cuadrilla: "Intervenciones arbóreas: poda, tala, mantenimiento",
+	vivero: "Siembra, trasplante y distribución de material vegetal",
+	gobernanza: "Talleres, capacitaciones y sensibilización ambiental",
+	ecosistemas: "Restauración, monitoreo y control ambiental",
+	umata: "Atención veterinaria y asistencia técnica agropecuaria",
+};
+
 
 // Devuelve los nombres de los grupos operativos disponibles en el sistema.
 // Se obtiene desde el endpoint /grupos/nombres (ajustar si el endpoint real es diferente).

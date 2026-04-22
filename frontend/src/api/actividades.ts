@@ -37,9 +37,13 @@ export async function getActividadesPlanDistritoVerde(grupo?: string): Promise<A
   if (grupo) params.set('grupo', grupo);
   const url = `/api/actividades?${params.toString()}`;
 
+  const token = sessionStorage.getItem('authToken') || localStorage.getItem('token');
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const response = await fetch(url, {
     method: 'GET',
-    headers: { 'Accept': 'application/json' },
+    headers,
     cache: 'no-store',
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -210,28 +214,7 @@ export interface CrearPersonalOperativoResponse {
 export async function crearPersonalOperativo(
   persona: CrearPersonalOperativoRequest,
 ): Promise<CrearPersonalOperativoResponse> {
-  try {
-    const url = '/api/personal_operativo';
-    console.log('[crearPersonalOperativo] POST', url, JSON.stringify(persona));
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(persona),
-      cache: 'no-store',
-    });
-    const text = await response.text();
-    console.log('[crearPersonalOperativo] Response:', response.status, text);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${text}`);
-    }
-    return JSON.parse(text);
-  } catch (error) {
-    console.error('Error al crear personal operativo:', error);
-    throw error;
-  }
+  return ApiClient.post<CrearPersonalOperativoResponse>('/personal_operativo', persona);
 }
 
 /**
@@ -257,29 +240,11 @@ export async function reemplazarPersonalAsignado(
   actividadId: string,
   personal: ReemplazarPersonalItem[],
 ): Promise<ReemplazarPersonalResponse> {
-  try {
-    const url = `/api/actividades/${encodeURIComponent(actividadId)}`;
-    const body = { personal_asignado: personal };
-    console.log('[reemplazarPersonalAsignado] PUT', url, JSON.stringify(body));
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    });
-    const text = await response.text();
-    console.log('[reemplazarPersonalAsignado] Response:', response.status, text);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${text}`);
-    }
-    return JSON.parse(text);
-  } catch (error) {
-    console.error('Error al reemplazar personal asignado:', error);
-    throw error;
-  }
+  const body = { personal_asignado: personal };
+  return ApiClient.put<ReemplazarPersonalResponse>(
+    `/actividades/${encodeURIComponent(actividadId)}`,
+    body,
+  );
 }
 
 /**
@@ -326,24 +291,11 @@ export async function agregarPersonalAsignado(
     const personalFinal = yaExiste ? currentPersonal : [...currentPersonal, persona];
 
     // 3. PUT via /actividades/{id}
-    const url = `/api/actividades/${encodeURIComponent(actividadId)}`;
     const body = { personal_asignado: personalFinal };
-    console.log('[agregarPersonalAsignado] PUT', url, JSON.stringify(body));
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    });
-    const text = await response.text();
-    console.log('[agregarPersonalAsignado] Response:', response.status, text);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${text}`);
-    }
-    return JSON.parse(text);
+    return ApiClient.put<AgregarPersonalResponse>(
+      `/actividades/${encodeURIComponent(actividadId)}`,
+      body,
+    );
   } catch (error) {
     console.error('Error al agregar personal asignado:', error);
     throw error;
@@ -359,16 +311,8 @@ export async function getActividadPorId(
 ): Promise<ActividadPlanDistritoVerde | null> {
   const ts = Date.now();
   const params = new URLSearchParams({ id: actividadId, _t: String(ts) });
-  const url = `/api/actividades?${params.toString()}`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { 'Accept': 'application/json' },
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-  const json: ActividadesAPIResponse = await response.json();
+  const json: ActividadesAPIResponse = await ApiClient.get<ActividadesAPIResponse>(`/actividades?${params.toString()}`);
   if (json.success && json.data && json.data.length > 0) {
     return json.data[0];
   }

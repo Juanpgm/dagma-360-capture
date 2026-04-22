@@ -1,6 +1,7 @@
 // Utilidad para hacer peticiones autenticadas a la API
 import { authStore } from '../stores/authStore';
 import { get } from 'svelte/store';
+import { auth } from './firebase';
 
 
 // Permite alternar entre proxy local o API externa
@@ -35,33 +36,45 @@ export class ApiClient {
   private static _inflight = new Map<string, Promise<unknown>>();
 
   /**
-   * Obtiene headers con autenticación
+   * Obtiene headers con autenticación.
+   * Siempre intenta obtener un token fresco de Firebase (auto-renovado).
    */
   private static async getHeaders(requireAuth = true): Promise<HeadersInit> {
-    const state = get(authStore);
-
     if (!requireAuth) {
       return {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       };
     }
-    
-    if (!state.token) {
-      // Intentar refrescar token
-      const newToken = await authStore.refreshToken();
-      if (!newToken) {
-        throw new Error('No authentication token available');
+
+    // Intentar token fresco de Firebase (se auto-renueva si expira en <5 min)
+    let token: string | null = null;
+    if (auth.currentUser) {
+      try {
+        token = await auth.currentUser.getIdToken();
+        // Actualizar el store con el token fresco
+        authStore.refreshToken && void auth.currentUser.getIdToken(false);
+      } catch {
+        // Fallo al obtener token de Firebase, caer a store
       }
-      return {
-        'Authorization': `Bearer ${newToken}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      };
+    }
+
+    // Fallback: token del store (puede estar en cache)
+    if (!token) {
+      token = get(authStore).token;
+    }
+
+    // Último recurso: forzar refresh
+    if (!token) {
+      token = await authStore.refreshToken();
+    }
+
+    if (!token) {
+      throw new Error('No authentication token available');
     }
 
     return {
-      'Authorization': `Bearer ${state.token}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     };

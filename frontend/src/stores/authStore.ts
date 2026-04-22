@@ -11,6 +11,25 @@ interface AuthState {
   loading: boolean;
 }
 
+/** Llama a /auth/validate-session y devuelve el user enriquecido o null */
+async function fetchFullUserProfile(idToken: string): Promise<any | null> {
+  try {
+    const res = await fetch('/api/auth/validate-session', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.user ?? data ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const createAuthStore = () => {
   const { subscribe, set, update } = writable<AuthState>({
     isAuthenticated: false,
@@ -102,40 +121,44 @@ const createAuthStore = () => {
               });
             } catch (error) {
               console.error('Error parsing user data:', error);
-              // Si hay error, crear usuario básico
               const idToken = await firebaseUser.getIdToken();
+              // Intentar recuperar perfil completo (con grupo/role) del backend
+              const backendUser = await fetchFullUserProfile(idToken);
               const user = {
                 email: firebaseUser.email,
                 uid: firebaseUser.uid,
                 displayName: firebaseUser.displayName,
                 photoURL: firebaseUser.photoURL,
                 roles: [],
-                permissions: []
+                permissions: [],
+                ...backendUser
               };
               localStorage.setItem('token', idToken);
               localStorage.setItem('user', JSON.stringify(user));
               sessionStorage.setItem('authToken', idToken);
               sessionStorage.setItem('userData', JSON.stringify(user));
               set({ isAuthenticated: true, token: idToken, user, loading: false });
-              console.log('✅ Session restored from Firebase with basic user data');
+              console.log('✅ Session restored from Firebase with profile:', { grupo: user.grupo, role: user.role || user.rol });
             }
           } else {
-            // Usuario de Firebase pero sin datos locales, obtener token fresco
+            // Usuario de Firebase pero sin datos locales — buscar perfil completo en el backend
             const idToken = await firebaseUser.getIdToken();
+            const backendUser = await fetchFullUserProfile(idToken);
             const user = {
               email: firebaseUser.email,
               uid: firebaseUser.uid,
               displayName: firebaseUser.displayName,
               photoURL: firebaseUser.photoURL,
               roles: [],
-              permissions: []
+              permissions: [],
+              ...backendUser
             };
             localStorage.setItem('token', idToken);
             localStorage.setItem('user', JSON.stringify(user));
             sessionStorage.setItem('authToken', idToken);
             sessionStorage.setItem('userData', JSON.stringify(user));
             set({ isAuthenticated: true, token: idToken, user, loading: false });
-            console.log('✅ New session created from Firebase user');
+            console.log('✅ Session created from Firebase + backend profile:', { grupo: user.grupo, role: user.role || user.rol });
           }
         } else {
           console.log('ℹ️ No Firebase user detected - user is logged out');

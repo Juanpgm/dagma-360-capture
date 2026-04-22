@@ -25,3 +25,6 @@ yarn-debug.log*
 yarn-error.log*
 
 .vercel
+
+# Reverse engineering artifacts
+reverse_engineering_data/

@@ -3,7 +3,7 @@
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import Select from "../ui/Select.svelte";
-  import type { Coordenadas, PlantaEntry } from "../../types/visitas";
+  import type { Coordenadas, PlantaEntry, ArbolEntry } from "../../types/visitas";
   import type { GrupoFormType } from "../../lib/grupos";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
   import {
@@ -21,37 +21,58 @@
   export let onCaptureGPS: () => Promise<void>;
   export let isLoading: boolean;
 
-  // ── Props para CUADRILLA ──
-  export let isCuadrilla: boolean = false;
-  export let individuosIntervenidos: number | undefined = undefined;
-  export let nombreCientifico: string | undefined = undefined;
-  export let nombreComun: string | undefined = undefined;
-
-  // ── Props para grupo dinámico ──
+  // ── Props grupo ──
   export let grupoFormType: GrupoFormType = "operativo";
-  export let unidadesImpactadas: number | undefined = undefined;
-  export let unidadMedida: string = "";
+
+  // ── Props CUADRILLA ──
+  export let arbolesData: ArbolEntry[] = [{ especie: "", cantidad: 0 }];
+
+  // ── Props VIVERO ──
   export let tiposPlantas: PlantaEntry[] = [{ nombre: "", cantidad: 0 }];
 
-  // ── Opciones CUADRILLA ──
+  // ── Props GOBERNANZA / ECOSISTEMAS / UMATA ──
+  export let unidadesImpactadas: number | undefined = undefined;
+  export let unidadMedida: string = "";
+
+  // ── Tipos de intervención por grupo ──
   const TIPOS_INTERVENCION_CUADRILLA = [
     { label: "Poda", value: "Poda" },
     { label: "Tala", value: "Tala" },
     { label: "Mantenimiento arbóreo", value: "Mantenimiento arbóreo" },
   ];
 
-  const opcionesEspecies = ESPECIES_ARBOLES.map((e) => ({
-    label: `${e.nombre_comun} (${e.nombre_cientifico})`,
-    value: e.nombre_cientifico,
-  }));
+  const TIPOS_INTERVENCION_VIVERO = [
+    { label: "Siembra en sitio definitivo", value: "Siembra en sitio definitivo" },
+    { label: "Trasplante", value: "Trasplante" },
+    { label: "Mantenimiento de vivero", value: "Mantenimiento de vivero" },
+    { label: "Distribución de material vegetal", value: "Distribución de material vegetal" },
+    { label: "Preparación de sustratos", value: "Preparación de sustratos" },
+  ];
 
-  // Cuando se selecciona una especie, también asignar nombre común
-  $: if (isCuadrilla && nombreCientifico) {
-    const match = ESPECIES_ARBOLES.find(
-      (e) => e.nombre_cientifico === nombreCientifico,
-    );
-    if (match) nombreComun = match.nombre_comun;
-  }
+  const TIPOS_INTERVENCION_GOBERNANZA = [
+    { label: "Taller comunitario", value: "Taller comunitario" },
+    { label: "Jornada de sensibilización ambiental", value: "Jornada de sensibilización ambiental" },
+    { label: "Reunión de articulación interinstitucional", value: "Reunión de articulación interinstitucional" },
+    { label: "Capacitación ambiental", value: "Capacitación ambiental" },
+    { label: "Socialización de proyecto", value: "Socialización de proyecto" },
+  ];
+
+  const TIPOS_INTERVENCION_ECOSISTEMAS = [
+    { label: "Restauración ecológica", value: "Restauración ecológica" },
+    { label: "Monitoreo ambiental", value: "Monitoreo ambiental" },
+    { label: "Control de especies invasoras", value: "Control de especies invasoras" },
+    { label: "Revegetalización", value: "Revegetalización" },
+    { label: "Limpieza de cuerpo hídrico", value: "Limpieza de cuerpo hídrico" },
+    { label: "Recuperación de ronda hídrica", value: "Recuperación de ronda hídrica" },
+  ];
+
+  const TIPOS_INTERVENCION_UMATA = [
+    { label: "Atención veterinaria", value: "Atención veterinaria" },
+    { label: "Control sanitario pecuario", value: "Control sanitario pecuario" },
+    { label: "Visita técnica predial", value: "Visita técnica predial" },
+    { label: "Asistencia técnica agropecuaria", value: "Asistencia técnica agropecuaria" },
+    { label: "Diagnóstico predial", value: "Diagnóstico predial" },
+  ];
 
   // ── Opciones de unidad de medida (Ecosistemas) ──
   const UNIDADES_MEDIDA = [
@@ -63,7 +84,18 @@
     { label: "Toneladas", value: "toneladas" },
   ];
 
-  // ── Helpers Vivero: filas dinámicas ──
+  // ── Helpers CUADRILLA: filas dinámicas de árboles ──
+  function addArbolRow() {
+    arbolesData = [...arbolesData, { especie: "", cantidad: 0 }];
+  }
+
+  function removeArbolRow(index: number) {
+    if (arbolesData.length > 1) {
+      arbolesData = arbolesData.filter((_, i) => i !== index);
+    }
+  }
+
+  // ── Helpers VIVERO: filas dinámicas de plantas ──
   function addPlantaRow() {
     tiposPlantas = [...tiposPlantas, { nombre: "", cantidad: 0 }];
   }
@@ -129,7 +161,9 @@
     <!-- GPS Card -->
     <Card padding="md">
       <div class="card-header">
-        <h3 class="card-title">📍 Ubicación GPS</h3>
+        <h3 class="card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px;margin-right:6px"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Ubicación GPS
+        </h3>
         {#if coordenadas}
           <Button
             size="sm"
@@ -147,8 +181,8 @@
           <div class="spinner"></div>
           <p class="loading-text">
             {isAutoCaptureInProgress
-              ? "📍 Capturando ubicación automáticamente..."
-              : "📍 Obteniendo ubicación GPS..."}
+              ? "Capturando ubicación automáticamente..."
+              : "Obteniendo ubicación GPS..."}
           </p>
         </div>
       {:else if coordenadas}
@@ -192,7 +226,7 @@
         <div class="error-box">
           <p class="error-text">⚠️ {gpsError}</p>
           <Button size="sm" onClick={handleCaptureGPS} disabled={isLoading}>
-            {isLoading ? "Reintentando..." : "📍 Reintentar"}
+            {isLoading ? "Reintentando..." : "Reintentar"}
           </Button>
         </div>
       {/if}
@@ -200,10 +234,10 @@
 
     <!-- Formulario de Datos -->
     <Card padding="md">
-      <h3 class="card-title">📝 Datos del Reconocimiento</h3>
+      <h3 class="card-title">Datos del Reconocimiento</h3>
 
       <div class="form-fields">
-        {#if isCuadrilla}
+        {#if grupoFormType === "cuadrilla"}
           <!-- ── Campos específicos CUADRILLA ── -->
           <div class="field">
             <Select
@@ -216,31 +250,55 @@
           </div>
 
           <div class="field">
+            <!-- svelte-ignore a11y-label-has-associated-control -->
+            <label>Árboles Intervenidos <span class="required">*</span></label>
+            {#each arbolesData as arbol, i}
+              <div class="planta-row">
+                <select bind:value={arbol.especie} class="planta-nombre">
+                  <option value="" disabled>Seleccionar especie</option>
+                  {#each ESPECIES_ARBOLES as e}
+                    <option value="{e.nombre_comun} ({e.nombre_cientifico})">
+                      {e.nombre_comun} ({e.nombre_cientifico})
+                    </option>
+                  {/each}
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  bind:value={arbol.cantidad}
+                  placeholder="Cant."
+                  class="planta-cantidad"
+                />
+                {#if arbolesData.length > 1}
+                  <button
+                    type="button"
+                    class="remove-planta-btn"
+                    on:click={() => removeArbolRow(i)}
+                    title="Eliminar fila">✕</button
+                  >
+                {/if}
+              </div>
+            {/each}
+            <button
+              type="button"
+              class="add-planta-btn"
+              on:click={addArbolRow}
+            >
+              + Agregar otro árbol
+            </button>
+          </div>
+        {:else if grupoFormType === "vivero"}
+          <!-- ── Campos VIVERO: filas dinámicas de plantas ── -->
+          <div class="field">
             <Select
-              label="Especie de Árbol"
-              bind:value={nombreCientifico}
-              options={opcionesEspecies}
-              placeholder="Buscar especie..."
-              searchable
+              label="Tipo de Intervención"
+              bind:value={tipoIntervencion}
+              options={TIPOS_INTERVENCION_VIVERO}
+              placeholder="Seleccione tipo de intervención"
               required
             />
           </div>
 
-          <div class="field">
-            <label for="individuos">
-              Número de Individuos Intervenidos <span class="required">*</span>
-            </label>
-            <input
-              id="individuos"
-              type="number"
-              min="1"
-              bind:value={individuosIntervenidos}
-              placeholder="Ej: 5"
-              required
-            />
-          </div>
-        {:else if grupoFormType === "vivero"}
-          <!-- ── Campos VIVERO: filas dinámicas de plantas ── -->
           <div class="field">
             <!-- svelte-ignore a11y-label-has-associated-control -->
             <label>Tipos de Plantas <span class="required">*</span></label>
@@ -300,8 +358,18 @@
         {:else if grupoFormType === "gobernanza"}
           <!-- ── Campos GOBERNANZA ── -->
           <div class="field">
+            <Select
+              label="Tipo de Intervención"
+              bind:value={tipoIntervencion}
+              options={TIPOS_INTERVENCION_GOBERNANZA}
+              placeholder="Seleccione tipo de intervención"
+              required
+            />
+          </div>
+
+          <div class="field">
             <label for="unidades-gobernanza">
-              Unidades Impactadas <span class="required">*</span>
+              Comunidades / Personas Impactadas <span class="required">*</span>
             </label>
             <input
               id="unidades-gobernanza"
@@ -329,6 +397,16 @@
           <!-- ── Campos ECOSISTEMAS ── -->
           <div class="field">
             <Select
+              label="Tipo de Intervención"
+              bind:value={tipoIntervencion}
+              options={TIPOS_INTERVENCION_ECOSISTEMAS}
+              placeholder="Seleccione tipo de intervención"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <Select
               label="Unidad de Medida"
               bind:value={unidadMedida}
               options={UNIDADES_MEDIDA}
@@ -339,7 +417,7 @@
 
           <div class="field">
             <label for="unidades-ecosistemas">
-              Unidades Impactadas <span class="required">*</span>
+              Área / Cantidad Intervenida <span class="required">*</span>
             </label>
             <input
               id="unidades-ecosistemas"
@@ -366,8 +444,18 @@
         {:else if grupoFormType === "umata"}
           <!-- ── Campos UMATA ── -->
           <div class="field">
+            <Select
+              label="Tipo de Intervención"
+              bind:value={tipoIntervencion}
+              options={TIPOS_INTERVENCION_UMATA}
+              placeholder="Seleccione tipo de intervención"
+              required
+            />
+          </div>
+
+          <div class="field">
             <label for="unidades-umata">
-              Unidades Impactadas <span class="required">*</span>
+              Predios / Animales Atendidos <span class="required">*</span>
             </label>
             <input
               id="unidades-umata"

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { authStore, permissions } from "../stores/authStore";
+  import { GRUPO_DISPLAY_NAMES, type GrupoKey } from "../lib/grupos";
 
   type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard" | "grupos";
   let currentView: View = "home";
@@ -56,7 +57,7 @@
     currentUser?.displayName ||
     currentUser?.email ||
     "Usuario";
-  $: userGrupo = currentUser?.grupo || "No asignado";
+  $: userGrupo = (() => { const g = currentUser?.grupo || "No asignado"; return GRUPO_DISPLAY_NAMES[g as GrupoKey] ?? g.charAt(0).toUpperCase() + g.slice(1); })();
   import { normalizeRole, ROLE_LABELS, ROLE_COLORS } from "../lib/permissions";
   $: userRolRaw =
     currentUser?.rol ||
@@ -136,59 +137,70 @@
         {#if navigationError}
           <div class="nav-error">{navigationError}</div>
         {/if}
-        <section class="banner" on:click={() => navigate("convocatorias")} on:keydown={(e) => e.key === 'Enter' && navigate("convocatorias")} role="button" tabindex="0">
-          <div class="banner-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          </div>
-          <div class="banner-text">
-            <span class="banner-title">Programación — Plan Distrito Verde</span>
-            <span class="banner-sub">Consulta las actividades programadas</span>
-          </div>
-          <svg class="banner-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-        </section>
-
         <section class="welcome">
           <h2>Bienvenido</h2>
           <p>Gestión ambiental integral</p>
         </section>
 
-        <div class="actions-grid">
+        <div class="actions-list">
+          <section class="banner" on:click={() => navigate("convocatorias")} on:keydown={(e) => e.key === 'Enter' && navigate("convocatorias")} role="button" tabindex="0">
+            <div class="banner-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="banner-text">
+              <span class="banner-title">Programación — Plan Distrito Verde</span>
+              <span class="banner-sub">Consulta las actividades programadas</span>
+            </div>
+            <svg class="banner-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </section>
           <button class="action-card primary" on:click={() => navigate("visita")}>
             <div class="action-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 1 0 0-5 1.5 1.5 0 0 1 0-3"/><path d="M14.5 10a4 4 0 0 0 0-8"/><path d="M8.5 10a4 4 0 0 1 0-8"/><path d="M2 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 0 1 0-5C3.5 5 3 3.5 3 2"/><path d="M12 22V10"/><path d="M2 10h20"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 1 0 0-5 1.5 1.5 0 0 1 0-3"/><path d="M14.5 10a4 4 0 0 0 0-8"/><path d="M8.5 10a4 4 0 0 1 0-8"/><path d="M2 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 0 1 0-5C3.5 5 3 3.5 3 2"/><path d="M12 22V10"/><path d="M2 10h20"/></svg>
             </div>
-            <h3 class="action-title">Intervención</h3>
-            <p class="action-desc">Registrar intervención ambiental</p>
+            <div class="action-text">
+              <span class="action-title">Intervención</span>
+              <span class="action-desc">Registrar intervención ambiental</span>
+            </div>
+            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
 
           <button class="action-card" on:click={() => navigate("reportes")}>
             <div class="action-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             </div>
-            <h3 class="action-title">Reportes</h3>
-            <p class="action-desc">Historial de intervenciones</p>
+            <div class="action-text">
+              <span class="action-title">Reportes</span>
+              <span class="action-desc">Historial de intervenciones</span>
+            </div>
+            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
 
           <button class="action-card" on:click={() => navigate("dashboard")}>
             <div class="action-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
             </div>
-            <h3 class="action-title">Dashboard</h3>
-            <p class="action-desc">Panel analítico</p>
+            <div class="action-text">
+              <span class="action-title">Dashboard</span>
+              <span class="action-desc">Panel analítico</span>
+            </div>
+            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
 
           {#if $permissions.canManageUsers}
           <button class="action-card" on:click={() => navigate("grupos")}>
             <div class="action-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="9" cy="7" r="4"/>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
             </div>
-            <h3 class="action-title">Grupos y Personal</h3>
-            <p class="action-desc">Gestionar grupos y personal</p>
+            <div class="action-text">
+              <span class="action-title">Grupos y Personal</span>
+              <span class="action-desc">Gestionar grupos y personal</span>
+            </div>
+            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
           {/if}
         </div>
@@ -352,7 +364,8 @@
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: all var(--transition);
-    margin-bottom: 2rem;
+    width: 100%;
+    text-align: left;
   }
   .banner:hover {
     border-color: var(--primary);
@@ -389,67 +402,77 @@
   }
 
   .welcome {
-    text-align: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
   }
   .welcome h2 {
-    font-size: 1.5rem;
+    font-size: 1.375rem;
     font-weight: 700;
-    margin-bottom: 0.25rem;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
   }
   .welcome p {
     color: var(--text-muted);
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
   }
 
-  .actions-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.75rem;
+  .actions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
   }
 
   .action-card {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0.625rem;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 1.5rem 1rem;
-    text-align: center;
     cursor: pointer;
     transition: all var(--transition);
+    text-align: left;
+    width: 100%;
   }
   .action-card:hover {
     border-color: var(--primary);
-    box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
+    box-shadow: var(--shadow);
   }
   .action-card.primary {
     border-color: var(--primary);
-    background: linear-gradient(180deg, rgba(5, 150, 105, 0.04) 0%, var(--surface) 100%);
+    background: rgba(5, 150, 105, 0.03);
+  }
+  .action-card.primary:hover {
+    background: rgba(5, 150, 105, 0.06);
   }
 
   .action-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 52px;
-    height: 52px;
-    border-radius: var(--radius-md);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius);
     background: var(--surface-alt);
     color: var(--text-secondary);
+    flex-shrink: 0;
   }
   .action-card.primary .action-icon {
     background: rgba(5, 150, 105, 0.08);
     color: var(--primary);
   }
 
+  .action-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
   .action-title {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--text-primary);
+    line-height: 1.3;
   }
 
   .action-desc {
@@ -459,12 +482,14 @@
     line-height: 1.4;
   }
 
+  .action-arrow {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
   @media (max-width: 640px) {
     .user-meta {
       display: none;
-    }
-    .actions-grid {
-      grid-template-columns: 1fr;
     }
     .home-content {
       padding: 1rem;

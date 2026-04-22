@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
   import { onMount } from "svelte";
   import {
     visitaStore,
@@ -11,41 +11,35 @@
     type RegistrarIntervencionParams,
   } from "../../api/visitas";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
-  import type { PlantaEntry } from "../../types/visitas";
-  import type { GrupoFormType, GrupoKey } from "../../lib/grupos";
-  import { GRUPO_KEYS } from "../../lib/grupos";
-  // import { getGrupoConfig, type GrupoConfig } from "../../lib/grupos";
+  import type { PlantaEntry, ArbolEntry } from "../../types/visitas";
+  import type { GrupoKey, GrupoFormType } from "../../lib/grupos";
   import Stepper from "../ui/Stepper.svelte";
   import Button from "../ui/Button.svelte";
   import Modal from "../ui/Modal.svelte";
+  import GrupoSelector from "./GrupoSelector.svelte";
   import Step1SeleccionUP from "./Step1SeleccionUP.svelte";
   import Step2Formulario from "./Step2Formulario.svelte";
   import Step3Fotos from "./Step3Fotos.svelte";
 
   export let onClose: () => void;
 
+  let selectedGrupo: GrupoKey | null = null;
+
   let submitting = false;
   let submitError: string | null = null;
   let submitSuccess = false;
   let photoFiles: File[] = [];
 
-  // Variables locales para el formulario Step 2 (necesarias para bindings)
   let tipoIntervencion = "";
   let descripcionIntervencion = "";
   let direccion = "";
   let observaciones = "";
 
-  // Variables CUADRILLA
-  let individuosIntervenidos: number | undefined = undefined;
-  let nombreCientifico: string | undefined = undefined;
-  let nombreComun: string | undefined = undefined;
-
-  // Variables para grupos adicionales
+  let arbolesData: ArbolEntry[] = [{ especie: "", cantidad: 0 }];
   let unidadesImpactadas: number | undefined = undefined;
   let unidadMedida: string = "";
   let tiposPlantas: PlantaEntry[] = [{ nombre: "", cantidad: 0 }];
 
-  // Estado del modal
   let modalOpen = false;
   let modalTitle = "";
   let modalMessage = "";
@@ -55,103 +49,66 @@
   let modalCancelText = "Cancelar";
   let modalOnConfirm: (() => void) | null = null;
 
-  const extractUserGroups = (user: any): string[] => {
-    const groups: string[] = [];
-
-    const addValue = (value: any) => {
-      if (!value) return;
-      if (Array.isArray(value)) {
-        value.forEach(addValue);
-        return;
-      }
-      if (typeof value === "string" || typeof value === "number") {
-        groups.push(String(value));
-        return;
-      }
-      if (typeof value === "object") {
-        const nested =
-          value.grupo ||
-          value.nombre ||
-          value.nombre_grupo ||
-          value.name ||
-          value.label;
-        if (nested) {
-          addValue(nested);
-        }
-      }
-    };
-
-    addValue(
-      user?.grupo ||
-        user?.group ||
-        user?.grupo_nombre ||
-        user?.grupoName ||
-        user?.nombre_grupo,
-    );
-    addValue(user?.grupos);
-    addValue(user?.grupos_requeridos);
-
-    return groups.filter(Boolean);
-  };
-
-  // Suscripción al store
   $: state = $visitaStore;
   $: currentUser = $authStore.user;
-  $: userGrupo = extractUserGroups(currentUser);
-  // Determinar el tipo de formulario según el grupo del usuario
-  $: grupoFormType = ((Array.isArray(userGrupo) ? userGrupo[0] : userGrupo || '') as string).toLowerCase() as GrupoFormType;
+  $: grupoFormType = (selectedGrupo ?? "operativo") as GrupoFormType;
   $: isCuadrilla = grupoFormType === "cuadrilla";
   $: canContinue =
-    currentStep === 3
+    state.currentStep === 3
       ? photoFiles.length > 0
-      : currentStep === 2
+      : state.currentStep === 2
         ? tipoIntervencion &&
           descripcionIntervencion &&
           (isCuadrilla || direccion) &&
-          // Validación específica por grupo
           (grupoFormType === "cuadrilla"
-            ? individuosIntervenidos != null &&
-              individuosIntervenidos > 0 &&
-              nombreCientifico
+            ? arbolesData.some((a) => a.especie && a.cantidad > 0)
             : grupoFormType === "vivero"
               ? tiposPlantas.some((p) => p.nombre && p.cantidad > 0)
-                : grupoFormType === "gobernanza" || 
-                  grupoFormType === "umata"
+              : grupoFormType === "gobernanza" || grupoFormType === "umata"
                 ? unidadesImpactadas != null && unidadesImpactadas > 0
                 : grupoFormType === "ecosistemas"
                   ? unidadMedida &&
                     unidadesImpactadas != null &&
                     unidadesImpactadas > 0
-                  : true) // otros: sin campos extra específicos
+                  : true)
         : $isCurrentStepValid;
-  $: currentStep = state.currentStep;
 
   onMount(() => {
-    // Resetear formulario al montar
+    resetLocalState();
+  });
+
+  function resetLocalState() {
     visitaStore.reset();
-    // Resetear variables locales
     tipoIntervencion = "";
     descripcionIntervencion = "";
     direccion = "";
     observaciones = "";
-    individuosIntervenidos = undefined;
-    nombreCientifico = undefined;
-    nombreComun = undefined;
     unidadesImpactadas = undefined;
     unidadMedida = "";
     tiposPlantas = [{ nombre: "", cantidad: 0 }];
-  });
+    arbolesData = [{ especie: "", cantidad: 0 }];
+    photoFiles = [];
+  }
 
-  // Handlers para Step 1
+  function handleGrupoSelect(grupo: GrupoKey) {
+    selectedGrupo = grupo;
+    resetLocalState();
+  }
+
   function handleActividadSelect(actividad: ActividadPlanDistritoVerde) {
     visitaStore.selectActividad(actividad);
-    // Para CUADRILLA, el tipo se elige manualmente en Step2
     if (!isCuadrilla) {
-      tipoIntervencion = actividad.tipo_jornada || "Sin especificar";
+      const defaults: Partial<Record<string, string>> = {
+        vivero: "Siembra en sitio definitivo",
+        gobernanza: "Jornada de sensibilizacion ambiental",
+        ecosistemas: "Restauracion ecologica",
+        umata: "Visita tecnica predial",
+      };
+      tipoIntervencion =
+        defaults[grupoFormType] || actividad.tipo_jornada || "Sin especificar";
     }
     direccion =
-      actividad.punto_encuentro?.direccion || "Sin dirección registrada";
-    // Avanzar automáticamente al siguiente paso después de seleccionar
+      actividad.punto_encuentro?.direccion || "Sin direccion registrada";
     visitaStore.nextStep();
   }
 
@@ -159,23 +116,19 @@
     await visitaStore.loadActividades();
   }
 
-  // Handlers para Step 2
   async function handleCaptureGPS() {
     await visitaStore.captureGPS();
   }
 
-  // Navegación
   async function handleNext() {
     if (!canContinue) return;
 
-    // Validaciones específicas por paso antes de continuar
-    if (currentStep === 1 && !state.selectedActividad) {
+    if (state.currentStep === 1 && !state.selectedActividad) {
       visitaStore.setError("Debe seleccionar una actividad");
       return;
     }
 
-    // Si estamos en paso 2, sincronizar datos locales al store antes de avanzar
-    if (currentStep === 2) {
+    if (state.currentStep === 2) {
       if (state.selectedActividad && !isCuadrilla) {
         tipoIntervencion ||=
           state.selectedActividad.tipo_jornada || "Sin especificar";
@@ -183,44 +136,25 @@
       if (state.selectedActividad) {
         direccion ||=
           state.selectedActividad.punto_encuentro?.direccion ||
-          "Sin dirección registrada";
+          "Sin direccion registrada";
       }
       const updatePayload: Record<string, any> = {
         tipo_intervencion: tipoIntervencion,
         descripcion_intervencion: descripcionIntervencion,
-        direccion: direccion,
-        observaciones: observaciones,
+        direccion,
+        observaciones,
       };
-      if (grupoFormType === "cuadrilla") {
-        updatePayload.individuos_intervenidos = individuosIntervenidos;
-        updatePayload.nombre_cientifico = nombreCientifico;
-        updatePayload.nombre_comun = nombreComun;
-      }
-      if (grupoFormType === "vivero") {
-        updatePayload.tipos_plantas = tiposPlantas;
-      }
-      if (
-        ["gobernanza", "ecosistemas", "umata"].includes(grupoFormType)
-      ) {
+      if (grupoFormType === "cuadrilla") updatePayload.arboles_data = arbolesData;
+      if (grupoFormType === "vivero") updatePayload.tipos_plantas = tiposPlantas;
+      if (["gobernanza", "ecosistemas", "umata"].includes(grupoFormType)) {
         updatePayload.unidades_impactadas = unidadesImpactadas;
       }
-      if (grupoFormType === "ecosistemas") {
-        updatePayload.unidad_medida = unidadMedida;
-      }
+      if (grupoFormType === "ecosistemas") updatePayload.unidad_medida = unidadMedida;
       visitaStore.updateData(updatePayload);
     }
 
-    // Si estamos en el paso 1 y avanzamos al 2, verificar permisos GPS antes
-    if (currentStep === 1) {
-      const permissionStatus = await visitaStore.checkGPSPermission();
-
-      if (permissionStatus === "unavailable" || permissionStatus === "denied") {
-        // Sin GPS o permiso denegado → continuar con coordenadas por defecto (Cali)
-        // No bloqueamos el flujo; geolocation.ts ya aplica el fallback al capturar.
-      }
-
-      // Si el permiso es 'prompt', el navegador pedirá permiso automáticamente cuando intentemos capturar
-      // Si el permiso es 'granted', continuamos normalmente
+    if (state.currentStep === 1) {
+      await visitaStore.checkGPSPermission();
     }
 
     visitaStore.setError(null);
@@ -238,27 +172,24 @@
   function handleModalClose() {
     modalOpen = false;
     if (modalType === "success") {
-      visitaStore.reset();
+      selectedGrupo = null;
+      resetLocalState();
       onClose();
     }
   }
 
   function handleModalConfirm() {
     modalOpen = false;
-    if (modalOnConfirm) {
-      modalOnConfirm();
-    }
+    if (modalOnConfirm) modalOnConfirm();
   }
 
-  // Envío del formulario
   async function handleSubmit() {
-    if (!canContinue) return;
+    if (!canContinue || !selectedGrupo) return;
 
     submitError = null;
     submitting = true;
 
     try {
-      // Sincronizar las variables locales al store antes del envío
       if (state.selectedActividad && !isCuadrilla) {
         tipoIntervencion ||=
           state.selectedActividad.tipo_jornada || "Sin especificar";
@@ -266,34 +197,23 @@
       if (state.selectedActividad) {
         direccion ||=
           state.selectedActividad.punto_encuentro?.direccion ||
-          "Sin dirección registrada";
+          "Sin direccion registrada";
       }
 
       const updatePayload: Record<string, any> = {
         tipo_intervencion: tipoIntervencion,
         descripcion_intervencion: descripcionIntervencion,
-        direccion: direccion,
-        observaciones: observaciones,
+        direccion,
+        observaciones,
       };
-      if (grupoFormType === "cuadrilla") {
-        updatePayload.individuos_intervenidos = individuosIntervenidos;
-        updatePayload.nombre_cientifico = nombreCientifico;
-        updatePayload.nombre_comun = nombreComun;
-      }
-      if (grupoFormType === "vivero") {
-        updatePayload.tipos_plantas = tiposPlantas;
-      }
-      if (
-        ["gobernanza", "ecosistemas", "umata"].includes(grupoFormType)
-      ) {
+      if (grupoFormType === "cuadrilla") updatePayload.arboles_data = arbolesData;
+      if (grupoFormType === "vivero") updatePayload.tipos_plantas = tiposPlantas;
+      if (["gobernanza", "ecosistemas", "umata"].includes(grupoFormType)) {
         updatePayload.unidades_impactadas = unidadesImpactadas;
       }
-      if (grupoFormType === "ecosistemas") {
-        updatePayload.unidad_medida = unidadMedida;
-      }
+      if (grupoFormType === "ecosistemas") updatePayload.unidad_medida = unidadMedida;
       visitaStore.updateData(updatePayload);
 
-      // Validar que todos los campos requeridos estén completos
       const data = state.data;
 
       if (
@@ -303,34 +223,18 @@
         photoFiles.length === 0
       ) {
         throw new Error(
-          "Faltan campos requeridos. Asegúrese de completar todos los pasos incluyendo al menos una foto.",
+          "Faltan campos requeridos. Complete todos los pasos incluyendo al menos una foto.",
         );
       }
 
-      // Validación adicional para NO-CUADRILLA
-      if (!isCuadrilla && !direccion) {
-        throw new Error("La dirección es requerida");
-      }
+      if (!isCuadrilla && !direccion) throw new Error("La direccion es requerida");
 
-      console.log("Enviando reconocimiento al servidor...", {
-        actividad: state.selectedActividad.objetivo_actividad,
-        tipo: data.tipo_intervencion,
-        direccion: data.direccion,
-      });
-
-      // Preparar coordenadas: Usar GPS capturado O fallback al punto de encuentro
       let finalCoordenadas = data.coordenadas_gps;
       let finalCoordinatesData = data.coordinates_data;
       let finalCoordinatesType = data.coordinates_type || "Point";
 
-      // Si no hay GPS capturado, usar ubicación de la actividad
       if (!finalCoordenadas && state.selectedActividad) {
-        console.log(
-          "⚠️ No hay GPS capturado, usando punto de encuentro de la actividad...",
-        );
-        const actividad = state.selectedActividad;
-        const geometry = actividad.punto_encuentro?.geometry;
-
+        const geometry = state.selectedActividad.punto_encuentro?.geometry;
         if (geometry?.coordinates && geometry.coordinates.length >= 2) {
           const [lon, lat] = geometry.coordinates;
           finalCoordenadas = {
@@ -341,21 +245,21 @@
           };
           finalCoordinatesType = geometry.type || "Point";
           finalCoordinatesData = JSON.stringify([lon, lat]);
-          console.log("✅ Usando punto de encuentro:", finalCoordenadas);
         }
       }
 
-      // Validación final de coordenadas — fallback a Cali si todo falla
       if (!finalCoordenadas) {
-        finalCoordenadas = { latitude: 3.4516, longitude: -76.5320, accuracy: 0, timestamp: Date.now() };
+        finalCoordenadas = {
+          latitude: 3.4516,
+          longitude: -76.532,
+          accuracy: 0,
+          timestamp: Date.now(),
+        };
         finalCoordinatesType = "Point";
-        finalCoordinatesData = JSON.stringify([-76.5320, 3.4516]);
+        finalCoordinatesData = JSON.stringify([-76.532, 3.4516]);
       }
 
-      let response;
-
-      // Campos comunes para el endpoint unificado
-      const commonFields = {
+      const params: RegistrarIntervencionParams = {
         tipo_intervencion: tipoIntervencion,
         descripcion_intervencion: descripcionIntervencion,
         registrado_por:
@@ -363,40 +267,25 @@
           currentUser?.displayName ||
           currentUser?.email ||
           "Usuario",
-        grupo: currentUser?.grupo || userGrupo[0] || grupoFormType,
+        grupo: selectedGrupo!,
         id_actividad: state.selectedActividad?.id || "",
         observaciones: observaciones || "",
         coordinates_type: finalCoordinatesType,
         coordinates_data:
           finalCoordinatesData ||
-          JSON.stringify([
-            finalCoordenadas.longitude,
-            finalCoordenadas.latitude,
-          ]),
+          JSON.stringify([finalCoordenadas.longitude, finalCoordenadas.latitude]),
+        direccion: direccion || "Sin direccion registrada",
       };
 
-      const params: RegistrarIntervencionParams = {
-        common: commonFields,
-        direccion: direccion || "Sin dirección registrada",
-      };
-
-      // Campos específicos por grupo
       switch (grupoFormType) {
         case "cuadrilla": {
-          if (!nombreComun || !nombreCientifico) {
-            throw new Error("Debe seleccionar una especie de árbol");
+          const arbolesValidos = arbolesData.filter(
+            (a) => a.especie && a.cantidad > 0,
+          );
+          if (arbolesValidos.length === 0) {
+            throw new Error("Debe agregar al menos un arbol con especie y cantidad");
           }
-          if (!individuosIntervenidos || individuosIntervenidos < 1) {
-            throw new Error(
-              "Debe indicar el número de individuos intervenidos",
-            );
-          }
-          params.arboles_data = JSON.stringify([
-            {
-              especie: `${nombreComun} (${nombreCientifico})`,
-              cantidad: individuosIntervenidos,
-            },
-          ]);
+          params.arboles_data = JSON.stringify(arbolesValidos);
           break;
         }
         case "vivero": {
@@ -422,9 +311,7 @@
           break;
         }
         case "ecosistemas": {
-          if (!unidadMedida) {
-            throw new Error("Debe seleccionar una unidad de medida");
-          }
+          if (!unidadMedida) throw new Error("Debe seleccionar una unidad de medida");
           if (!unidadesImpactadas || unidadesImpactadas < 1) {
             throw new Error("Debe indicar las unidades impactadas");
           }
@@ -434,52 +321,28 @@
         }
       }
 
-      if (!GRUPO_KEYS.includes(grupoFormType as GrupoKey)) {
-        throw new Error(`El grupo "${grupoFormType}" no es válido para registrar intervenciones`);
-      }
-      response = await registrarIntervencion(
-        grupoFormType as GrupoKey,
-        params,
-        photoFiles,
-      );
+      const response = await registrarIntervencion(selectedGrupo, params, photoFiles);
 
       if (response.success) {
         submitSuccess = true;
-        console.log("Reconocimiento registrado exitosamente:", response);
-
-        // Mostrar modal de éxito
-        modalTitle = "¡Reconocimiento Registrado!";
-        modalMessage =
-          "El reconocimiento de la actividad se ha guardado correctamente.";
+        modalTitle = "Reporte Registrado";
+        modalMessage = "El reporte de intervencion se ha guardado correctamente.";
         modalType = "success";
         modalShowCancel = false;
         modalConfirmText = "Entendido";
         modalOpen = true;
       }
     } catch (error) {
-      console.error("Error al enviar reconocimiento:", error);
-
-      // Extraer mensaje de error de diferentes formatos
-      let errorMessage = "Error al registrar la verificación";
-
+      console.error("Error al enviar reporte:", error);
+      let errorMessage = "Error al registrar el reporte";
       if (error instanceof Error) {
         errorMessage = error.message;
-      } else if (typeof error === "string") {
-        errorMessage = error;
       } else if (error && typeof error === "object") {
-        // Intentar extraer mensaje de diferentes propiedades comunes
-        const errorObj = error as any;
+        const e = error as any;
         errorMessage =
-          errorObj.message ||
-          errorObj.error ||
-          errorObj.detail ||
-          errorObj.msg ||
-          JSON.stringify(error);
+          e.message || e.error || e.detail || e.msg || JSON.stringify(error);
       }
-
       submitError = errorMessage;
-
-      // Mostrar modal de error
       modalTitle = "Error";
       modalMessage = errorMessage;
       modalType = "error";
@@ -492,142 +355,145 @@
   }
 
   function handleCancel() {
-    modalTitle = "¿Cancelar reconocimiento?";
-    modalMessage = "Se perderán todos los datos ingresados hasta el momento.";
+    modalTitle = "Cancelar reporte?";
+    modalMessage = "Se perderan todos los datos ingresados.";
     modalType = "warning";
     modalShowCancel = true;
-    modalConfirmText = "Sí, cancelar";
+    modalConfirmText = "Si, cancelar";
     modalCancelText = "Volver";
     modalOnConfirm = () => {
-      visitaStore.reset();
+      selectedGrupo = null;
+      resetLocalState();
       onClose();
     };
     modalOpen = true;
   }
 </script>
 
-<div class="visita-container">
-  <!-- Header -->
-  <div class="visita-header">
-    <div class="header-content">
-      <button class="back-btn" on:click={handleCancel}>
-        <span class="back-icon">←</span>
-      </button>
-      <h1 class="header-title">Reconocimiento de Actividad</h1>
+{#if !selectedGrupo}
+  <GrupoSelector onSelect={handleGrupoSelect} onCancel={onClose} />
+{:else}
+  <div class="visita-container">
+    <div class="visita-header">
+      <div class="header-content">
+        <button class="back-btn" on:click={handleCancel} aria-label="Cancelar">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+        <h1 class="header-title">Reconocimiento de Actividad</h1>
+      </div>
     </div>
-  </div>
 
-  <!-- Stepper -->
-  <div class="stepper-section">
-    <Stepper
-      currentStep={state.currentStep}
-      steps={stepNames}
-      completedSteps={state.completedSteps}
-      onStepClick={handleStepClick}
+    <div class="stepper-section">
+      <Stepper
+        currentStep={state.currentStep}
+        steps={stepNames}
+        completedSteps={state.completedSteps}
+        onStepClick={handleStepClick}
+      />
+    </div>
+
+    <div class="step-content">
+      {#if state.currentStep === 1}
+        <Step1SeleccionUP
+          actividades={state.actividades}
+          selectedActividad={state.selectedActividad}
+          onSelect={handleActividadSelect}
+          onLoadActividades={handleLoadActividades}
+          isLoading={state.isLoading}
+        />
+      {:else if state.currentStep === 2}
+        <Step2Formulario
+          coordenadas={state.data.coordenadas_gps}
+          bind:tipoIntervencion
+          bind:descripcionIntervencion
+          bind:direccion
+          bind:observaciones
+          selectedActividad={state.selectedActividad ?? undefined}
+          onCaptureGPS={handleCaptureGPS}
+          isLoading={state.isLoading}
+          {grupoFormType}
+          bind:arbolesData
+          bind:unidadesImpactadas
+          bind:unidadMedida
+          bind:tiposPlantas
+        />
+      {:else if state.currentStep === 3}
+        <Step3Fotos bind:photoFiles />
+      {/if}
+
+      {#if state.error}
+        <div class="global-error">{state.error}</div>
+      {/if}
+
+      <div class="navigation-footer">
+        <div class="nav-buttons">
+          {#if state.currentStep > 1}
+            <div class="btn-wrapper left">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={handleBack}
+                disabled={submitting}
+              >
+                Atras
+              </Button>
+            </div>
+          {:else}
+            <div class="btn-wrapper left"></div>
+          {/if}
+
+          {#if state.currentStep < 3}
+            <div class="btn-wrapper right">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={handleNext}
+                disabled={!canContinue || state.isLoading}
+              >
+                Continuar
+              </Button>
+            </div>
+          {:else}
+            <div class="btn-wrapper right">
+              <Button
+                variant="primary"
+                size="md"
+                fullWidth={true}
+                onClick={handleSubmit}
+                disabled={!canContinue || submitting}
+              >
+                {submitting ? "Enviando..." : "Finalizar"}
+              </Button>
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+
+    <Modal
+      isOpen={modalOpen}
+      title={modalTitle}
+      message={modalMessage}
+      type={modalType}
+      showCancel={modalShowCancel}
+      confirmText={modalConfirmText}
+      cancelText={modalCancelText}
+      on:close={handleModalClose}
+      on:confirm={handleModalConfirm}
     />
   </div>
-
-  <!-- Contenido del paso actual -->
-  <div class="step-content">
-    {#if currentStep === 1}
-      <Step1SeleccionUP
-        actividades={state.actividades}
-        selectedActividad={state.selectedActividad}
-        onSelect={handleActividadSelect}
-        onLoadActividades={handleLoadActividades}
-        isLoading={state.isLoading}
-        {userGrupo}
-      />
-    {:else if currentStep === 2}
-      <Step2Formulario
-        coordenadas={state.data.coordenadas_gps}
-        bind:tipoIntervencion
-        bind:descripcionIntervencion
-        bind:direccion
-        bind:observaciones
-        selectedActividad={state.selectedActividad ?? undefined}
-        onCaptureGPS={handleCaptureGPS}
-        isLoading={state.isLoading}
-        {isCuadrilla}
-        grupoFormType={grupoFormType}
-        bind:individuosIntervenidos
-        bind:nombreCientifico
-        bind:nombreComun
-        bind:unidadesImpactadas
-        bind:unidadMedida
-        bind:tiposPlantas
-      />
-    {:else if currentStep === 3}
-      <Step3Fotos bind:photoFiles />
-    {/if}
-
-    <!-- Error global -->
-    {#if state.error}
-      <div class="global-error">
-        {state.error}
-      </div>
-    {/if}
-
-    <!-- Navegación inferior (dentro del flujo) -->
-    <div class="navigation-footer">
-      <div class="nav-buttons">
-        {#if currentStep > 1}
-          <div class="btn-wrapper left">
-            <Button
-              variant="outline"
-              size="md"
-              onClick={handleBack}
-              disabled={submitting}
-            >
-              Atrás
-            </Button>
-          </div>
-        {:else}
-          <div class="btn-wrapper left"></div>
-          <!-- Spacer -->
-        {/if}
-
-        {#if currentStep < 3}
-          <div class="btn-wrapper right">
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleNext}
-              disabled={!canContinue || state.isLoading}
-            >
-              Continuar
-            </Button>
-          </div>
-        {:else}
-          <div class="btn-wrapper right">
-            <Button
-              variant="primary"
-              size="md"
-              fullWidth={true}
-              onClick={handleSubmit}
-              disabled={!canContinue || submitting}
-            >
-              {submitting ? "Enviando..." : "Finalizar"}
-            </Button>
-          </div>
-        {/if}
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal de confirmación -->
-  <Modal
-    isOpen={modalOpen}
-    title={modalTitle}
-    message={modalMessage}
-    type={modalType}
-    showCancel={modalShowCancel}
-    confirmText={modalConfirmText}
-    cancelText={modalCancelText}
-    on:close={handleModalClose}
-    on:confirm={handleModalConfirm}
-  />
-</div>
+{/if}
 
 <style>
   .visita-container {
@@ -635,7 +501,7 @@
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    background: #f9fafb; /* Light background always */
+    background: #f9fafb;
   }
 
   .visita-header {
@@ -671,15 +537,11 @@
     cursor: pointer;
     transition: background 0.2s ease;
     -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
   }
 
   .back-btn:hover {
     background: #f3f4f6;
-  }
-
-  .back-icon {
-    font-size: 1.25rem;
-    line-height: 1;
   }
 
   .header-title {
@@ -694,7 +556,7 @@
     padding: 0 1rem;
     border-bottom: 1px solid #f3f4f6;
     position: sticky;
-    top: 53px; /* Height of header + padding */
+    top: 53px;
     z-index: 99;
   }
 
@@ -722,8 +584,8 @@
   }
 
   .navigation-footer {
-    margin-top: auto; /* Push to bottom of flex container */
-    padding: 2rem 1rem 1rem 1rem; /* Top margin/padding from content */
+    margin-top: auto;
+    padding: 2rem 1rem 1rem 1rem;
     width: 100%;
     max-width: 600px;
     margin-left: auto;

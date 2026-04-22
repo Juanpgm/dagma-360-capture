@@ -1,9 +1,9 @@
-import type {
-  ReconocimientoResponse,
-  IntervencionCommonData,
-} from '../types/visitas';
+import type { ReconocimientoResponse } from '../types/visitas';
 import type { GrupoKey } from '../lib/grupos';
 import { ApiClient } from '../lib/api-client';
+import { authStore } from '../stores/authStore';
+import { get } from 'svelte/store';
+import { auth } from '../lib/firebase';
 
 // ── Types ──
 
@@ -12,7 +12,7 @@ export interface ReporteIntervencion {
   registrado_por: string | null;
   grupo: string | null;
   observaciones: string;
-  coordinates: {
+  coordinates?: {
     type: string;
     coordinates: string;
   };
@@ -31,6 +31,17 @@ export interface ReporteIntervencion {
   unidades_impactadas?: number | null;
   unidad_medida?: string | null;
   direccion?: string | null;
+  documentos_con_enlaces?: Array<{
+    filename?: string;
+    s3_key?: string;
+    s3_url?: string;
+    content_type?: string;
+    size?: number;
+    url_visualizar?: string;   // presigned inline — use for display
+    url_presigned?: string;    // alias of url_visualizar
+    url_descarga?: string;     // presigned attachment
+    url_expiration_seconds?: number;
+  }>;
   coordinates_data?: [number, number];
   fecha_registro?: string;
   comuna?: string;
@@ -41,6 +52,32 @@ export interface ReportesIntervencionResponse {
   success: boolean;
   total: number;
   data: ReporteIntervencion[];
+}
+
+// ── Pagination types (new unified endpoint) ──
+
+export interface PaginationMeta {
+  page: number;
+  per_page: number;
+  total: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+export interface ObtenerReportesAllFilters {
+  grupo?: string;
+  id_actividad?: string;
+  page?: number;
+  per_page?: number;
+  slim?: boolean;
+}
+
+export interface PaginatedReportesAllResponse {
+  data: ReporteIntervencion[];
+  pagination: PaginationMeta;
+  totals: Record<string, number>;
+  total_general: number;
 }
 
 // ── Helpers ──
@@ -54,26 +91,62 @@ function buildApiUrl(path: string): string {
   return API_BASE + path;
 }
 
-function appendCommonFields(formData: FormData, data: IntervencionCommonData): void {
-  formData.append('tipo_intervencion', data.tipo_intervencion);
-  formData.append('descripcion_intervencion', data.descripcion_intervencion);
-  formData.append('registrado_por', data.registrado_por || '');
-  formData.append('grupo', data.grupo || '');
-  formData.append('id_actividad', data.id_actividad || '');
-  formData.append('observaciones', data.observaciones || '');
-  formData.append('coordinates_type', data.coordinates_type || 'Point');
-  formData.append('coordinates_data', data.coordinates_data);
+// MIME types accepted by the backend
+const BACKEND_ALLOWED_MIME = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic',
+]);
+
+/** Convert any image File to JPEG via Canvas (for formats the backend rejects, e.g. AVIF). */
+function convertToJpeg(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext('2d')!.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => {
+        const jpegName = file.name.replace(/\.[^.]+$/, '.jpg');
+        resolve(blob ? new File([blob], jpegName, { type: 'image/jpeg' }) : file);
+      }, 'image/jpeg', 0.92);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
 }
 
-function appendPhotos(formData: FormData, photoFiles: File[]): void {
-  photoFiles.forEach((file) => {
-    formData.append('photos[]', file);
+async function appendPhotos(formData: FormData, photoFiles: File[]): Promise<void> {
+  // Defensive filter: drop any entry that is not a valid non-empty File so the backend
+  // never receives an empty/undefined value for the `photos` field.
+  const validFiles = photoFiles.filter((f) => f instanceof File && f.size > 0);
+
+  // Convert unsupported formats (e.g. AVIF) to JPEG before sending.
+  const normalizedFiles = await Promise.all(
+    validFiles.map((f) => BACKEND_ALLOWED_MIME.has(f.type) ? Promise.resolve(f) : convertToJpeg(f))
+  );
+
+  // Workaround: FastAPI + Pydantic v2 bug — a single UploadFile is NOT automatically
+  // coerced to List[UploadFile]. python-multipart only returns a list when the key
+  // appears ≥2 times in the multipart body.  Sending the first file twice when there
+  // is only one photo ensures the field is always parsed as a list (never None).
+  const files = normalizedFiles.length === 1 ? [normalizedFiles[0], normalizedFiles[0]] : normalizedFiles;
+  files.forEach((file, idx) => {
+    formData.append('photos', file, file.name || `photo_${idx}.jpg`);
   });
 }
 
 function parseErrorResponse(errorData: any, status: number, statusText: string): string {
   if (errorData.detail) {
-    if (typeof errorData.detail === 'string') return errorData.detail;
+    if (typeof errorData.detail === 'string') {
+      // Backend Python error: len(None) means a required field arrived as null.
+      // Surface a friendlier message so the user knows what to check.
+      if (errorData.detail.includes("NoneType") || errorData.detail.includes("has no len")) {
+        return 'Error del servidor: un campo requerido llegó vacío. Verifique que las fotos y todos los campos estén completos.';
+      }
+      return errorData.detail;
+    }
     if (Array.isArray(errorData.detail)) {
       return errorData.detail.map((err: any) => `${err.loc?.join('.')} - ${err.msg}`).join(', ');
     }
@@ -82,10 +155,14 @@ function parseErrorResponse(errorData: any, status: number, statusText: string):
   return errorData.message || errorData.error || `Error ${status}: ${statusText}`;
 }
 
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp)$/i;
+
 function normalizeReporte(reporte: ReporteIntervencion): ReporteIntervencion {
+  // ── Coordinates ──
   let coordinates_data: [number, number] = [-76.532, 3.4516];
+  // `coordinates` is absent when slim=true — guard before accessing
   if (reporte.coordinates?.coordinates) {
-    const val = reporte.coordinates.coordinates;
+    const val = reporte.coordinates.coordinates as unknown;
     if (Array.isArray(val) && val.length === 2) {
       coordinates_data = [Number(val[0]), Number(val[1])];
     } else if (typeof val === 'string') {
@@ -95,8 +172,25 @@ function normalizeReporte(reporte: ReporteIntervencion): ReporteIntervencion {
       }
     }
   }
+
+  // ── Photo URLs ──
+  // `photosUrl` contains raw S3 URLs (unsigned, returns 403).
+  // `documentos_con_enlaces[].url_visualizar` contains valid presigned URLs.
+  // When documentos_con_enlaces is available, use it as the photo source.
+  let photosUrl = reporte.photosUrl ?? [];
+  if (Array.isArray(reporte.documentos_con_enlaces) && reporte.documentos_con_enlaces.length > 0) {
+    const presigned = reporte.documentos_con_enlaces
+      .filter((d) => !d.filename || IMAGE_EXT.test(d.filename))
+      .map((d) => d.url_visualizar || d.url_presigned || '')
+      .filter((url) => url.length > 0);
+    if (presigned.length > 0) {
+      photosUrl = presigned;
+    }
+  }
+
   return {
     ...reporte,
+    photosUrl,
     coordinates_data,
     fecha_registro: reporte.timestamp,
     comuna: reporte.comuna_corregimiento,
@@ -104,19 +198,24 @@ function normalizeReporte(reporte: ReporteIntervencion): ReporteIntervencion {
   };
 }
 
-// ── POST: Registrar intervención (unificado) ──
+// ── POST: params flat (matches multipart body 1:1) ──
 
 export interface RegistrarIntervencionParams {
-  common: IntervencionCommonData;
+  // Common fields
+  tipo_intervencion: string;
+  descripcion_intervencion: string;
   direccion?: string;
-  // Cuadrilla
-  arboles_data?: string;
-  // Vivero
-  tipos_plantas?: string;
-  // Gobernanza / UMATA
-  unidades_impactadas?: number;
-  // Ecosistemas
-  unidad_medida?: string;
+  registrado_por?: string;
+  grupo?: string;
+  id_actividad?: string;
+  observaciones?: string;
+  coordinates_type?: string;
+  coordinates_data?: string;
+  // Group-specific (all optional — backend ignores irrelevant ones)
+  arboles_data?: string;        // [cuadrilla]              JSON array '[{"especie":"Ceiba","cantidad":5}]'
+  tipos_plantas?: string;       // [vivero]                 JSON dict  '{"Guayacán":10}'
+  unidades_impactadas?: number; // [gobernanza,umata,ecosistemas]
+  unidad_medida?: string;       // [ecosistemas]
 }
 
 export async function registrarIntervencion(
@@ -124,26 +223,44 @@ export async function registrarIntervencion(
   params: RegistrarIntervencionParams,
   photoFiles: File[] = []
 ): Promise<ReconocimientoResponse> {
-  if (!params.common.tipo_intervencion) throw new Error('El tipo de intervención es requerido');
-  if (!params.common.descripcion_intervencion) throw new Error('La descripción es requerida');
-  if (!params.common.coordinates_data) throw new Error('Las coordenadas GPS son requeridas');
-  if (!photoFiles.length) throw new Error('Debe incluir al menos una foto');
+  if (!params.tipo_intervencion) throw new Error('El tipo de intervención es requerido');
+  if (!params.descripcion_intervencion) throw new Error('La descripción es requerida');
+  if (!params.coordinates_data) throw new Error('Las coordenadas GPS son requeridas');
+  // Filter to valid files before the count check so we don't mislead the user
+  const validPhotoFiles = photoFiles.filter((f) => f instanceof File && f.size > 0);
+  if (!validPhotoFiles.length) throw new Error('Debe incluir al menos una foto válida');
 
   const formData = new FormData();
-  appendCommonFields(formData, params.common);
 
+  // Common fields
+  formData.append('tipo_intervencion', params.tipo_intervencion);
+  formData.append('descripcion_intervencion', params.descripcion_intervencion);
   if (params.direccion) formData.append('direccion', params.direccion);
+  if (params.registrado_por) formData.append('registrado_por', params.registrado_por);
+  if (params.grupo) formData.append('grupo', params.grupo);
+  if (params.id_actividad) formData.append('id_actividad', params.id_actividad);
+  if (params.observaciones) formData.append('observaciones', params.observaciones);
+  formData.append('coordinates_type', params.coordinates_type ?? 'Point');
+  formData.append('coordinates_data', params.coordinates_data);
 
-  // Campos específicos por grupo
+  // Group-specific fields
   if (params.arboles_data) formData.append('arboles_data', params.arboles_data);
   if (params.tipos_plantas) formData.append('tipos_plantas', params.tipos_plantas);
-  if (params.unidades_impactadas != null) formData.append('unidades_impactadas', params.unidades_impactadas.toString());
+  if (params.unidades_impactadas != null) formData.append('unidades_impactadas', String(params.unidades_impactadas));
   if (params.unidad_medida) formData.append('unidad_medida', params.unidad_medida);
 
-  appendPhotos(formData, photoFiles);
+  await appendPhotos(formData, validPhotoFiles);
 
   const url = buildApiUrl(`/grupos/${grupoKey}/reporte_intervencion`);
-  const token = localStorage.getItem('auth_token');
+
+  // Obtener token fresco de Firebase (se auto-renueva si está próximo a expirar)
+  let token: string | null = null;
+  if (auth.currentUser) {
+    try { token = await auth.currentUser.getIdToken(); } catch { /* ignore */ }
+  }
+  if (!token) token = get(authStore).token;
+  if (!token) token = localStorage.getItem('token') || sessionStorage.getItem('authToken');
+  if (!token) token = await authStore.refreshToken();
 
   const response = await fetch(url, {
     method: 'POST',
@@ -181,10 +298,59 @@ export async function obtenerReportes(
   if (qs) url += `?${qs}`;
 
   // Usa ApiClient centralizado para autenticación y manejo de errores
-  const responseData = await ApiClient.get<ReportesIntervencionResponse>(
-    url,
-    { requireAuth: true }
-  );
-  const normalizedData = (responseData.data || []).map(normalizeReporte);
-  return { ...responseData, data: normalizedData };
+  const raw = await ApiClient.get<any>(url, { requireAuth: true });
+
+  // Defensive: backend returns { success, total, data } or variations — normalise.
+  let dataArray: ReporteIntervencion[] = [];
+  if (Array.isArray(raw)) {
+    dataArray = raw;
+  } else if (Array.isArray(raw?.data)) {
+    dataArray = raw.data;
+  }
+
+  const normalizedData = dataArray.map(normalizeReporte);
+  const responseData: ReportesIntervencionResponse = {
+    success: raw?.success ?? true,
+    total: raw?.total ?? normalizedData.length,
+    data: normalizedData,
+  };
+  return responseData;
+}
+
+// ── GET: Todos los reportes de intervención (endpoint unificado) ──
+
+export async function obtenerReportesAll(
+  filters?: ObtenerReportesAllFilters
+): Promise<PaginatedReportesAllResponse> {
+  let url = buildApiUrl('/reportes_intervenciones');
+  const params = new URLSearchParams();
+  if (filters?.grupo) params.append('grupo', filters.grupo);
+  if (filters?.id_actividad) params.append('id_actividad', filters.id_actividad);
+  if (filters?.page != null) params.append('page', String(filters.page));
+  if (filters?.per_page != null) params.append('per_page', String(filters.per_page));
+  if (filters?.slim != null) params.append('slim', String(filters.slim));
+  const qs = params.toString();
+  if (qs) url += `?${qs}`;
+
+  const res = await ApiClient.get<any>(url, { requireAuth: true });
+
+  // Backend now returns a flat array sorted by timestamp desc
+  const rawData: ReporteIntervencion[] = Array.isArray(res?.data) ? res.data : [];
+  const normalized = rawData.map((item) => normalizeReporte(item));
+
+  const pagination: PaginationMeta = res?.pagination ?? {
+    page: 1,
+    per_page: normalized.length,
+    total: normalized.length,
+    total_pages: 1,
+    has_next: false,
+    has_prev: false,
+  };
+
+  return {
+    data: normalized,
+    pagination,
+    totals: res?.totals ?? {},
+    total_general: res?.total_general ?? normalized.length,
+  };
 }

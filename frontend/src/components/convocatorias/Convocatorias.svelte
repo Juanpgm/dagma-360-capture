@@ -60,6 +60,7 @@
     "Jornada de Mantenimiento",
     "Jornada de Sensibilización",
     "Jornada Comunitaria",
+    "Avanzada",
   ];
 
   // Estado modal convocar actividad
@@ -176,8 +177,17 @@
   $: latitudPuntoEncuentroNumero = parseCoordinate(latitudPuntoEncuentroForm);
   $: longitudPuntoEncuentroNumero = parseCoordinate(longitudPuntoEncuentroForm);
 
-  $: tiposJornadaDisponibles =
-    tiposJornada.length > 0 ? tiposJornada : tiposJornadaDefault;
+  $: tiposJornadaDisponibles = Array.from(
+    new Set(
+      [...tiposJornada, ...tiposJornadaDefault].filter((tipo) =>
+        Boolean(tipo?.trim()),
+      ),
+    ),
+  ).sort((a, b) => {
+    if (a === "Avanzada") return -1;
+    if (b === "Avanzada") return 1;
+    return 0;
+  });
 
   $: filteredLideresGrupoOptions = lideresGrupoOptions.filter((lider) => {
     const query = normalizeSearchValue(liderSearchQuery);
@@ -3883,11 +3893,6 @@
     box-shadow: 0 1px 3px rgba(5, 150, 105, 0.15);
   }
 
-  .btn-location-inline svg {
-    width: 14px;
-    height: 14px;
-  }
-
   .btn-location-inline:hover {
     border-color: var(--primary);
     background: rgba(5, 150, 105, 0.14);
@@ -4872,12 +4877,6 @@
     gap: 0.5rem;
   }
 
-  .info-section .info-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
   .info-section .info-item {
     display: flex;
     flex-direction: column;
@@ -4985,10 +4984,6 @@
     text-decoration: underline;
   }
 
-  .btn-location-cell svg {
-    flex-shrink: 0;
-  }
-
   .timer-value {
     font-weight: 700;
     color: var(--primary);
@@ -5040,21 +5035,6 @@
       max-width: 100%;
     }
 
-    .actividades-table thead {
-      display: none;
-    }
-
-    .actividades-table tbody tr {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 0.75rem;
-      padding: 0.75rem 0.5rem;
-    }
-
-    .actividades-table td {
-      padding: 0.5rem 0;
-    }
-
     .info-cell {
       order: 1;
       width: auto;
@@ -5069,7 +5049,6 @@
       border-top: 1px solid var(--border);
     }
 
-    .actividades-table th:nth-child(3),
     .grupos-cell {
       display: none;
     }
@@ -5128,7 +5107,6 @@
   }
 
   @media (max-width: 640px) {
-    .actividades-table th:nth-child(3),
     .grupos-cell {
       display: none;
     }

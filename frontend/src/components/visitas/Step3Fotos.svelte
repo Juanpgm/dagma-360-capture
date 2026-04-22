@@ -39,7 +39,9 @@
 <div class="step-container">
   <div class="step-content">
     <Card padding="md">
-      <h3 class="card-title">📸 Evidencia Fotográfica</h3>
+      <h3 class="card-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px;margin-right:6px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Evidencia Fotográfica
+      </h3>
       <p class="card-subtitle">
         Debe agregar al menos una foto del estado actual de la actividad
       </p>
@@ -56,7 +58,7 @@
             class="file-input"
           />
           <label for="photo-camera" class="file-label">
-            <span class="file-icon">📷</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <span class="file-text">Tomar Foto</span>
           </label>
         </div>
@@ -71,8 +73,8 @@
             id="photo-gallery"
             class="file-input"
           />
-          <label for="photo-gallery" class="file-label">
-            <span class="file-icon">🖼️</span>
+          <label for="photo-gallery" class="file-label file-label--secondary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             <span class="file-text">Galería</span>
           </label>
         </div>
@@ -101,12 +103,15 @@
 
         <div class="photo-count">
           <span class="count-badge">
-            ✓ {photoFiles.length} foto(s) agregada(s)
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            {photoFiles.length} foto(s) agregada(s)
           </span>
         </div>
       {:else}
         <div class="empty-state">
-          <div class="empty-icon">📸</div>
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
           <p class="empty-title">No hay fotos aún</p>
           <p class="empty-hint">
             Agregue fotos para documentar el estado de la actividad
@@ -191,9 +196,17 @@
     transform: translateY(0);
   }
 
-  .file-icon {
-    font-size: 1.25rem;
-    line-height: 1;
+  .file-label--secondary {
+    background: #f1f5f9;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    box-shadow: none;
+  }
+
+  .file-label--secondary:hover {
+    background: #e2e8f0;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   }
 
   .file-text {
@@ -283,9 +296,12 @@
   }
 
   .empty-icon {
-    font-size: 3rem;
     margin-bottom: 0.75rem;
-    opacity: 0.4;
+    opacity: 0.35;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .empty-title {
