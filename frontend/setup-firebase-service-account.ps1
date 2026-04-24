@@ -36,7 +36,7 @@ try {
         Add-Content -Path $envFilePath -Value $envLine
     }
 
-    Write-Host "✅ Variable FIREBASE_SERVICE_ACCOUNT_JSON actualizada en $envFilePath"
+    Write-Host "? Variable FIREBASE_SERVICE_ACCOUNT_JSON actualizada en $envFilePath"
 }
 catch {
     Write-Error "Error procesando credenciales: $($_.Exception.Message)"

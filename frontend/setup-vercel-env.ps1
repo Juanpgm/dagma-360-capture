@@ -1,11 +1,11 @@
-# Script para configurar automáticamente FIREBASE_SERVICE_ACCOUNT_JSON en Vercel
+# Script para configurar autom?ticamente FIREBASE_SERVICE_ACCOUNT_JSON en Vercel
 
 param(
     [Parameter(Mandatory = $false)]
     [string]$ServiceAccountJsonPath = ""
 )
 
-Write-Host "🔧 Configurador de variables Vercel para FIREBASE_SERVICE_ACCOUNT_JSON" -ForegroundColor Cyan
+Write-Host "?? Configurador de variables Vercel para FIREBASE_SERVICE_ACCOUNT_JSON" -ForegroundColor Cyan
 
 # Si no se proporciona ruta, buscar en directorio actual
 if ([string]::IsNullOrWhiteSpace($ServiceAccountJsonPath)) {
@@ -19,43 +19,43 @@ if ([string]::IsNullOrWhiteSpace($ServiceAccountJsonPath)) {
     foreach ($path in $possiblePaths) {
         if (Test-Path $path) {
             $ServiceAccountJsonPath = $path
-            Write-Host "✅ Archivo encontrado: $ServiceAccountJsonPath" -ForegroundColor Green
+            Write-Host "? Archivo encontrado: $ServiceAccountJsonPath" -ForegroundColor Green
             break
         }
     }
   
     if ([string]::IsNullOrWhiteSpace($ServiceAccountJsonPath)) {
-        Write-Host "❌ No se encontró service-account.json" -ForegroundColor Red
+        Write-Host "? No se encontr? service-account.json" -ForegroundColor Red
         Write-Host "Uso: .\setup-vercel-env.ps1 -ServiceAccountJsonPath 'C:\ruta\service-account.json'" -ForegroundColor Yellow
         exit 1
     }
 }
 
 if (-not (Test-Path $ServiceAccountJsonPath)) {
-    Write-Host "❌ No existe el archivo: $ServiceAccountJsonPath" -ForegroundColor Red
+    Write-Host "? No existe el archivo: $ServiceAccountJsonPath" -ForegroundColor Red
     exit 1
 }
 
-# Verificar que vercel CLI está instalado
+# Verificar que vercel CLI est? instalado
 try {
     $vercelVersion = vercel --version 2>&1
-    Write-Host "✅ Vercel CLI encontrado: $vercelVersion" -ForegroundColor Green
+    Write-Host "? Vercel CLI encontrado: $vercelVersion" -ForegroundColor Green
 }
 catch {
-    Write-Host "❌ Vercel CLI no está instalado" -ForegroundColor Red
+    Write-Host "? Vercel CLI no est? instalado" -ForegroundColor Red
     Write-Host "Instala con: npm install -g vercel" -ForegroundColor Yellow
     exit 1
 }
 
 # Leer y convertir JSON
 try {
-    Write-Host "`n📄 Procesando archivo de credenciales..." -ForegroundColor Cyan
+    Write-Host "`n?? Procesando archivo de credenciales..." -ForegroundColor Cyan
     $jsonRaw = Get-Content $ServiceAccountJsonPath -Raw
     $jsonOneLine = ($jsonRaw | ConvertFrom-Json | ConvertTo-Json -Compress)
-    Write-Host "✅ JSON convertido a una línea" -ForegroundColor Green
+    Write-Host "? JSON convertido a una l?nea" -ForegroundColor Green
 }
 catch {
-    Write-Host "❌ Error procesando JSON: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "? Error procesando JSON: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
 
@@ -63,13 +63,13 @@ catch {
 $environments = @("production", "preview", "development")
 $successCount = 0
 
-Write-Host "`n🔐 Configurando variables en Vercel..." -ForegroundColor Cyan
+Write-Host "`n?? Configurando variables en Vercel..." -ForegroundColor Cyan
 
 foreach ($env in $environments) {
     Write-Host "`n  Ambiente: $env" -ForegroundColor Yellow
   
     try {
-        # Vercel espera entrada del usuario para confirmar, así que lo hacemos interactivamente
+        # Vercel espera entrada del usuario para confirmar, as? que lo hacemos interactivamente
         Write-Host "  Pegando valor en: " -NoNewline
     
         $process = Start-Process -FilePath "vercel" -ArgumentList "env", "add", "FIREBASE_SERVICE_ACCOUNT_JSON", $env -PassThru -NoNewWindow
@@ -77,16 +77,16 @@ foreach ($env in $environments) {
         # Esperar a que se complete
         Start-Sleep -Milliseconds 500
     
-        # Lamentablemente vercel env add es interactivo, así que mostrar instrucciones
-        Write-Host "  ⚠️ Vercel CLI abrirá un diálogo interactivo" -ForegroundColor Yellow
+        # Lamentablemente vercel env add es interactivo, as? que mostrar instrucciones
+        Write-Host "  ?? Vercel CLI abrir? un di?logo interactivo" -ForegroundColor Yellow
     }
     catch {
-        Write-Host "  ⚠️ Error ejecutando vercel: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  ?? Error ejecutando vercel: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
 # Ofrecer alternativa con fichero temporal
-Write-Host "`n📋 ALTERNATIVA (si el método interactivo falla):" -ForegroundColor Cyan
+Write-Host "`n?? ALTERNATIVA (si el m?todo interactivo falla):" -ForegroundColor Cyan
 Write-Host "  1. Copia este valor (sin comillas):" -ForegroundColor Gray
 Write-Host "  `"$jsonOneLine`"" -ForegroundColor White
 Write-Host ""
@@ -99,13 +99,13 @@ Write-Host "  5. Redeploy: vercel --prod --yes" -ForegroundColor Gray
 if ($PSVersionTable.Platform -eq "Win32NT" -or $PSVersionTable.OS -like "*Windows*") {
     try {
         $jsonOneLine | Set-Clipboard
-        Write-Host "`n✅ JSON copiado al portapapeles (Ctrl+V para pegar)" -ForegroundColor Green
+        Write-Host "`n? JSON copiado al portapapeles (Ctrl+V para pegar)" -ForegroundColor Green
     }
     catch {
-        Write-Host "`n⚠️ No se pudo copiar al portapapeles automáticamente" -ForegroundColor Yellow
+        Write-Host "`n?? No se pudo copiar al portapapeles autom?ticamente" -ForegroundColor Yellow
     }
 }
 
-Write-Host "`n🎯 Una vez configuradas las variables, redeploy con:" -ForegroundColor Cyan
+Write-Host "`n?? Una vez configuradas las variables, redeploy con:" -ForegroundColor Cyan
 Write-Host "  vercel --prod --yes" -ForegroundColor White
 

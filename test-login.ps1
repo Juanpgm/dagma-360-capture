@@ -1,18 +1,18 @@
 # Test Login API
 $API_URL = "https://web-production-2d737.up.railway.app"
 
-Write-Host "🔐 Testing Login Flow..." -ForegroundColor Cyan
+Write-Host "?? Testing Login Flow..." -ForegroundColor Cyan
 Write-Host ""
 
 # Test 1: Check API health
 Write-Host "1. Checking API health..." -ForegroundColor Yellow
 try {
     $health = Invoke-RestMethod -Uri "$API_URL/health" -Method Get -TimeoutSec 10
-    Write-Host "   ✅ API is reachable" -ForegroundColor Green
+    Write-Host "   ? API is reachable" -ForegroundColor Green
     Write-Host "   Response: $($health | ConvertTo-Json -Compress)" -ForegroundColor Gray
 }
 catch {
-    Write-Host "   ❌ API health check failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "   ? API health check failed: $($_.Exception.Message)" -ForegroundColor Red
 }
 
 Write-Host ""
@@ -33,14 +33,14 @@ catch {
     Write-Host "   Response Status: $statusCode" -ForegroundColor Gray
     
     if ($statusCode -eq 401 -or $statusCode -eq 422) {
-        Write-Host "   ✅ Endpoint exists (expected auth error)" -ForegroundColor Green
+        Write-Host "   ? Endpoint exists (expected auth error)" -ForegroundColor Green
     }
     else {
-        Write-Host "   ⚠️  Unexpected status code" -ForegroundColor Yellow
+        Write-Host "   ??  Unexpected status code" -ForegroundColor Yellow
     }
 }
 
 Write-Host ""
-Write-Host "💡 To test with real credentials, provide email and password:" -ForegroundColor Cyan
+Write-Host "?? To test with real credentials, provide email and password:" -ForegroundColor Cyan
 Write-Host '   $email = "your.email@example.com"' -ForegroundColor Gray
 Write-Host '   $password = "your_password"' -ForegroundColor Gray
