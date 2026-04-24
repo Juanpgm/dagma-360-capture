@@ -13,6 +13,11 @@
   const currentRole = normalizeRole(persona.role ?? persona.rol ?? persona.roles);
 
   let selectedRole: Role = currentRole;
+
+  function onAvatarError(e: Event) {
+    const img = e.currentTarget as HTMLImageElement;
+    if (img) img.style.display = 'none';
+  }
   let saving = false;
   let errorMsg = "";
   let successMsg = "";
@@ -57,7 +62,13 @@
 
     <div class="modal-body">
       <div class="persona-row">
-        <div class="persona-avatar">{(persona.nombre_completo?.[0] ?? "?").toUpperCase()}</div>
+        <div class="persona-avatar">
+          {#if persona.photoURL}
+            <img src={persona.photoURL} alt={persona.nombre_completo} class="avatar-img" referrerpolicy="no-referrer" on:error={onAvatarError} />
+          {:else}
+            {(persona.nombre_completo?.[0] ?? "?").toUpperCase()}
+          {/if}
+        </div>
         <div>
           <div class="persona-name">{persona.nombre_completo ?? "—"}</div>
           {#if persona.email}<div class="persona-email">{persona.email}</div>{/if}
@@ -184,6 +195,14 @@
     font-weight: 700;
     font-size: 0.9rem;
     flex-shrink: 0;
+    overflow: hidden;
+  }
+  .persona-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
   }
 
   .persona-name { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }

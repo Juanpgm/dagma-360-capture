@@ -13,6 +13,11 @@
   } from "../../api/actividades";
 
   // ── Props ──────────────────────────────────────────────────────────────────
+
+  function onAvatarError(e: Event) {
+    const img = e.currentTarget as HTMLImageElement;
+    if (img) img.style.display = 'none';
+  }
   export let actividad: ActividadPlanDistritoVerde;
   export let onClose: () => void;
   export let onGuardado: (record: AsistenciaRecord) => void;
@@ -275,7 +280,11 @@
               <!-- Info persona -->
               <div class="persona-info">
                 <div class="persona-avatar" style="background:{colorValidacion(item.validacion)}22; color:{colorValidacion(item.validacion)}">
-                  {item.nombre_completo.charAt(0).toUpperCase()}
+                  {#if item.photoURL}
+                    <img src={item.photoURL} alt={item.nombre_completo} class="avatar-img" referrerpolicy="no-referrer" on:error={onAvatarError} />
+                  {:else}
+                    {item.nombre_completo.charAt(0).toUpperCase()}
+                  {/if}
                 </div>
                 <div class="persona-datos">
                   <span class="persona-nombre">{item.nombre_completo}</span>
@@ -503,7 +512,10 @@
   .persona-avatar {
     width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 0.9rem;
+    font-weight: 700; font-size: 0.9rem; overflow: hidden;
+  }
+  .persona-avatar .avatar-img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block;
   }
   .persona-datos { display: flex; flex-direction: column; }
   .persona-nombre { font-weight: 600; font-size: 0.9rem; color: #111827; }

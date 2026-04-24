@@ -13,6 +13,11 @@
     crearPersonalOperativo,
   } from "../../api/actividades";
 
+  function onAvatarError(e: Event) {
+    const img = e.currentTarget as HTMLImageElement;
+    if (img) img.style.display = 'none';
+  }
+
   import AsistenciaModal from "./AsistenciaModal.svelte";
   import type { AsistenciaRecord } from "../../api/actividades";
 
@@ -1803,7 +1808,11 @@
                           {@const marcado = personalMarcadoParaQuitar[actividad.id]?.[persona.email.toLowerCase()] === true}
                           <div class="personal-asignado-card" class:personal-marcado-quitar={marcado}>
                             <div class="personal-asignado-avatar">
-                              {persona.nombreCompleto.charAt(0).toUpperCase()}
+                              {#if persona.photoURL}
+                                <img src={persona.photoURL} alt={persona.nombreCompleto} class="avatar-img" referrerpolicy="no-referrer" on:error={onAvatarError} />
+                              {:else}
+                                {persona.nombreCompleto.charAt(0).toUpperCase()}
+                              {/if}
                             </div>
                             <div class="personal-asignado-info">
                               <span class="personal-asignado-name">{persona.nombreCompleto}</span>
@@ -3808,6 +3817,14 @@
     font-size: 0.78rem;
     font-weight: 700;
     text-transform: uppercase;
+    overflow: hidden;
+  }
+  .personal-asignado-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
   }
 
   .personal-asignado-info {

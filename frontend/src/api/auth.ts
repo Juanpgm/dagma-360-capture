@@ -1,5 +1,11 @@
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../lib/firebase';
+
+/** Detect mobile browsers that block popups */
+const isMobileBrowser = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
 
 const API_BASE_URL = '/api';
 const USE_FIREBASE = import.meta.env.VITE_USE_FIREBASE === 'true';
@@ -374,18 +380,52 @@ export class NeedsProfileCompletionError extends Error {
 }
 
 /**
- * Login con Google (popup).
+ * Login con Google (popup en desktop, redirect en mobile).
  * - Si el usuario ya tiene grupo → devuelve LoginResponse normal.
  * - Si el usuario es nuevo (sin grupo) → lanza NeedsProfileCompletionError.
+ * - En mobile: llama signInWithRedirect y devuelve null; el resultado se procesa
+ *   en handleGoogleRedirectResult() cuando la app recarga.
  */
 export const loginWithGoogle = async (): Promise<LoginResponse> => {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  const credential = await signInWithPopup(auth, provider);
+
+  let credential;
+  if (isMobileBrowser()) {
+    // On mobile, popup is often blocked. Use redirect flow.
+    await signInWithRedirect(auth, provider);
+    // The redirect navigates away; execution does not continue here.
+    // Return a dummy promise that never resolves — the page will reload.
+    return new Promise(() => {});
+  } else {
+    credential = await signInWithPopup(auth, provider);
+  }
+
+  return _processGoogleCredential(credential);
+};
+
+/**
+ * Call this on app startup (in authStore.initAuth) to handle redirect result
+ * on mobile after the page reloads post-Google-redirect.
+ * Returns LoginResponse if there was a pending redirect, or null otherwise.
+ */
+export const handleGoogleRedirectResult = async (): Promise<LoginResponse | null> => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (!result) return null;
+    return _processGoogleCredential(result);
+  } catch (err: any) {
+    if (err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') {
+      return null;
+    }
+    throw err;
+  }
+};
+
+async function _processGoogleCredential(credential: { user: import('firebase/auth').User }): Promise<LoginResponse> {
   const idToken = await credential.user.getIdToken();
   const email = credential.user.email || '';
 
-  // validate-session crea el doc en Firestore si es usuario nuevo
   const res = await fetch(`${API_BASE_URL}/auth/validate-session`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -421,7 +461,7 @@ export const loginWithGoogle = async (): Promise<LoginResponse> => {
   sessionStorage.setItem('authToken', idToken);
 
   return { access_token: idToken, token_type: 'Bearer', user: userData };
-};
+}
 
 /**
  * Completa el perfil de un usuario registrado con Google que no tiene grupo.

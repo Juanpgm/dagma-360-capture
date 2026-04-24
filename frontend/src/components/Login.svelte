@@ -44,6 +44,15 @@
     } finally {
       loadingGrupos = false;
     }
+
+    // Recover pending Google user from mobile redirect flow
+    const pendingRaw = sessionStorage.getItem('pendingGoogleUser');
+    if (pendingRaw) {
+      try {
+        pendingGoogleUser = JSON.parse(pendingRaw);
+        sessionStorage.removeItem('pendingGoogleUser');
+      } catch {}
+    }
   });
 
   const normalizeText = (value: string): string =>

@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import { logout as firebaseLogout } from '../api/auth';
+import { logout as firebaseLogout, handleGoogleRedirectResult, NeedsProfileCompletionError } from '../api/auth';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { buildPermissions } from '../lib/permissions';
@@ -77,6 +77,27 @@ const createAuthStore = () => {
     },
     init: () => {
       console.log('🔄 Initializing auth state...');
+
+      // Handle Google redirect result (mobile sign-in flow)
+      handleGoogleRedirectResult()
+        .then((response) => {
+          if (response) {
+            console.log('✅ Google redirect sign-in completed:', response.user?.email);
+            localStorage.setItem('token', response.access_token);
+            localStorage.setItem('user', JSON.stringify(response.user));
+            sessionStorage.setItem('authToken', response.access_token);
+            sessionStorage.setItem('userData', JSON.stringify(response.user));
+            set({ isAuthenticated: true, token: response.access_token, user: response.user, loading: false });
+          }
+        })
+        .catch((err) => {
+          if (err instanceof NeedsProfileCompletionError) {
+            // Store partial user so Login.svelte can show CompleteProfileModal
+            sessionStorage.setItem('pendingGoogleUser', JSON.stringify(err.partialUser));
+          } else {
+            console.error('Google redirect error:', err);
+          }
+        });
       
       // Timeout de seguridad: si después de 3 segundos no hay respuesta, forzar loading=false
       const timeoutId = setTimeout(() => {
@@ -128,7 +149,6 @@ const createAuthStore = () => {
                 email: firebaseUser.email,
                 uid: firebaseUser.uid,
                 displayName: firebaseUser.displayName,
-                photoURL: firebaseUser.photoURL,
                 roles: [],
                 permissions: [],
                 ...backendUser,
@@ -150,7 +170,6 @@ const createAuthStore = () => {
               email: firebaseUser.email,
               uid: firebaseUser.uid,
               displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
               roles: [],
               permissions: [],
               ...backendUser,

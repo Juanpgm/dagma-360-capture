@@ -13,6 +13,10 @@
     if (!g) return '';
     return GRUPO_DISPLAY_NAMES[g as GrupoKey] ?? g.charAt(0).toUpperCase() + g.slice(1);
   }
+  function onAvatarError(e: Event) {
+    const img = e.currentTarget as HTMLImageElement;
+    if (img) img.style.display = 'none';
+  }
   // Estado para verificación de registro
   let verificando = false;
   let verificacionMap = new Map<string, boolean>(); // id → registrado
@@ -415,7 +419,11 @@
             {#each personalFiltrado as persona (persona.id)}
               <div class="persona-card">
                 <div class="persona-avatar">
-                  {(persona.nombre_completo?.[0] ?? "?").toUpperCase()}
+                  {#if persona.photoURL}
+                    <img src={persona.photoURL} alt={persona.nombre_completo} class="avatar-img" referrerpolicy="no-referrer" on:error={onAvatarError} />
+                  {:else}
+                    {(persona.nombre_completo?.[0] ?? "?").toUpperCase()}
+                  {/if}
                 </div>
                 <div class="persona-info">
                   <div class="persona-name">{persona.nombre_completo}</div>
@@ -570,7 +578,11 @@
                   </button>
                 {/if}
                 <div class="persona-avatar">
-                  {(usuario.nombre_completo?.[0] ?? "?").toUpperCase()}
+                  {#if usuario.photoURL}
+                    <img src={usuario.photoURL} alt={usuario.nombre_completo} class="avatar-img" referrerpolicy="no-referrer" on:error={onAvatarError} />
+                  {:else}
+                    {(usuario.nombre_completo?.[0] ?? "?").toUpperCase()}
+                  {/if}
                 </div>
                 <div class="persona-info">
                   <div class="persona-name">{usuario.nombre_completo}</div>
@@ -924,6 +936,14 @@
     font-weight: 700;
     font-size: 0.875rem;
     flex-shrink: 0;
+    overflow: hidden;
+  }
+  .persona-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
   }
 
   .persona-info {
