@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, onMount } from "svelte";
   import { completeGoogleProfile, type PartialGoogleUser } from "../../api/auth";
-  import { GRUPO_KEYS, GRUPO_DISPLAY_NAMES, GRUPO_DESCRIPTIONS, type GrupoKey } from "../../lib/grupos";
+  import { getGruposNombres } from "../../lib/grupos";
 
   export let partialUser: PartialGoogleUser;
 
@@ -10,11 +10,54 @@
     cancel: void;
   }>();
 
-  let selectedGrupo: GrupoKey | "" = "";
+  let selectedGrupo: string = "";
   let fullName = partialUser.full_name || partialUser.displayName || "";
   let cellphone = "";
   let saving = false;
   let error = "";
+
+  // Grupos cargados desde la API
+  let grupos: string[] = [];
+  let loadingGrupos = true;
+  let grupoSearch = "";
+  let isGrupoOpen = false;
+  let grupoDropdownRef: HTMLDivElement;
+
+  onMount(async () => {
+    try {
+      grupos = await getGruposNombres();
+    } catch {
+      grupos = [];
+    } finally {
+      loadingGrupos = false;
+    }
+  });
+
+  function normalizeText(value: string): string {
+    return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  }
+
+  $: filteredGrupos = grupos.filter((g) =>
+    normalizeText(g).includes(normalizeText(grupoSearch.trim())),
+  );
+
+  function toggleDropdown() {
+    if (saving) return;
+    isGrupoOpen = !isGrupoOpen;
+    if (isGrupoOpen) grupoSearch = "";
+  }
+
+  function selectGrupo(g: string) {
+    selectedGrupo = g;
+    isGrupoOpen = false;
+    grupoSearch = "";
+  }
+
+  function closeOnOutside(event: MouseEvent) {
+    if (grupoDropdownRef && !grupoDropdownRef.contains(event.target as Node)) {
+      isGrupoOpen = false;
+    }
+  }
 
   async function handleSubmit() {
     if (!selectedGrupo) {
@@ -41,6 +84,8 @@
     }
   }
 </script>
+
+<svelte:window on:click={closeOnOutside} />
 
 <div class="overlay" role="dialog" aria-modal="true" aria-labelledby="cpm-title">
   <div class="modal">
@@ -107,19 +152,56 @@
         <!-- svelte-ignore a11y-label-has-associated-control -->
         <label class="field-label" id="grupo-label">Grupo de trabajo *</label>
         <p class="field-hint">Selecciona el grupo al que perteneces en DAGMA</p>
-        <div class="grupo-grid" role="group" aria-labelledby="grupo-label">
-          {#each GRUPO_KEYS as g}
-            <button
-              type="button"
-              class="grupo-card"
-              class:selected={selectedGrupo === g}
-              disabled={saving}
-              on:click={() => { selectedGrupo = g; }}
-            >
-              <span class="grupo-name">{GRUPO_DISPLAY_NAMES[g]}</span>
-              <span class="grupo-desc">{GRUPO_DESCRIPTIONS[g]}</span>
-            </button>
-          {/each}
+
+        <div class="grupo-dropdown" bind:this={grupoDropdownRef}>
+          <button
+            type="button"
+            class="grupo-trigger"
+            class:open={isGrupoOpen}
+            disabled={saving || loadingGrupos}
+            on:click={toggleDropdown}
+          >
+            {#if loadingGrupos}
+              <span class="grupo-placeholder">Cargando grupos...</span>
+            {:else if selectedGrupo}
+              <span class="grupo-selected">{selectedGrupo}</span>
+            {:else}
+              <span class="grupo-placeholder">Selecciona un grupo</span>
+            {/if}
+            <span class="dropdown-arrow">▾</span>
+          </button>
+
+          {#if isGrupoOpen}
+            <div class="grupo-panel">
+              <!-- svelte-ignore a11y-autofocus -->
+              <input
+                type="search"
+                class="grupo-search"
+                bind:value={grupoSearch}
+                placeholder="Buscar grupo..."
+                autofocus
+              />
+              <div class="grupo-options">
+                {#if filteredGrupos.length === 0}
+                  <div class="grupo-empty">No se encontraron grupos</div>
+                {:else}
+                  {#each filteredGrupos as g}
+                    <button
+                      type="button"
+                      class="grupo-option"
+                      class:selected={selectedGrupo === g}
+                      on:click={() => selectGrupo(g)}
+                    >
+                      {g}
+                      {#if selectedGrupo === g}
+                        <span class="check-icon">✓</span>
+                      {/if}
+                    </button>
+                  {/each}
+                {/if}
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
 
@@ -303,55 +385,123 @@
     box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
   }
 
-  /* Grupo grid */
-  .grupo-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+  /* Grupo dropdown */
+  .grupo-dropdown {
+    position: relative;
   }
 
-  .grupo-card {
-    padding: 0.75rem;
-    border: 2px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-alt);
-    text-align: left;
-    cursor: pointer;
-    transition: all var(--transition);
+  .grupo-trigger {
+    width: 100%;
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .grupo-card:hover:not(:disabled) {
-    border-color: var(--primary);
-    background: rgba(5, 150, 105, 0.04);
-  }
-
-  .grupo-card.selected {
-    border-color: var(--primary);
-    background: rgba(5, 150, 105, 0.08);
-  }
-
-  .grupo-card:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .grupo-name {
-    font-weight: 700;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-primary);
     font-size: var(--text-sm);
+    cursor: pointer;
+    transition: border-color var(--transition);
+    text-align: left;
+  }
+
+  .grupo-trigger:hover:not(:disabled) {
+    border-color: var(--primary);
+  }
+
+  .grupo-trigger.open {
+    border-color: var(--primary);
+    outline: 2px solid rgba(5, 150, 105, 0.15);
+  }
+
+  .grupo-trigger:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--surface-alt);
+  }
+
+  .grupo-placeholder {
+    color: var(--text-muted);
+  }
+
+  .grupo-selected {
+    font-weight: 600;
     color: var(--text-primary);
   }
 
-  .grupo-card.selected .grupo-name {
-    color: var(--primary-dark);
+  .dropdown-arrow {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    flex-shrink: 0;
   }
 
-  .grupo-desc {
-    font-size: var(--text-xs);
+  .grupo-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    z-index: 10;
+    overflow: hidden;
+  }
+
+  .grupo-search {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    font-size: var(--text-sm);
+    background: var(--surface-alt);
+    color: var(--text-primary);
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .grupo-options {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .grupo-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--transition);
+  }
+
+  .grupo-option:hover {
+    background: var(--surface-alt);
+  }
+
+  .grupo-option.selected {
+    background: rgba(5, 150, 105, 0.08);
+    color: var(--primary-dark);
+    font-weight: 600;
+  }
+
+  .check-icon {
+    color: var(--primary);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .grupo-empty {
+    padding: 0.75rem;
+    text-align: center;
+    font-size: var(--text-sm);
     color: var(--text-muted);
-    line-height: 1.3;
   }
 
   /* Messages */

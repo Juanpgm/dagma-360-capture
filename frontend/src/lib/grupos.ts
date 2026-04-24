@@ -35,12 +35,14 @@ import { ApiClient } from './api-client';
 
 export async function getGruposNombres(): Promise<string[]> {
 	try {
-		const res = await ApiClient.get<any>('/grupos', { requireAuth: true });
+		// requireAuth: false — el endpoint /grupos es público y se llama antes del login (registro)
+		const res = await ApiClient.get<any>('/grupos', { requireAuth: false });
 		// El backend devuelve { status, data: [{id, nombre, ...}], count, ... }
 		const data: any[] = Array.isArray(res) ? res : res.data ?? res.grupos ?? [];
-		return data
+		const nombres = data
 			.map((g: any) => (g.nombre ?? '').toString().trim())
 			.filter(Boolean);
+		return nombres.length > 0 ? nombres : Object.values(GRUPO_DISPLAY_NAMES);
 	} catch (err) {
 		// Fallback a lista estática si el endpoint falla
 		return Object.values(GRUPO_DISPLAY_NAMES);
