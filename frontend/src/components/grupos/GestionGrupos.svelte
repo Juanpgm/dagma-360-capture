@@ -467,9 +467,23 @@
                 <details class="asistencia-row">
                   <summary class="asistencia-summary">
                     <div class="asi-left">
-                      <span class="asi-id" title={rec.actividad_id}>{rec.actividad_id.slice(0, 8)}…</span>
-                      {#if rec.fecha_registro}
-                        <span class="asi-fecha">{new Date(rec.fecha_registro).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+                      <!-- Fecha de la actividad (cuándo se desarrolló) -->
+                      {#if rec.fecha_actividad}
+                        <span class="asi-fecha-act">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          {rec.fecha_actividad}{#if rec.hora_encuentro} · {rec.hora_encuentro}{/if}
+                        </span>
+                      {/if}
+                      <!-- Tipo de jornada -->
+                      {#if rec.tipo_jornada}
+                        <span class="asi-tipo">{rec.tipo_jornada}</span>
+                      {/if}
+                      <!-- Lugar -->
+                      {#if rec.barrio_vereda || rec.comunas_corregimiento}
+                        <span class="asi-lugar">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                          {[rec.barrio_vereda, rec.comunas_corregimiento].filter(Boolean).join(', ')}
+                        </span>
                       {/if}
                       {#if rec.grupos_participantes.length > 0}
                         <span class="asi-grupos">{rec.grupos_participantes.join(' · ')}</span>
@@ -487,9 +501,34 @@
                       <svg class="asi-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                     </div>
                   </summary>
-                  <!-- Detail: individual attendance list -->
+
+                  <!-- Detalle expandible -->
                   <div class="asistencia-detail">
-                    {#each rec.personal_asignado as p (p.email ?? p.nombre_completo)}
+                    <!-- Info de la actividad -->
+                    <div class="act-info-block">
+                      {#if rec.direccion}
+                        <div class="act-info-row">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                          <span>{rec.direccion}</span>
+                        </div>
+                      {/if}
+                      {#if rec.objetivo_actividad}
+                        <div class="act-info-row">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          <span>{rec.objetivo_actividad}</span>
+                        </div>
+                      {/if}
+                      {#if rec.estado_actividad}
+                        <div class="act-info-row">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                          <span>Estado: <strong>{rec.estado_actividad}</strong></span>
+                        </div>
+                      {/if}
+                    </div>
+
+                    <!-- Personal con observaciones de campo -->
+                    <div class="act-personal-header">Personal asignado</div>
+                    {#each rec.personal_asignado as p (p.nombre_completo)}
                       <div class="asistencia-persona" class:ausente={p.validacion === false}>
                         <span class="ap-status" title={p.validacion ? 'Asistió' : 'Ausente'}>
                           {#if p.validacion}
@@ -498,10 +537,19 @@
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                           {/if}
                         </span>
-                        <span class="ap-name">{p.nombre_completo ?? '—'}</span>
-                        {#if p.grupo}<span class="ap-grupo">{grupoLabel(p.grupo)}</span>{/if}
-                        {#if p.alerta}<span class="ap-alerta" title={p.alerta}>⚠ {p.alerta}</span>{/if}
-                        {#if p.observacion}<span class="ap-obs">{p.observacion}</span>{/if}
+                        <div class="ap-body">
+                          <div class="ap-topline">
+                            <span class="ap-name">{p.nombre_completo ?? '—'}</span>
+                            {#if p.grupo}<span class="ap-grupo">{grupoLabel(p.grupo)}</span>{/if}
+                            {#if p.alerta}<span class="ap-alerta">⚠ {p.alerta}</span>{/if}
+                          </div>
+                          {#if p.observacion}
+                            <div class="ap-obs-campo">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                              {p.observacion}
+                            </div>
+                          {/if}
+                        </div>
                       </div>
                     {/each}
                   </div>
@@ -1016,22 +1064,39 @@
   .asi-left {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 0.5rem;
     flex-wrap: wrap;
     flex: 1;
     min-width: 0;
   }
 
-  .asi-id {
-    font-family: monospace;
-    font-size: 0.75rem;
-    color: var(--text-muted);
+  .asi-fecha-act {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
     white-space: nowrap;
   }
 
-  .asi-fecha {
-    font-size: 0.75rem;
+  .asi-tipo {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    padding: 0.15rem 0.5rem;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+
+  .asi-lugar {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.72rem;
     color: var(--text-secondary);
+    white-space: nowrap;
   }
 
   .asi-grupos {
@@ -1080,33 +1145,73 @@
 
   .asistencia-detail {
     border-top: 1px solid var(--border);
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: 0.5rem;
     background: color-mix(in srgb, var(--surface) 60%, var(--background));
   }
 
+  /* Activity info block */
+  .act-info-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    margin-bottom: 0.25rem;
+  }
+
+  .act-info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+  .act-info-row svg { flex-shrink: 0; margin-top: 2px; }
+
+  .act-personal-header {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 0.2rem 0;
+  }
+
+  /* Individual person rows */
   .asistencia-persona {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.5rem;
-    padding: 0.25rem 0;
+    padding: 0.35rem 0;
     font-size: 0.8125rem;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   }
   .asistencia-persona:last-child { border-bottom: none; }
   .asistencia-persona.ausente .ap-name { color: var(--text-muted); }
 
-  .ap-status { display: flex; align-items: center; flex-shrink: 0; }
+  .ap-status { display: flex; align-items: center; flex-shrink: 0; padding-top: 2px; }
+
+  .ap-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ap-topline {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
 
   .ap-name {
     font-weight: 500;
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .ap-grupo {
@@ -1122,20 +1227,18 @@
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
     white-space: nowrap;
-    max-width: 140px;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .ap-obs {
-    font-size: 0.7rem;
-    color: var(--text-muted);
+  .ap-obs-campo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.3rem;
+    font-size: 0.74rem;
+    color: var(--text-secondary);
     font-style: italic;
-    white-space: nowrap;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.4;
   }
+  .ap-obs-campo svg { flex-shrink: 0; margin-top: 2px; opacity: 0.6; }
 
   /* Floating edit-rol button — appears on card hover */
   .persona-card {

@@ -453,17 +453,33 @@ export async function actualizarAsistenciaItems(
   );
 }
 
+export interface AsistenciaPersonaResumen {
+  nombre_completo: string;
+  grupo: string | null;
+  validacion: boolean | null;
+  observacion: string | null;
+  alerta: AlertaTipoValue | null;
+}
+
 export interface AsistenciaResumenItem {
   actividad_id: string;
   fecha_registro: string | null;
-  registrado_por: string | null;
   total_personal: number;
   asistentes: number;
   ausentes: number;
   alertas: number;
   asistencia_general: number;
   grupos_participantes: string[];
-  personal_asignado: AsistenciaPersonaItem[];
+  personal_asignado: AsistenciaPersonaResumen[];
+  // Activity info from plan_distrito_verde
+  fecha_actividad: string | null;
+  hora_encuentro: string | null;
+  tipo_jornada: string | null;
+  objetivo_actividad: string | null;
+  estado_actividad: string | null;
+  direccion: string | null;
+  comunas_corregimiento: string | null;
+  barrio_vereda: string | null;
 }
 
 export interface AsistenciasResumenResponse {
