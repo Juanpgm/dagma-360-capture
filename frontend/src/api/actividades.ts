@@ -452,3 +452,34 @@ export async function actualizarAsistenciaItems(
     { personal },
   );
 }
+
+export interface AsistenciaResumenItem {
+  actividad_id: string;
+  fecha_registro: string | null;
+  registrado_por: string | null;
+  total_personal: number;
+  asistentes: number;
+  ausentes: number;
+  alertas: number;
+  asistencia_general: number;
+  grupos_participantes: string[];
+  personal_asignado: AsistenciaPersonaItem[];
+}
+
+export interface AsistenciasResumenResponse {
+  status: string;
+  total: number;
+  data: AsistenciaResumenItem[];
+  timestamp: string;
+}
+
+/** GET /asistencias_resumen — lista todos los registros de asistencia, opcionalmente por grupo */
+export async function getAsistenciasResumen(grupo?: string): Promise<AsistenciaResumenItem[]> {
+  const params = grupo ? `?grupo=${encodeURIComponent(grupo)}` : '';
+  try {
+    const res = await ApiClient.get<AsistenciasResumenResponse>(`/asistencias_resumen${params}`);
+    return res.data ?? [];
+  } catch {
+    return [];
+  }
+}
