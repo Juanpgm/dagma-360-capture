@@ -1848,7 +1848,6 @@
                   class="btn-tomar-asistencia"
                   title="Tomar asistencia de la actividad"
                   aria-label="Tomar asistencia"
-                  disabled={!actividad.personal_asignado?.length}
                   on:click={() => {
                     actividadAsistenciaActual = actividad;
                     isAsistenciaModalOpen = true;
