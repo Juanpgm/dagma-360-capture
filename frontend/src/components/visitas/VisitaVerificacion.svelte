@@ -411,6 +411,7 @@
           onSelect={handleActividadSelect}
           onLoadActividades={handleLoadActividades}
           isLoading={state.isLoading}
+          grupoFiltro={selectedGrupo}
         />
       {:else if state.currentStep === 2}
         <Step2Formulario
