@@ -71,10 +71,7 @@
       });
       profileSuccess = "Perfil actualizado correctamente.";
       // Update local store
-      authStore.update((s) => ({
-        ...s,
-        user: s.user ? { ...s.user, full_name: fullName.trim(), cellphone: cellphone.trim() } : s.user,
-      }));
+      authStore.updateUser({ full_name: fullName.trim(), cellphone: cellphone.trim() });
       dispatch("updated", { full_name: fullName.trim(), cellphone: cellphone.trim() });
     } catch (e: any) {
       profileError = e?.message ?? "Error al guardar el perfil.";
@@ -95,10 +92,7 @@
       selectedFile = null;
       if (fileInput) fileInput.value = "";
       // Update local store
-      authStore.update((s) => ({
-        ...s,
-        user: s.user ? { ...s.user, photoURL: res.photoURL } : s.user,
-      }));
+      authStore.updateUser({ photoURL: res.photoURL });
       dispatch("updated", { photoURL: res.photoURL });
     } catch (e: any) {
       photoError = e?.message ?? "Error al subir la foto.";
