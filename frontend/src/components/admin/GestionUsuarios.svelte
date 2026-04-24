@@ -70,17 +70,31 @@
     return (displayName(u)[0] ?? u.email?.[0] ?? "?").toUpperCase();
   }
 
-  $: filtered = users.filter((u) => {
-    const term = searchTerm.toLowerCase();
-    const matchTerm =
-      !term ||
-      displayName(u).toLowerCase().includes(term) ||
-      (u.email ?? "").toLowerCase().includes(term) ||
-      (u.grupo ?? "").toLowerCase().includes(term);
-    const matchRole = !filterRole || displayRole(u) === filterRole;
-    const matchGrupo = !filterGrupo || u.grupo === filterGrupo;
-    return matchTerm && matchRole && matchGrupo;
-  });
+  const ROLE_ORDER: Record<string, number> = {
+    desarrollador: 0,
+    administrador: 1,
+    lider: 2,
+    operador: 3,
+  };
+
+  $: filtered = users
+    .filter((u) => {
+      const term = searchTerm.toLowerCase();
+      const matchTerm =
+        !term ||
+        displayName(u).toLowerCase().includes(term) ||
+        (u.email ?? "").toLowerCase().includes(term) ||
+        (u.grupo ?? "").toLowerCase().includes(term);
+      const matchRole = !filterRole || displayRole(u) === filterRole;
+      const matchGrupo = !filterGrupo || u.grupo === filterGrupo;
+      return matchTerm && matchRole && matchGrupo;
+    })
+    .sort((a, b) => {
+      const ra = ROLE_ORDER[displayRole(a)] ?? 9;
+      const rb = ROLE_ORDER[displayRole(b)] ?? 9;
+      if (ra !== rb) return ra - rb;
+      return displayName(a).localeCompare(displayName(b), "es");
+    });
 
   async function loadUsers() {
     loading = true;
@@ -298,61 +312,96 @@
   {:else if filtered.length === 0}
     <div class="empty-state">No se encontraron usuarios</div>
   {:else}
-    <div class="users-grid">
-      {#each filtered as user (user.uid)}
-        {@const role = displayRole(user)}
-        {@const roleColor = ROLE_COLORS[role] ?? "#64748b"}
-        <div class="user-card" style="--rc: {roleColor}">
-          <!-- Avatar -->
-          <div class="user-avatar">
-            {#if user.photoURL}
-              <img src={user.photoURL} alt={displayName(user)} class="avatar-img" referrerpolicy="no-referrer" />
-            {:else}
-              <span>{avatarLetter(user)}</span>
-            {/if}
-          </div>
+    <div class="users-table-wrap">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th class="col-user">Usuario</th>
+            <th class="col-grupo">Grupo</th>
+            <th class="col-role">Rol</th>
+            <th class="col-phone">Teléfono</th>
+            {#if isAdmin}<th class="col-actions">Acciones</th>{/if}
+          </tr>
+        </thead>
+        <tbody>
+          {#each filtered as user (user.uid)}
+            {@const role = displayRole(user)}
+            {@const roleColor = ROLE_COLORS[role] ?? "#64748b"}
+            {@const isSelf = user.uid === currentUser?.uid}
+            <tr class="user-row" class:is-self={isSelf}>
+              <!-- Avatar + Name + Email -->
+              <td class="col-user">
+                <div class="user-identity">
+                  <div class="user-avatar" style="--rc:{roleColor}">
+                    {#if user.photoURL}
+                      <img src={user.photoURL} alt={displayName(user)} class="avatar-img" referrerpolicy="no-referrer" />
+                    {:else}
+                      {avatarLetter(user)}
+                    {/if}
+                  </div>
+                  <div class="user-text">
+                    <span class="user-name">
+                      {displayName(user)}
+                      {#if isSelf}<span class="self-tag">(tú)</span>{/if}
+                    </span>
+                    <span class="user-email">{user.email ?? "—"}</span>
+                  </div>
+                </div>
+              </td>
 
-          <!-- Info -->
-          <div class="user-info">
-            <p class="user-name">{displayName(user)}</p>
-            <p class="user-email">{user.email ?? "—"}</p>
-            <div class="user-badges">
-              <span class="badge-role" style="color:{roleColor};background:{roleColor}18;border-color:{roleColor}30">
-                {ROLE_LABELS[role] ?? role}
-              </span>
-              {#if user.grupo}
-                <span class="badge-grupo">{grupoLabel(user.grupo)}</span>
-              {/if}
-              {#if user.cellphone}
-                <span class="badge-phone">{user.cellphone}</span>
-              {/if}
-            </div>
-          </div>
+              <!-- Grupo -->
+              <td class="col-grupo">
+                {#if user.grupo}
+                  <span class="badge-grupo">{grupoLabel(user.grupo)}</span>
+                {:else}
+                  <span class="text-muted">—</span>
+                {/if}
+              </td>
 
-          <!-- Actions -->
-          {#if isAdmin && user.uid !== currentUser?.uid}
-            <div class="user-actions">
-              <button class="action-btn" title="Editar perfil" on:click={() => openModal("edit", user)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              {#if myRoles.length > 0}
-                <button class="action-btn" title="Cambiar rol" on:click={() => openModal("role", user)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                </button>
+              <!-- Role -->
+              <td class="col-role">
+                <span class="badge-role" style="color:{roleColor};background:{roleColor}18;border-color:{roleColor}35">
+                  {ROLE_LABELS[role] ?? role}
+                </span>
+              </td>
+
+              <!-- Phone -->
+              <td class="col-phone">
+                <span class="text-secondary">{user.cellphone ?? "—"}</span>
+              </td>
+
+              <!-- Actions -->
+              {#if isAdmin}
+                <td class="col-actions">
+                  {#if !isSelf}
+                    <div class="action-row">
+                      <button class="act" title="Editar perfil" on:click={() => openModal("edit", user)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      {#if myRoles.length > 0}
+                        <button class="act" title="Cambiar rol" on:click={() => openModal("role", user)}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        </button>
+                      {/if}
+                      <button class="act" title="Cambiar grupo" on:click={() => openModal("grupo", user)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                      </button>
+                      <button class="act" title="Restablecer contraseña" on:click={() => openModal("password", user)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                      </button>
+                      <button class="act act--danger" title="Eliminar usuario" on:click={() => openModal("delete", user)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                      </button>
+                    </div>
+                  {:else}
+                    <span class="text-muted" style="font-size:.75rem">tu cuenta</span>
+                  {/if}
+                </td>
               {/if}
-              <button class="action-btn" title="Cambiar grupo" on:click={() => openModal("grupo", user)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              </button>
-              <button class="action-btn" title="Restablecer contraseña" on:click={() => openModal("password", user)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              </button>
-              <button class="action-btn action-btn--danger" title="Eliminar usuario" on:click={() => openModal("delete", user)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              </button>
-            </div>
-          {/if}
-        </div>
-      {/each}
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     </div>
   {/if}
 </div>
@@ -623,39 +672,81 @@
 
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* User grid */
-  .users-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  /* Table layout */
+  .users-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    background: var(--surface);
+  }
+
+  .users-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  .users-table thead {
+    background: var(--surface-alt);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .users-table th {
+    padding: 0.625rem 1rem;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .users-table td {
+    padding: 0.75rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .user-row:last-child td { border-bottom: none; }
+
+  .user-row {
+    transition: background var(--transition);
+  }
+
+  .user-row:hover { background: var(--surface-alt); }
+
+  .user-row.is-self { background: rgba(5,150,105,.03); }
+
+  /* Column widths */
+  .col-user   { min-width: 220px; }
+  .col-grupo  { min-width: 110px; }
+  .col-role   { min-width: 110px; }
+  .col-phone  { min-width: 110px; color: var(--text-secondary); font-size: var(--text-xs); }
+  .col-actions { min-width: 140px; }
+
+  /* Identity cell */
+  .user-identity {
+    display: flex;
+    align-items: center;
     gap: 0.75rem;
   }
 
-  .user-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--rc);
-    border-radius: var(--radius-md);
-    padding: 1rem;
-    display: flex;
-    gap: .875rem;
-    align-items: flex-start;
-    box-shadow: var(--shadow-sm);
-    transition: box-shadow var(--transition);
-  }
-
-  .user-card:hover { box-shadow: var(--shadow-md); }
-
   .user-avatar {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: var(--surface-alt);
-    border: 2px solid var(--rc);
+    background: color-mix(in srgb, var(--rc) 12%, white);
+    border: 1.5px solid color-mix(in srgb, var(--rc) 35%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: .875rem;
+    font-size: .8125rem;
     color: var(--rc);
     flex-shrink: 0;
     overflow: hidden;
@@ -668,78 +759,110 @@
     border-radius: 50%;
   }
 
-  .user-info {
-    flex: 1;
+  .user-text {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
   }
 
   .user-name {
     font-weight: 600;
-    font-size: var(--text-base);
     color: var(--text-primary);
-    margin: 0 0 .125rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .self-tag {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--primary);
+    background: rgba(5,150,105,.08);
+    border-radius: 999px;
+    padding: 0 .375rem;
   }
 
   .user-email {
     font-size: var(--text-xs);
     color: var(--text-muted);
-    margin: 0 0 .5rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .user-badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .25rem;
-  }
-
+  /* Badges */
   .badge-role {
-    font-size: .625rem;
-    font-weight: 600;
-    padding: .125rem .5rem;
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: .2rem .6rem;
     border-radius: 999px;
     border: 1px solid;
-    letter-spacing: .03em;
+    letter-spacing: .04em;
     text-transform: uppercase;
+    white-space: nowrap;
   }
 
-  .badge-grupo, .badge-phone {
-    font-size: .625rem;
-    padding: .125rem .5rem;
-    border-radius: 999px;
+  .badge-grupo {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: .25rem .625rem;
+    border-radius: var(--radius-sm);
     background: var(--surface-alt);
     color: var(--text-secondary);
     border: 1px solid var(--border);
+    white-space: nowrap;
   }
 
-  .user-actions {
+  .text-muted { color: var(--text-muted); font-size: var(--text-xs); }
+  .text-secondary { color: var(--text-secondary); }
+
+  /* Inline action buttons */
+  .action-row {
     display: flex;
-    flex-direction: column;
-    gap: .25rem;
-    flex-shrink: 0;
+    align-items: center;
+    gap: 0.125rem;
+    opacity: 0;
+    transition: opacity var(--transition);
   }
 
-  .action-btn {
+  .user-row:hover .action-row,
+  .user-row:focus-within .action-row {
+    opacity: 1;
+  }
+
+  .act {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 28px;
     height: 28px;
     border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--surface-alt);
-    color: var(--text-secondary);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
     cursor: pointer;
     transition: all var(--transition);
+    flex-shrink: 0;
   }
 
-  .action-btn:hover { background: var(--surface); border-color: var(--primary); color: var(--primary); }
-  .action-btn--danger:hover { border-color: var(--error); color: var(--error); }
+  .act:hover {
+    background: var(--surface);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .act--danger:hover {
+    border-color: var(--error);
+    color: var(--error);
+    background: rgba(220,38,38,.04);
+  }
 
   /* Buttons */
   .btn-primary {
