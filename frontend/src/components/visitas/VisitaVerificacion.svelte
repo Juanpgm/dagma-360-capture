@@ -13,6 +13,7 @@
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
   import type { PlantaEntry, ArbolEntry } from "../../types/visitas";
   import type { GrupoKey, GrupoFormType } from "../../lib/grupos";
+  import { GRUPO_DISPLAY_NAMES } from "../../lib/grupos";
   import Stepper from "../ui/Stepper.svelte";
   import Button from "../ui/Button.svelte";
   import Modal from "../ui/Modal.svelte";
@@ -113,7 +114,8 @@
   }
 
   async function handleLoadActividades() {
-    await visitaStore.loadActividades();
+    const grupoDisplayName = selectedGrupo ? GRUPO_DISPLAY_NAMES[selectedGrupo] : undefined;
+    await visitaStore.loadActividades(grupoDisplayName);
   }
 
   async function handleCaptureGPS() {
