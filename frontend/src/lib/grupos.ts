@@ -30,24 +30,48 @@ export const GRUPO_DESCRIPTIONS: Record<GrupoKey, string> = {
 
 
 // Devuelve los nombres de los grupos operativos disponibles en el sistema.
-// Se obtiene desde el endpoint /grupos/nombres (ajustar si el endpoint real es diferente).
+// Usa el endpoint /grupos que retorna objetos completos; extrae solo el campo nombre.
 import { ApiClient } from './api-client';
 
 export async function getGruposNombres(): Promise<string[]> {
 	try {
-		const res = await ApiClient.get<{ success: boolean; data: string[] }>(
-			'/grupos/nombres',
-			{ requireAuth: true }
-		);
-		return Array.isArray(res.data) ? res.data : [];
+		const res = await ApiClient.get<any>('/grupos', { requireAuth: true });
+		// El backend devuelve { status, data: [{id, nombre, ...}], count, ... }
+		const data: any[] = Array.isArray(res) ? res : res.data ?? res.grupos ?? [];
+		return data
+			.map((g: any) => (g.nombre ?? '').toString().trim())
+			.filter(Boolean);
 	} catch (err) {
-		// Fallback: retorna un arreglo vacío si falla
-		return [];
+		// Fallback a lista estática si el endpoint falla
+		return Object.values(GRUPO_DISPLAY_NAMES);
 	}
 }
 
-// Placeholder para getLideresFromGrupos si es necesario
-export async function getLideresFromGrupos(): Promise<any[]> {
-	// Implementar según el endpoint real
-	return [];
+export interface LiderGrupoOption {
+	nombre: string;
+	grupo: string;
+}
+
+/** Obtiene líderes desde /personal_operativo para usarlos en selects de actividades */
+export async function getLideresFromGrupos(): Promise<LiderGrupoOption[]> {
+	try {
+		const res = await ApiClient.get<any>('/personal_operativo', { requireAuth: true });
+		const rows: any[] = Array.isArray(res) ? res : res.data ?? res.personal ?? [];
+		const map = new Map<string, LiderGrupoOption>();
+		for (const item of rows) {
+			const nombre = (
+				item.nombre_completo ||
+				item.full_name ||
+				item.nombre ||
+				''
+			).toString().trim();
+			const grupo = (item.grupo || '').toString().trim();
+			if (!nombre) continue;
+			const key = `${nombre}::${grupo}`.toLowerCase();
+			if (!map.has(key)) map.set(key, { nombre, grupo });
+		}
+		return [...map.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+	} catch {
+		return [];
+	}
 }

@@ -89,19 +89,21 @@
 
   let selectedGrupoId: string | null = null;
   $: selectedGrupo = grupos.find((g) => g.id === selectedGrupoId) ?? null;
+  // Comparación case-insensitive: grupo puede estar en minúsculas ("cuadrilla") o con mayúscula ("Cuadrilla")
   $: personalFiltrado = selectedGrupoId
-    ? personal.filter((p) => p.grupo === selectedGrupo?.nombre)
+    ? personal.filter((p) => (p.grupo ?? '').toLowerCase() === (selectedGrupo?.nombre ?? '').toLowerCase())
     : personal;
   $: usuariosFiltrado = selectedGrupoId
-    ? usuarios.filter((u) => (u.grupo ?? u.nombre_centro_gestor) === selectedGrupo?.nombre)
+    ? usuarios.filter((u) => ((u.grupo ?? u.nombre_centro_gestor) ?? '').toLowerCase() === (selectedGrupo?.nombre ?? '').toLowerCase())
     : usuarios;
 
   // ── Permissions ──
 
-  /** Grupos visibles para el usuario: líder ve solo su grupo, admin/dev ven todos */
+  /** Grupos visibles para el usuario: líder ve solo su grupo, admin/dev ven todos.
+   *  Comparación case-insensitive porque Firestore puede guardar "cuadrilla" o "Cuadrilla". */
   $: gruposVisibles = $permissions.canSeeAllGroups
     ? grupos
-    : grupos.filter((g) => g.nombre === $authStore.user?.grupo);
+    : grupos.filter((g) => g.nombre.toLowerCase() === ($authStore.user?.grupo ?? '').toLowerCase());
 
   /** Líder: auto-select su propio grupo al cargar */
   $: if (!$permissions.canSeeAllGroups && gruposVisibles.length > 0 && selectedGrupoId === null) {
@@ -335,7 +337,7 @@
         </button>
         {/if}
         {#each gruposVisibles as grupo (grupo.id)}
-          {@const count = personal.filter((p) => p.grupo === grupo.nombre).length + usuarios.filter((u) => (u.grupo ?? u.nombre_centro_gestor) === grupo.nombre).length}
+          {@const count = personal.filter((p) => (p.grupo ?? '').toLowerCase() === grupo.nombre.toLowerCase()).length + usuarios.filter((u) => ((u.grupo ?? u.nombre_centro_gestor) ?? '').toLowerCase() === grupo.nombre.toLowerCase()).length}
           <button
             class="grupo-item"
             class:active={selectedGrupoId === grupo.id}

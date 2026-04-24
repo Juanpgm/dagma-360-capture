@@ -217,15 +217,36 @@
     return 0;
   });
 
-  $: filteredLideresGrupoOptions = lideresGrupoOptions.filter((lider) => {
-    const query = normalizeSearchValue(liderSearchQuery);
-    if (!query) return true;
+  /**
+   * Filtra líderes según:
+   * 1. Si hay grupos requeridos seleccionados → muestra solo líderes de esos grupos.
+   * 2. Si hay texto de búsqueda → filtra por nombre o grupo dentro de la lista resultante.
+   * Esto permite que al elegir los grupos de la actividad el dropdown de líderes
+   * muestre automáticamente solo los integrantes relevantes.
+   */
+  $: filteredLideresGrupoOptions = (() => {
+    let lista = lideresGrupoOptions;
 
-    return (
-      normalizeSearchValue(lider.nombre).includes(query) ||
-      normalizeSearchValue(lider.grupo).includes(query)
+    // Filtrar por grupos requeridos (case-insensitive)
+    if (gruposRequeridosForm.length > 0) {
+      const gruposLower = gruposRequeridosForm.map((g) => normalizeSearchValue(g));
+      lista = lista.filter((lider) => {
+        const liderGrupoNorm = normalizeSearchValue(lider.grupo);
+        return gruposLower.some(
+          (g) => liderGrupoNorm.includes(g) || g.includes(liderGrupoNorm),
+        );
+      });
+    }
+
+    // Filtrar por texto de búsqueda
+    const query = normalizeSearchValue(liderSearchQuery);
+    if (!query) return lista;
+    return lista.filter(
+      (lider) =>
+        normalizeSearchValue(lider.nombre).includes(query) ||
+        normalizeSearchValue(lider.grupo).includes(query),
     );
-  });
+  })();
 
   $: liderSeleccionado =
     lideresGrupoOptions.find((lider) => lider.nombre === liderActividadForm) ||
@@ -2093,11 +2114,18 @@
                     bind:value={liderSearchQuery}
                     placeholder="Buscar líder o grupo..."
                   />
+                  {#if gruposRequeridosForm.length > 0 && !liderSearchQuery}
+                    <div class="lider-filter-hint">
+                      Mostrando líderes de: <strong>{gruposRequeridosForm.join(', ')}</strong>
+                    </div>
+                  {/if}
 
                   <div class="lider-options-list">
                     {#if filteredLideresGrupoOptions.length === 0}
                       <div class="lider-empty-state">
-                        No se encontraron líderes.
+                        {gruposRequeridosForm.length > 0
+                          ? `No hay líderes registrados en ${gruposRequeridosForm.join(', ')}. Busca por nombre para ver todos.`
+                          : 'No se encontraron líderes.'}
                       </div>
                     {:else}
                       {#each filteredLideresGrupoOptions as lider}
@@ -4908,6 +4936,19 @@
     color: #6b7280;
     font-size: 0.85rem;
     padding: 0.5rem 0.35rem;
+  }
+
+  .lider-filter-hint {
+    font-size: 0.75rem;
+    color: #6b7280;
+    background: #f0f9ff;
+    border-left: 3px solid #3b82f6;
+    padding: 0.3rem 0.6rem;
+    margin: 0.25rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .lider-filter-hint strong {
+    color: #1d4ed8;
   }
 
   .lider-grupo-badge {
