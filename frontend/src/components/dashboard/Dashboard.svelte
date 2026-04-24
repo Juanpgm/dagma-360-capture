@@ -15,6 +15,7 @@
   import KPICard from "./KPICard.svelte";
   import MapaIntervenciones from "./MapaIntervenciones.svelte";
   import MapaCoropletico from "./MapaCoropletico.svelte";
+  import DashboardReportesList from "./DashboardReportesList.svelte";
 
   // ── Utilidades de color por grupo ───────────────────────────────────────────
   function getGrupoColor(grupo: string | null | undefined): string {
@@ -58,15 +59,7 @@
   let selectedComuna = "todas";
   let selectedBarrio = "todos";
 
-  // ── Paginación ───────────────────────────────────────────────────────────────
-  let currentPage = 1;
-  let pageSize = 15;
-  $: totalPages = Math.max(1, Math.ceil(filteredReportes.length / pageSize));
-  $: pagedReportes = filteredReportes.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
-  $: if (filteredReportes) currentPage = 1;
+  // Paginación eliminada — DashboardReportesList maneja su propio "load more"
 
   // ── KPIs computados ─────────────────────────────────────────────────────────
   $: totalIntervenciones = filteredReportes.length;
@@ -365,34 +358,40 @@
   }
 
   // ── Filtrado reactivo ────────────────────────────────────────────────────────
-  $: filteredReportes = reportes.filter((r) => {
-    if (searchTerm) {
-      const t = searchTerm.toLowerCase();
-      const match =
-        r.tipo_arbol?.toLowerCase().includes(t) ||
-        r.descripcion_intervencion?.toLowerCase().includes(t) ||
-        r.observaciones?.toLowerCase().includes(t) ||
-        r.registrado_por?.toLowerCase().includes(t) ||
-        r.direccion?.toLowerCase().includes(t) ||
-        r.tipo_intervencion?.toLowerCase().includes(t) ||
-        r.barrio_vereda?.toLowerCase().includes(t) ||
-        r.comuna_corregimiento?.toLowerCase().includes(t);
-      if (!match) return false;
-    }
-    if (selectedTipoIntervencion !== "todos" && r.tipo_intervencion !== selectedTipoIntervencion) return false;
-    if (selectedGrupo !== "todos" && r.grupo !== selectedGrupo) return false;
-    if (selectedComuna !== "todas" && r.comuna_corregimiento !== selectedComuna) return false;
-    if (selectedBarrio !== "todos" && r.barrio_vereda !== selectedBarrio) return false;
-    if (dateFrom && r.fecha_registro) {
-      if (new Date(r.fecha_registro) < new Date(dateFrom)) return false;
-    }
-    if (dateTo && r.fecha_registro) {
-      const to = new Date(dateTo);
-      to.setHours(23, 59, 59);
-      if (new Date(r.fecha_registro) > to) return false;
-    }
-    return true;
-  });
+  $: filteredReportes = reportes
+    .filter((r) => {
+      if (searchTerm) {
+        const t = searchTerm.toLowerCase();
+        const match =
+          r.tipo_arbol?.toLowerCase().includes(t) ||
+          r.descripcion_intervencion?.toLowerCase().includes(t) ||
+          r.observaciones?.toLowerCase().includes(t) ||
+          r.registrado_por?.toLowerCase().includes(t) ||
+          r.direccion?.toLowerCase().includes(t) ||
+          r.tipo_intervencion?.toLowerCase().includes(t) ||
+          r.barrio_vereda?.toLowerCase().includes(t) ||
+          r.comuna_corregimiento?.toLowerCase().includes(t);
+        if (!match) return false;
+      }
+      if (selectedTipoIntervencion !== "todos" && r.tipo_intervencion !== selectedTipoIntervencion) return false;
+      if (selectedGrupo !== "todos" && r.grupo !== selectedGrupo) return false;
+      if (selectedComuna !== "todas" && r.comuna_corregimiento !== selectedComuna) return false;
+      if (selectedBarrio !== "todos" && r.barrio_vereda !== selectedBarrio) return false;
+      if (dateFrom && r.fecha_registro) {
+        if (new Date(r.fecha_registro) < new Date(dateFrom)) return false;
+      }
+      if (dateTo && r.fecha_registro) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59);
+        if (new Date(r.fecha_registro) > to) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const da = a.fecha_registro ? new Date(a.fecha_registro).getTime() : 0;
+      const db = b.fecha_registro ? new Date(b.fecha_registro).getTime() : 0;
+      return db - da;
+    });
 
   // ── Carga de datos ───────────────────────────────────────────────────────────
   onMount(async () => {
@@ -858,103 +857,14 @@
       {/if}
     {/if}
 
-    <!-- ════ TAB: TABLA ════ -->
+    <!-- ════ TAB: REPORTES ════ -->
     {#if activeTab === "tabla"}
-      <div class="table-card">
-        <div class="table-card-header">
+      <div class="reports-card">
+        <div class="reports-card-header">
           <h3>Reportes de Intervenciones <span class="count-badge">{filteredReportes.length}</span></h3>
-          <div class="pagination-controls">
-            <select bind:value={pageSize} on:change={() => (currentPage = 1)}>
-              <option value={10}>10 / pág</option>
-              <option value={15}>15 / pág</option>
-              <option value={25}>25 / pág</option>
-              <option value={50}>50 / pág</option>
-            </select>
-          </div>
+          <span class="reports-subtitle">Ordenados del más reciente al más antiguo</span>
         </div>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Grupo</th>
-                <th>Tipo Intervención</th>
-                <th>Detalle</th>
-                <th>Impacto</th>
-                <th>Ubicación</th>
-                <th class="center">Fotos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each pagedReportes as reporte}
-                <tr>
-                  <td class="date-cell">{formatDate(reporte.fecha_registro)}</td>
-                  <td>
-                    <span
-                      class="grupo-badge"
-                      style="background: {getGrupoColor(reporte.grupo)}20; color: {getGrupoColor(reporte.grupo)}; border: 1px solid {getGrupoColor(reporte.grupo)}40;"
-                    >
-                      <span class="grupo-dot" style="background:{getGrupoColor(reporte.grupo)}"></span>
-                      {getGrupoLabel(reporte.grupo)}
-                    </span>
-                  </td>
-                  <td>
-                    <span class="tipo-badge">{reporte.tipo_intervencion || "—"}</span>
-                  </td>
-                  <td class="detalle-cell">{getDetalle(reporte)}</td>
-                  <td class="impact-cell">
-                    {#if getImpacto(reporte) > 0}
-                      <span class="impact-val">{getImpacto(reporte).toLocaleString("es-CO")}</span>
-                      <span class="impact-unit">{getImpactoLabel(reporte)}</span>
-                    {:else}
-                      <span class="muted">—</span>
-                    {/if}
-                  </td>
-                  <td class="location-cell">
-                    {#if reporte.barrio_vereda || reporte.comuna_corregimiento}
-                      <div class="location-lines">
-                        {#if reporte.barrio_vereda}
-                          <div class="loc-barrio">{reporte.barrio_vereda}</div>
-                        {/if}
-                        {#if reporte.comuna_corregimiento}
-                          <div class="loc-comuna">{reporte.comuna_corregimiento}</div>
-                        {/if}
-                      </div>
-                    {:else if reporte.direccion}
-                      <span class="muted">{reporte.direccion}</span>
-                    {:else if reporte.coordinates_data}
-                      <span class="muted">{reporte.coordinates_data[1].toFixed(4)}, {reporte.coordinates_data[0].toFixed(4)}</span>
-                    {:else}
-                      <span class="muted">—</span>
-                    {/if}
-                  </td>
-                  <td class="center">
-                    {#if (reporte.photos_uploaded ?? 0) > 0}
-                      <span class="photo-badge">{reporte.photos_uploaded}</span>
-                    {:else}
-                      <span class="muted">—</span>
-                    {/if}
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-        <!-- Paginación -->
-        <div class="pagination">
-          <span class="pagination-info">
-            {Math.min((currentPage - 1) * pageSize + 1, filteredReportes.length)}
-            – {Math.min(currentPage * pageSize, filteredReportes.length)}
-            de {filteredReportes.length}
-          </span>
-          <div class="pagination-controls">
-            <button class="pg-btn" disabled={currentPage <= 1} on:click={() => (currentPage = 1)}>«</button>
-            <button class="pg-btn" disabled={currentPage <= 1} on:click={() => currentPage--}>‹</button>
-            <span class="pg-current">{currentPage} / {totalPages}</span>
-            <button class="pg-btn" disabled={currentPage >= totalPages} on:click={() => currentPage++}>›</button>
-            <button class="pg-btn" disabled={currentPage >= totalPages} on:click={() => (currentPage = totalPages)}>»</button>
-          </div>
-        </div>
+        <DashboardReportesList reportes={filteredReportes} />
       </div>
     {/if}
   {/if}
@@ -1597,24 +1507,25 @@
     text-align: right;
   }
 
-  /* ── Table card ──────────────────────────────────────────────────────────── */
-  .table-card {
+  /* ── Reports card (reemplaza tabla) ─────────────────────────────────────── */
+  .reports-card {
     background: var(--surface);
     border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: var(--shadow);
     border: 1px solid var(--border-light);
+    padding: var(--space-5);
   }
 
-  .table-card-header {
+  .reports-card-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-4) var(--space-5);
-    border-bottom: 1px solid var(--border-light);
+    align-items: baseline;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
   }
 
-  .table-card-header h3 {
+  .reports-card-header h3 {
     margin: 0;
     font-size: var(--text-md);
     font-weight: var(--font-weight-bold);
@@ -1622,6 +1533,11 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
+  }
+
+  .reports-subtitle {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
   }
 
   .count-badge {
@@ -1634,189 +1550,8 @@
     font-weight: var(--font-weight-semibold);
   }
 
-  .table-wrapper { overflow-x: auto; }
-
-  table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
-  thead { background: var(--surface-alt); }
-
-  th {
-    text-align: left;
-    padding: var(--space-3) var(--table-cell-px);
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-bold);
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-
-  th.center { text-align: center; }
-
-  td {
-    padding: var(--table-cell-py) var(--table-cell-px);
-    border-bottom: 1px solid var(--border-light);
-    color: var(--slate-700);
-    vertical-align: middle;
-  }
-
-  td.center { text-align: center; }
-  tbody tr:hover td { background: var(--surface-alt); }
-
-  .date-cell { font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap; }
-
-  .detalle-cell {
-    max-width: 180px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-  }
-
-  .impact-cell { white-space: nowrap; }
-  .impact-val { font-weight: var(--font-weight-bold); color: var(--primary); font-size: var(--text-md); }
-  .impact-unit { font-size: var(--text-xs); color: var(--text-muted); margin-left: var(--space-1); }
-
-  .location-cell {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-    max-width: 200px;
-  }
-
-  .location-lines {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .loc-barrio {
-    font-size: var(--text-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--slate-700);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .loc-comuna {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .muted { color: var(--text-disabled); font-size: var(--text-sm); }
-
-  /* Filas sin datos geográficos */
+  /* ── Filas sin datos geográficos ─────────────────────────────────────────── */
   .sin-geo .comuna-name { color: var(--amber-600); font-style: italic; }
-
-  /* ── Badges ──────────────────────────────────────────────────────────────── */
-  .grupo-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: 2px 8px;
-    border-radius: var(--radius-full);
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-semibold);
-    white-space: nowrap;
-  }
-
-  .grupo-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-
-  .tipo-badge {
-    display: inline-block;
-    padding: 2px 7px;
-    background: var(--slate-100);
-    color: var(--slate-600);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-medium);
-  }
-
-  .photo-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 5px;
-    background: var(--blue-100);
-    color: var(--blue-700);
-    border-radius: var(--radius-full);
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-bold);
-  }
-
-  /* ── Paginación ──────────────────────────────────────────────────────────── */
-  .pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-3) var(--space-5);
-    border-top: 1px solid var(--border-light);
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-
-  .pagination-info { font-size: var(--text-sm); color: var(--text-secondary); }
-
-  .pagination-controls {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-  }
-
-  .pagination-controls select {
-    height: 32px;
-    padding: 0 var(--space-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-sm);
-    background: var(--surface);
-    color: var(--slate-700);
-    outline: none;
-    cursor: pointer;
-    appearance: none;
-    padding-right: 24px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 6px center;
-  }
-
-  .pg-btn {
-    width: 30px;
-    height: 30px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    color: var(--slate-700);
-    font-size: var(--text-base);
-    cursor: pointer;
-    transition: all var(--transition);
-  }
-
-  .pg-btn:hover:not(:disabled) {
-    background: var(--green-50);
-    border-color: var(--primary);
-    color: var(--primary);
-  }
-
-  .pg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-
-  .pg-current {
-    font-size: var(--text-sm);
-    font-weight: var(--font-weight-semibold);
-    color: var(--slate-800);
-    padding: 0 var(--space-1);
-    min-width: 56px;
-    text-align: center;
-  }
 
   /* Responsive */
   @media (max-width: 1280px) {
