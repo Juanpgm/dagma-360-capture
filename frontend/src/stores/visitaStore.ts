@@ -177,11 +177,11 @@ function createVisitaStore() {
     /**
      * Carga la lista de actividades desde el API
      */
-    loadActividades: async () => {
+    loadActividades: async (grupo?: string) => {
       update(state => ({ ...state, isLoading: true, error: null }));
 
       try {
-        const actividades = await getActividadesPlanDistritoVerde();
+        const actividades = await getActividadesPlanDistritoVerde(grupo);
 
         update(state => ({
           ...state,

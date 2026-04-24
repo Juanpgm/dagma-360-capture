@@ -69,10 +69,29 @@
         full_name: fullName.trim(),
         cellphone: cellphone.trim() || undefined,
       });
-      profileSuccess = "Perfil actualizado correctamente.";
-      // Update local store
+      // Update local store with profile data
       authStore.updateUser({ full_name: fullName.trim(), cellphone: cellphone.trim() });
       dispatch("updated", { full_name: fullName.trim(), cellphone: cellphone.trim() });
+
+      // If there's a photo selected, upload it together
+      if (selectedFile) {
+        savingPhoto = true;
+        try {
+          const res = await uploadProfilePhoto(selectedFile);
+          previewURL = null;
+          selectedFile = null;
+          if (fileInput) fileInput.value = "";
+          authStore.updateUser({ photoURL: res.photoURL });
+          dispatch("updated", { photoURL: res.photoURL });
+          profileSuccess = "Perfil y foto actualizados correctamente.";
+        } catch (photoErr: any) {
+          profileSuccess = "Perfil actualizado. Error al subir la foto: " + (photoErr?.message ?? "Error desconocido");
+        } finally {
+          savingPhoto = false;
+        }
+      } else {
+        profileSuccess = "Perfil actualizado correctamente.";
+      }
     } catch (e: any) {
       profileError = e?.message ?? "Error al guardar el perfil.";
     } finally {

@@ -113,7 +113,13 @@
         <div class="user-chip">
           <div class="user-avatar">
             {#if userPhotoURL}
-              <img src={userPhotoURL} alt={userFullName} class="user-photo" referrerpolicy="no-referrer" />
+              <img
+                src={userPhotoURL}
+                alt={userFullName}
+                class="user-photo"
+                referrerpolicy="no-referrer"
+                on:error={(e) => { userPhotoURL = null; }}
+              />
             {:else}
               {userAvatarLetter}
             {/if}
@@ -516,6 +522,19 @@
   @media (max-width: 640px) {
     .user-meta {
       display: none;
+    }
+    .user-chip {
+      padding: 0.25rem 0.5rem;
+      gap: 0.375rem;
+    }
+    .user-avatar {
+      width: 34px;
+      height: 34px;
+      font-size: 0.875rem;
+    }
+    .btn-gear {
+      width: 28px;
+      height: 28px;
     }
     .home-content {
       padding: 1rem;
