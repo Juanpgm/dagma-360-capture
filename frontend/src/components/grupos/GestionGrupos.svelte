@@ -7,6 +7,7 @@
    import { normalizeRole, ROLE_LABELS, ROLE_COLORS } from "../../lib/permissions";
   import { verificarRegistroPersonalOperativo } from '../../api/verificarPersonal';
   import { GRUPO_DISPLAY_NAMES, type GrupoKey } from "../../lib/grupos";
+  import { getAsistenciasResumen, type AsistenciaResumenItem } from '../../api/actividades';
 
   function grupoLabel(g: string | null | undefined): string {
     if (!g) return '';
@@ -103,8 +104,29 @@
     selectedGrupoId = gruposVisibles[0].id;
   }
 
-  // ── Tab activa: operarios | usuarios ──
-  let activeTab: 'operarios' | 'usuarios' = 'operarios';
+  // ── Tab activa: operarios | usuarios | asistencias ──
+  let activeTab: 'operarios' | 'usuarios' | 'asistencias' = 'operarios';
+
+  // ── Asistencias ──
+  let asistencias: AsistenciaResumenItem[] = [];
+  let loadingAsistencias = false;
+  let errorAsistencias = '';
+
+  $: asistenciasFiltradas = selectedGrupo
+    ? asistencias.filter(a => a.grupos_participantes.some(g => g.toLowerCase() === (selectedGrupo?.nombre ?? '').toLowerCase()))
+    : asistencias;
+
+  async function fetchAsistencias() {
+    loadingAsistencias = true;
+    errorAsistencias = '';
+    try {
+      asistencias = await getAsistenciasResumen();
+    } catch (e: any) {
+      errorAsistencias = e?.message ?? 'Error al obtener asistencias';
+    } finally {
+      loadingAsistencias = false;
+    }
+  }
 
   // ── Modal cambiar rol ──
 
@@ -233,6 +255,7 @@
     await fetchGrupos();
     await fetchPersonal();
     await fetchUsuarios();
+    await fetchAsistencias();
     await tick();
     verificarPersonal();
   });
@@ -353,6 +376,14 @@
             {#if usuariosFiltrado.length > 0}<span class="tab-count">{usuariosFiltrado.length}</span>{/if}
           </button>
         {/if}
+        <button
+          class="panel-tab"
+          class:active={activeTab === 'asistencias'}
+          on:click={() => { activeTab = 'asistencias'; }}
+        >
+          Asistencias
+          {#if asistenciasFiltradas.length > 0}<span class="tab-count">{asistenciasFiltradas.length}</span>{/if}
+        </button>
       </div>
 
       {#if loadingPersonal || loadingUsuarios}
@@ -409,6 +440,123 @@
               </div>
             {/each}
           </div>
+        {/if}
+
+        <!-- ── Asistencias de actividades ── -->
+        {#if activeTab === 'asistencias'}
+          {#if loadingAsistencias}
+            <div class="loading-cards">
+              {#each Array(3) as _}<div class="skeleton-card"></div>{/each}
+            </div>
+          {:else if errorAsistencias}
+            <div class="error-state centered">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {errorAsistencias}
+              <button class="btn-retry" on:click={fetchAsistencias}>Reintentar</button>
+            </div>
+          {:else if asistenciasFiltradas.length === 0}
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              <p>No hay registros de asistencia{selectedGrupo ? ` para ${selectedGrupo.nombre}` : ''}</p>
+            </div>
+          {:else}
+            <div class="asistencias-list">
+              {#each asistenciasFiltradas as rec (rec.actividad_id)}
+                {@const pct = rec.asistencia_general}
+                {@const pctColor = pct >= 80 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626'}
+                <details class="asistencia-row">
+                  <summary class="asistencia-summary">
+                    <div class="asi-left">
+                      <!-- Fecha de la actividad (cuándo se desarrolló) -->
+                      {#if rec.fecha_actividad}
+                        <span class="asi-fecha-act">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          {rec.fecha_actividad}{#if rec.hora_encuentro} · {rec.hora_encuentro}{/if}
+                        </span>
+                      {/if}
+                      <!-- Tipo de jornada -->
+                      {#if rec.tipo_jornada}
+                        <span class="asi-tipo">{rec.tipo_jornada}</span>
+                      {/if}
+                      <!-- Lugar -->
+                      {#if rec.barrio_vereda || rec.comunas_corregimiento}
+                        <span class="asi-lugar">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                          {[rec.barrio_vereda, rec.comunas_corregimiento].filter(Boolean).join(', ')}
+                        </span>
+                      {/if}
+                      {#if rec.grupos_participantes.length > 0}
+                        <span class="asi-grupos">{rec.grupos_participantes.map(g => g.charAt(0).toUpperCase() + g.slice(1)).join(' · ')}</span>
+                      {/if}
+                    </div>
+                    <div class="asi-right">
+                      {#if rec.alertas > 0}
+                        <span class="asi-alertas" title="Alertas">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                          {rec.alertas}
+                        </span>
+                      {/if}
+                      <span class="asi-stat">{rec.asistentes}/{rec.total_personal}</span>
+                      <span class="asi-pct" style="color:{pctColor};">{pct}%</span>
+                      <svg class="asi-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                  </summary>
+
+                  <!-- Detalle expandible -->
+                  <div class="asistencia-detail">
+                    <!-- Info de la actividad -->
+                    <div class="act-info-block">
+                      {#if rec.direccion}
+                        <div class="act-info-row">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                          <span>{rec.direccion}</span>
+                        </div>
+                      {/if}
+                      {#if rec.objetivo_actividad}
+                        <div class="act-info-row">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          <span>{rec.objetivo_actividad}</span>
+                        </div>
+                      {/if}
+                      {#if rec.estado_actividad}
+                        <div class="act-info-row">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                          <span>Estado: <strong>{rec.estado_actividad}</strong></span>
+                        </div>
+                      {/if}
+                    </div>
+
+                    <!-- Personal con observaciones de campo -->
+                    <div class="act-personal-header">Personal asignado</div>
+                    {#each rec.personal_asignado as p (p.nombre_completo)}
+                      <div class="asistencia-persona" class:ausente={p.validacion === false}>
+                        <span class="ap-status" title={p.validacion ? 'Asistió' : 'Ausente'}>
+                          {#if p.validacion}
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          {:else}
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                          {/if}
+                        </span>
+                        <div class="ap-body">
+                          <div class="ap-topline">
+                            <span class="ap-name">{p.nombre_completo ?? '—'}</span>
+                            {#if p.grupo}<span class="ap-grupo">{grupoLabel(p.grupo)}</span>{/if}
+                            {#if p.alerta}<span class="ap-alerta">⚠ {p.alerta}</span>{/if}
+                          </div>
+                          {#if p.observacion}
+                            <div class="ap-obs-campo">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                              {p.observacion}
+                            </div>
+                          {/if}
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                </details>
+              {/each}
+            </div>
+          {/if}
         {/if}
 
         <!-- ── Usuarios del sistema (admin/users, con control de rol) ── -->
@@ -883,6 +1031,214 @@
     background: var(--primary);
     color: white;
   }
+
+  /* ── Asistencias tab ─────────────────────────────────── */
+  .asistencias-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+  }
+
+  .asistencia-row {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .asistencia-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    transition: background 0.15s;
+  }
+  .asistencia-summary::-webkit-details-marker { display: none; }
+  .asistencia-summary:hover { background: color-mix(in srgb, var(--primary) 4%, transparent); }
+
+  .asi-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .asi-fecha-act {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .asi-tipo {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    padding: 0.15rem 0.5rem;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+
+  .asi-lugar {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .asi-grupos {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    padding: 0.15rem 0.45rem;
+    border-radius: 99px;
+  }
+
+  .asi-right {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    white-space: nowrap;
+  }
+
+  .asi-stat {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+
+  .asi-pct {
+    font-size: 0.875rem;
+    font-weight: 600;
+    min-width: 3ch;
+    text-align: right;
+  }
+
+  .asi-alertas {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: #d97706;
+    background: #fef3c7;
+    padding: 0.1rem 0.4rem;
+    border-radius: 99px;
+  }
+
+  .asi-chevron {
+    opacity: 0.4;
+    transition: transform 0.2s;
+  }
+  details[open] .asi-chevron { transform: rotate(180deg); }
+
+  .asistencia-detail {
+    border-top: 1px solid var(--border);
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: color-mix(in srgb, var(--surface) 60%, var(--background));
+  }
+
+  /* Activity info block */
+  .act-info-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    margin-bottom: 0.25rem;
+  }
+
+  .act-info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+  .act-info-row svg { flex-shrink: 0; margin-top: 2px; }
+
+  .act-personal-header {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 0.2rem 0;
+  }
+
+  /* Individual person rows */
+  .asistencia-persona {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    font-size: 0.8125rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  }
+  .asistencia-persona:last-child { border-bottom: none; }
+  .asistencia-persona.ausente .ap-name { color: var(--text-muted); }
+
+  .ap-status { display: flex; align-items: center; flex-shrink: 0; padding-top: 2px; }
+
+  .ap-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ap-topline {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+
+  .ap-name {
+    font-weight: 500;
+  }
+
+  .ap-grupo {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .ap-alerta {
+    font-size: 0.7rem;
+    color: #b45309;
+    background: #fef3c7;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .ap-obs-campo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.3rem;
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    line-height: 1.4;
+  }
+  .ap-obs-campo svg { flex-shrink: 0; margin-top: 2px; opacity: 0.6; }
 
   /* Floating edit-rol button — appears on card hover */
   .persona-card {

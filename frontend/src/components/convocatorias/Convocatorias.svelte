@@ -16,6 +16,7 @@
   import AsistenciaModal from "./AsistenciaModal.svelte";
   import type { AsistenciaRecord } from "../../api/actividades";
 
+  import { getUsers } from "../../api/admin";
   import { getGruposNombres, getLideresFromGrupos } from "../../lib/grupos";
   import { authStore } from "../../stores/authStore";
   import type { LiderGrupoOption, PersonalOperativoItem } from "../../api/actividades";
@@ -164,6 +165,12 @@
 
   function normalizeTextInput(value: string | number): string {
     return `${value ?? ""}`.trim();
+  }
+
+  /** Ensures the first character of a string is uppercase, leaves the rest untouched. */
+  function capitalizeFirst(s: string): string {
+    if (!s) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
   function parseCoordinate(value: string | number): number {
@@ -613,21 +620,37 @@
       ...getPersonalAsignadoActividad(actividad.id),
     ];
 
-    // Cargar personal operativo desde el backend
+    // Cargar personal operativo y usuarios del sistema en paralelo
     loadingPersonal = true;
     errorPersonal = "";
     try {
-      const data = await getPersonalOperativo();
-      personalCatalogo = data.map((item) => ({
+      const [operativo, usuarios] = await Promise.all([
+        getPersonalOperativo().catch(() => []),
+        getUsers().catch(() => []),
+      ]);
+
+      const desdeOperativo: PersonalGrupoItem[] = operativo.map((item) => ({
         id: item.id,
         nombreCompleto: item.nombre_completo,
-        telefono: item.numero_contacto || "No registrado",
-        grupo: item.grupo,
-        email: item.email,
+        telefono: String(item.numero_contacto || ''),
+        grupo: capitalizeFirst(item.grupo ?? ''),
+        email: item.email ?? '',
       }));
+
+      const desdeUsuarios: PersonalGrupoItem[] = usuarios
+        .filter((u) => u.nombre_completo || u.full_name || u.displayName)
+        .map((u) => ({
+          id: u.uid || u.id || `usr-${u.email}`,
+          nombreCompleto: (u.nombre_completo || u.full_name || u.displayName || '').trim(),
+          telefono: String(u.cellphone || ''),
+          grupo: capitalizeFirst((u.grupo || u.nombre_centro_gestor || '').trim()),
+          email: u.email ?? '',
+        }));
+
+      personalCatalogo = deduplicarPersonal([...desdeOperativo, ...desdeUsuarios]);
     } catch (err) {
-      console.error("Error al cargar personal operativo:", err);
-      errorPersonal = "Error al cargar el personal operativo.";
+      console.error("Error al cargar personal:", err);
+      errorPersonal = "Error al cargar el personal disponible.";
       personalCatalogo = [];
     } finally {
       loadingPersonal = false;
@@ -685,16 +708,29 @@
         numero_contacto: numContacto,
         grupo: crearMiembroGrupo,
       };
-      // Refrescar catálogo de personal
+      // Refrescar catálogo de personal (ambas fuentes)
       try {
-        const data = await getPersonalOperativo();
-        personalCatalogo = data.map((item) => ({
+        const [operativo, usuarios] = await Promise.all([
+          getPersonalOperativo().catch(() => []),
+          getUsers().catch(() => []),
+        ]);
+        const desdeOperativo: PersonalGrupoItem[] = operativo.map((item) => ({
           id: item.id,
           nombreCompleto: item.nombre_completo,
-          telefono: item.numero_contacto || "No registrado",
-          grupo: item.grupo,
-          email: item.email,
+          telefono: String(item.numero_contacto || ''),
+          grupo: capitalizeFirst(item.grupo ?? ''),
+          email: item.email ?? '',
         }));
+        const desdeUsuarios: PersonalGrupoItem[] = usuarios
+          .filter((u) => u.nombre_completo || u.full_name || u.displayName)
+          .map((u) => ({
+            id: u.uid || u.id || `usr-${u.email}`,
+            nombreCompleto: (u.nombre_completo || u.full_name || u.displayName || '').trim(),
+            telefono: String(u.cellphone || ''),
+            grupo: capitalizeFirst((u.grupo || u.nombre_centro_gestor || '').trim()),
+            email: u.email ?? '',
+          }));
+        personalCatalogo = deduplicarPersonal([...desdeOperativo, ...desdeUsuarios]);
       } catch (_) { /* catálogo se actualizará luego */ }
       // Cerrar modal de creación y abrir confirmación
       isCrearMiembroModalOpen = false;
@@ -812,7 +848,7 @@
               id: item.id || `${actividadId}-${index}`,
               nombreCompleto: item.nombre_completo || '-',
               telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
-              grupo: item.grupo || '-',
+              grupo: capitalizeFirst(item.grupo || '-'),
               email: item.email || '',
             }))
         );
@@ -895,7 +931,7 @@
         id: item.id || `${actividadId}-${index}`,
         nombreCompleto: item.nombre_completo || "-",
         telefono: String(item.numero_contacto || item.telefono || "No registrado"),
-        grupo: item.grupo || "-",
+        grupo: capitalizeFirst(item.grupo || "-"),
         email: item.email || "",
       }));
 
@@ -967,7 +1003,7 @@
               id: item.id || `${actividadId}-${index}`,
               nombreCompleto: item.nombre_completo || '-',
               telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
-              grupo: item.grupo || '-',
+              grupo: capitalizeFirst(item.grupo || '-'),
               email: item.email || '',
             }))
         );

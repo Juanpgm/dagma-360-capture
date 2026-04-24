@@ -452,3 +452,50 @@ export async function actualizarAsistenciaItems(
     { personal },
   );
 }
+
+export interface AsistenciaPersonaResumen {
+  nombre_completo: string;
+  grupo: string | null;
+  validacion: boolean | null;
+  observacion: string | null;
+  alerta: AlertaTipoValue | null;
+}
+
+export interface AsistenciaResumenItem {
+  actividad_id: string;
+  fecha_registro: string | null;
+  total_personal: number;
+  asistentes: number;
+  ausentes: number;
+  alertas: number;
+  asistencia_general: number;
+  grupos_participantes: string[];
+  personal_asignado: AsistenciaPersonaResumen[];
+  // Activity info from plan_distrito_verde
+  fecha_actividad: string | null;
+  hora_encuentro: string | null;
+  tipo_jornada: string | null;
+  objetivo_actividad: string | null;
+  estado_actividad: string | null;
+  direccion: string | null;
+  comunas_corregimiento: string | null;
+  barrio_vereda: string | null;
+}
+
+export interface AsistenciasResumenResponse {
+  status: string;
+  total: number;
+  data: AsistenciaResumenItem[];
+  timestamp: string;
+}
+
+/** GET /asistencias_resumen — lista todos los registros de asistencia, opcionalmente por grupo */
+export async function getAsistenciasResumen(grupo?: string): Promise<AsistenciaResumenItem[]> {
+  const params = grupo ? `?grupo=${encodeURIComponent(grupo)}` : '';
+  try {
+    const res = await ApiClient.get<AsistenciasResumenResponse>(`/asistencias_resumen${params}`);
+    return res.data ?? [];
+  } catch {
+    return [];
+  }
+}
