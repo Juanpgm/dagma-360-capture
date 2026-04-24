@@ -13,6 +13,9 @@
     crearPersonalOperativo,
   } from "../../api/actividades";
 
+  import AsistenciaModal from "./AsistenciaModal.svelte";
+  import type { AsistenciaRecord } from "../../api/actividades";
+
   import { getGruposNombres, getLideresFromGrupos } from "../../lib/grupos";
   import { authStore } from "../../stores/authStore";
   import type { LiderGrupoOption, PersonalOperativoItem } from "../../api/actividades";
@@ -84,6 +87,18 @@
   let asignacionSearchQuery = "";
   let personalSeleccionadoAsignacion: PersonalGrupoItem[] = [];
   let personalAsignadoPorActividad: Record<string, PersonalGrupoItem[]> = {};
+
+  // Estado modal asistencia
+  let isAsistenciaModalOpen = false;
+  let actividadAsistenciaActual: ActividadPlanDistritoVerde | null = null;
+  let asistenciaRegistradaPorActividad: Record<string, AsistenciaRecord> = {};
+
+  function handleAsistenciaGuardada(record: AsistenciaRecord) {
+    asistenciaRegistradaPorActividad = {
+      ...asistenciaRegistradaPorActividad,
+      [record.actividad_id]: record,
+    };
+  }
 
   // Estado de edición inline del personal asignado (por actividad)
   let personalMarcadoParaQuitar: Record<string, Record<string, boolean>> = {};
@@ -1828,6 +1843,38 @@
                   <span>Asignar Personal</span>
                 </button>
 
+                <button
+                  type="button"
+                  class="btn-tomar-asistencia"
+                  title="Tomar asistencia de la actividad"
+                  aria-label="Tomar asistencia"
+                  disabled={!actividad.personal_asignado?.length}
+                  on:click={() => {
+                    actividadAsistenciaActual = actividad;
+                    isAsistenciaModalOpen = true;
+                  }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                  </svg>
+                  <span>
+                    {asistenciaRegistradaPorActividad[actividad.id]
+                      ? "Ver Asistencia"
+                      : "Tomar Asistencia"}
+                  </span>
+                </button>
+
                 <div class="acciones-row">
                   <button
                     type="button"
@@ -2243,6 +2290,17 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if isAsistenciaModalOpen && actividadAsistenciaActual}
+  <AsistenciaModal
+    actividad={actividadAsistenciaActual}
+    onClose={() => {
+      isAsistenciaModalOpen = false;
+      actividadAsistenciaActual = null;
+    }}
+    onGuardado={handleAsistenciaGuardada}
+  />
 {/if}
 
 {#if isAsignarPersonalModalOpen}
@@ -3232,6 +3290,40 @@
   }
 
   .btn-asignar-personal svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .btn-tomar-asistencia {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    border-radius: var(--radius);
+    padding: 0.45rem 0.625rem;
+    cursor: pointer;
+    transition: all var(--transition);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    width: 100%;
+    border: 1px solid rgba(22, 163, 74, 0.35);
+    color: #15803d;
+    background: rgba(22, 163, 74, 0.05);
+  }
+
+  .btn-tomar-asistencia:hover:not(:disabled) {
+    background: rgba(22, 163, 74, 0.12);
+    border-color: #16a34a;
+  }
+
+  .btn-tomar-asistencia:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-tomar-asistencia svg {
     width: 13px;
     height: 13px;
   }

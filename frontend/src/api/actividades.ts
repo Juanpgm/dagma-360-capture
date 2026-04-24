@@ -339,3 +339,116 @@ export async function modificarActividadPlanDistritoVerde(
     throw error;
   }
 }
+
+// ── Asistencia a Actividades ──────────────────────────────────────────────────
+
+export type AlertaTipoValue =
+  | 'accidente_laboral'
+  | 'fuerza_mayor'
+  | 'llamado_atencion'
+  | 'abandono_sin_justificacion'
+  | 'llegada_tarde'
+  | 'retiro_voluntario'
+  | 'otro';
+
+export interface AlertaTipoOption {
+  value: AlertaTipoValue;
+  label: string;
+}
+
+export interface AsistenciaPersonaItem {
+  nombre_completo: string;
+  email: string;
+  uid?: string | null;
+  grupo?: string | null;
+  /** true = asistió, false = ausente */
+  validacion: boolean;
+  observacion?: string | null;
+  alerta?: AlertaTipoValue | null;
+}
+
+export interface AsistenciaMetricas {
+  total_personal: number;
+  asistentes: number;
+  ausentes: number;
+  asistencia_general: number;
+}
+
+export interface AsistenciaRecord {
+  actividad_id: string;
+  personal_asignado: AsistenciaPersonaItem[];
+  total_personal: number;
+  asistentes: number;
+  ausentes: number;
+  asistencia_general: number;
+  marca_temporal: string;
+  ultima_modificacion?: string;
+  registrado_por: string;
+}
+
+export interface AsistenciaResponse {
+  status: string;
+  data: AsistenciaRecord;
+  metricas: AsistenciaMetricas;
+}
+
+/** GET /alertas_tipos — catálogo de tipos de alerta predefinidos */
+export async function getAlertasTipos(): Promise<AlertaTipoOption[]> {
+  try {
+    const result = await ApiClient.get<AlertaTipoOption[]>('/alertas_tipos', { requireAuth: false });
+    return Array.isArray(result) ? result : [];
+  } catch {
+    // Fallback hardcoded si el endpoint no responde
+    return [
+      { value: 'accidente_laboral',        label: 'Accidente Laboral' },
+      { value: 'fuerza_mayor',             label: 'Retiro por Fuerza Mayor' },
+      { value: 'llamado_atencion',         label: 'Llamado de Atención' },
+      { value: 'abandono_sin_justificacion', label: 'Abandono sin Justificación' },
+      { value: 'llegada_tarde',            label: 'Llegada Tarde' },
+      { value: 'retiro_voluntario',        label: 'Retiro Voluntario' },
+      { value: 'otro',                     label: 'Otro' },
+    ];
+  }
+}
+
+/**
+ * GET /asistencia_actividades?actividad_id=xxx
+ * Retorna null si no existe registro aún (404).
+ */
+export async function getAsistenciaActividad(actividadId: string): Promise<AsistenciaResponse | null> {
+  try {
+    const result = await ApiClient.get<AsistenciaResponse>(
+      `/asistencia_actividades?actividad_id=${encodeURIComponent(actividadId)}&_t=${Date.now()}`,
+    );
+    return result;
+  } catch (err: any) {
+    if (err?.status === 404 || err?.message?.includes('404')) return null;
+    throw err;
+  }
+}
+
+/**
+ * POST /asistencia_actividades — crea o sobreescribe el registro de asistencia.
+ */
+export async function registrarAsistencia(
+  actividadId: string,
+  personal: AsistenciaPersonaItem[],
+): Promise<AsistenciaResponse> {
+  return ApiClient.post<AsistenciaResponse>('/asistencia_actividades', {
+    actividad_id: actividadId,
+    personal_asignado: personal,
+  });
+}
+
+/**
+ * PATCH /asistencia_actividades/{actividad_id} — actualiza parcialmente uno o varios integrantes.
+ */
+export async function actualizarAsistenciaItems(
+  actividadId: string,
+  personal: Array<{ email: string; validacion?: boolean; observacion?: string | null; alerta?: AlertaTipoValue | null }>,
+): Promise<AsistenciaResponse> {
+  return ApiClient.patch<AsistenciaResponse>(
+    `/asistencia_actividades/${encodeURIComponent(actividadId)}`,
+    { personal },
+  );
+}
