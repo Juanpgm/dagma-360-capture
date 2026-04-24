@@ -10,166 +10,211 @@
   let map: L.Map | null = null;
   let markersLayer: L.LayerGroup | null = null;
   let resizeObserver: ResizeObserver | null = null;
-  const CALI_BOUNDS: L.LatLngBoundsExpression = [[3.2800, -76.6300], [3.5900, -76.4300]];
+  let initialized = false;
 
-  $: if (map && filteredReportes) {
-    updateMarkers();
+  const CALI_CENTER: [number, number] = [3.4516, -76.532];
+  const CALI_BOUNDS: L.LatLngBoundsExpression = [[3.2800, -76.6300], [3.5900, -76.4300]];
+  const COLOR_MAP: Record<string, string> = {
+    cuadrilla: "#10b981",
+    vivero:    "#3b82f6",
+    gobernanza:"#f59e0b",
+    ecosistemas:"#8b5cf6",
+    umata:     "#ef4444",
+  };
+
+  // Reactivo: cada vez que cambia filteredReportes, actualizamos marcadores y re-encuadramos
+  $: if (map && initialized) {
+    updateMarkers(true);
   }
 
   onMount(() => {
     initMap();
     resizeObserver = new ResizeObserver(() => {
-      if (map) {
-        map.invalidateSize();
-        // Refit only if no markers with custom bounds
-        if (!markersLayer || (markersLayer as any).getLayers().length === 0) {
-          map.fitBounds(CALI_BOUNDS, { animate: false });
-        }
-      }
+      if (map) map.invalidateSize();
     });
     resizeObserver.observe(mapContainer);
   });
 
   onDestroy(() => {
     resizeObserver?.disconnect();
-    if (map) {
-      map.remove();
-      map = null;
-    }
+    map?.remove();
+    map = null;
   });
 
   function initMap() {
-    // Inicializar mapa centrado en Cali, Colombia
     map = L.map(mapContainer, {
-      center: [3.4516, -76.532],
+      center: CALI_CENTER,
       zoom: 12,
       zoomControl: true,
       attributionControl: false,
     });
 
-    // Ajustar vista inicial al encuadre de Cali
     map.fitBounds(CALI_BOUNDS, { animate: false });
 
-    // Agregar capa base
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: '',
+      attribution: "",
       maxZoom: 19,
     }).addTo(map);
 
-    // Crear capa para marcadores
     markersLayer = L.layerGroup().addTo(map);
 
-    updateMarkers();
+    // Botón personalizado para restablecer encuadre
+    const ResetControl = L.Control.extend({
+      onAdd() {
+        const btn = L.DomUtil.create("button", "reset-view-btn");
+        btn.title = "Restablecer vista";
+        btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>`;
+        L.DomEvent.on(btn, "click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          fitToData(true);
+        });
+        return btn;
+      },
+    });
+    new ResetControl({ position: "topleft" }).addTo(map);
+
+    initialized = true;
+    updateMarkers(false);
   }
 
-  function updateMarkers() {
-    if (!map || !markersLayer) return;
+  function getColor(grupo: string): string {
+    return COLOR_MAP[(grupo || "").toLowerCase()] ?? "#6b7280";
+  }
 
-    // Limpiar marcadores existentes
+  function buildPopupHtml(reporte: ReporteIntervencion, color: string): string {
+    const grupo = reporte.grupo
+      ? reporte.grupo.charAt(0).toUpperCase() + reporte.grupo.slice(1)
+      : "Sin grupo";
+
+    const fechaStr = reporte.fecha_registro
+      ? new Date(reporte.fecha_registro).toLocaleDateString("es-CO", {
+          day: "2-digit", month: "short", year: "numeric",
+        })
+      : "Sin fecha";
+
+    // Ubicación: barrio + comune o dirección
+    const geoLine = (() => {
+      const parts = [reporte.barrio_vereda, reporte.comuna_corregimiento].filter(Boolean);
+      if (parts.length > 0) return `<div class="pp-row pp-geo">🏘️ ${parts.join(" · ")}</div>`;
+      if (reporte.direccion)  return `<div class="pp-row pp-geo">📍 ${reporte.direccion}</div>`;
+      return "";
+    })();
+
+    // Detalle específico del grupo
+    let detalle = "";
+    if (reporte.tipo_arbol)
+      detalle += `<div class="pp-row"><span class="pp-key">Árbol</span>${reporte.tipo_arbol}</div>`;
+    if (reporte.numero_individuos_intervenidos != null)
+      detalle += `<div class="pp-row"><span class="pp-key">Individuos</span>${reporte.numero_individuos_intervenidos}</div>`;
+    if (reporte.tipos_plantas) {
+      const lista = Object.entries(reporte.tipos_plantas).map(([k, v]) => `${k} (${v})`).join(", ");
+      detalle += `<div class="pp-row"><span class="pp-key">Plantas</span>${lista}</div>`;
+    }
+    if (reporte.cantidad_total_plantas != null)
+      detalle += `<div class="pp-row"><span class="pp-key">Total plantas</span>${reporte.cantidad_total_plantas}</div>`;
+    if (reporte.unidades_impactadas != null)
+      detalle += `<div class="pp-row"><span class="pp-key">Unidades</span>${reporte.unidades_impactadas}${reporte.unidad_medida ? " " + reporte.unidad_medida : ""}</div>`;
+    if (reporte.observaciones)
+      detalle += `<div class="pp-obs">${reporte.observaciones}</div>`;
+
+    const photosBadge =
+      (reporte.photos_uploaded ?? 0) > 0
+        ? `<span class="pp-photos">📷 ${reporte.photos_uploaded} foto${reporte.photos_uploaded !== 1 ? "s" : ""}</span>`
+        : "";
+
+    return `
+      <div class="pp-wrap">
+        <div class="pp-header" style="border-left:3px solid ${color};">
+          <span class="pp-tipo">${reporte.tipo_intervencion || "Intervención"}</span>
+          <span class="pp-grupo" style="color:${color};">${grupo}</span>
+        </div>
+        <div class="pp-body">
+          <div class="pp-row pp-date">📅 ${fechaStr}</div>
+          ${geoLine}
+          ${detalle}
+        </div>
+        ${photosBadge ? `<div class="pp-footer">${photosBadge}</div>` : ""}
+      </div>`;
+  }
+
+  function updateMarkers(animate: boolean) {
+    if (!map || !markersLayer) return;
     markersLayer.clearLayers();
 
-    // Colores por grupo
-    const colorMap: Record<string, string> = {
-      Cuadrilla: "#10b981",
-      Vivero: "#3b82f6",
-      Gobernanza: "#f59e0b",
-      Ecosistemas: "#8b5cf6",
-      UMATA: "#ef4444",
-    };
+    const now = Date.now();
 
-    // Agregar marcadores para cada reporte
     filteredReportes.forEach((reporte) => {
-      if (!reporte.coordinates_data || reporte.coordinates_data.length !== 2) {
-        return;
-      }
+      if (!reporte.coordinates_data || reporte.coordinates_data.length !== 2) return;
 
       const [lng, lat] = reporte.coordinates_data;
-      const grupo = reporte.grupo || "Sin grupo";
-      const color = colorMap[grupo] || "#6b7280";
+      const color = getColor(reporte.grupo ?? "");
 
-      // Crear icono personalizado SVG con tamaño adaptado
-      const isRecent = (() => {
-        if (!reporte.fecha_registro) return false;
-        const hace7 = new Date();
-        hace7.setDate(hace7.getDate() - 7);
-        return new Date(reporte.fecha_registro) >= hace7;
-      })();
+      const ageMs = reporte.fecha_registro
+        ? now - new Date(reporte.fecha_registro).getTime()
+        : Infinity;
+      const isRecent = ageMs < 7 * 86_400_000;   // últimos 7 días
+      const isNew    = ageMs < 1 * 86_400_000;    // últimas 24 h → anillo pulsante
 
       const icon = L.divIcon({
         className: "custom-marker",
         html: `
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-            ${isRecent ? `<circle cx="14" cy="14" r="13" fill="${color}" opacity="0.18"/>` : ""}
-            <circle cx="14" cy="14" r="9" fill="${color}" opacity="0.9"/>
-            <circle cx="14" cy="14" r="4" fill="white"/>
-          </svg>
-        `,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            ${isNew    ? `<circle cx="16" cy="16" r="15" fill="${color}" opacity="0.15" class="pulse-ring"/>` : ""}
+            ${isRecent ? `<circle cx="16" cy="16" r="13" fill="${color}" opacity="0.12"/>` : ""}
+            <circle cx="16" cy="16" r="10" fill="${color}" opacity="0.92"/>
+            <circle cx="16" cy="16" r="4.5" fill="white"/>
+          </svg>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -18],
       });
 
-      // Construir detalle dinámico según grupo
-      let detalleHtml = "";
-      if (reporte.tipo_arbol) {
-        detalleHtml += `<div><strong>Árbol:</strong> ${reporte.tipo_arbol}</div>`;
-      }
-      if (reporte.numero_individuos_intervenidos != null) {
-        detalleHtml += `<div><strong>Individuos:</strong> ${reporte.numero_individuos_intervenidos}</div>`;
-      }
-      if (reporte.tipos_plantas) {
-        const plantas = Object.entries(reporte.tipos_plantas)
-          .map(([k, v]) => `${k} (${v})`)
-          .join(", ");
-        detalleHtml += `<div><strong>Plantas:</strong> ${plantas}</div>`;
-      }
-      if (reporte.cantidad_total_plantas != null) {
-        detalleHtml += `<div><strong>Total plantas:</strong> ${reporte.cantidad_total_plantas}</div>`;
-      }
-      if (reporte.unidades_impactadas != null) {
-        detalleHtml += `<div><strong>Unidades:</strong> ${reporte.unidades_impactadas}${reporte.unidad_medida ? " " + reporte.unidad_medida : ""}</div>`;
-      }
-      if (reporte.direccion) {
-        detalleHtml += `<div><strong>Dir:</strong> ${reporte.direccion}</div>`;
-      }
-
-      const marker = L.marker([lat, lng], { icon })
-        .bindPopup(
-          `<div style="min-width:220px;font-family:system-ui,sans-serif;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid ${color}20;">
-              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
-              <strong style="color:${color};font-size:13px;">${reporte.tipo_intervencion || "Intervención"}</strong>
-              <span style="font-size:11px;color:#94a3b8;margin-left:auto;">${grupo}</span>
-            </div>
-            <div style="font-size:12px;color:#334155;display:flex;flex-direction:column;gap:4px;">
-              ${detalleHtml}
-              <div style="color:#64748b;">
-                📅 ${reporte.fecha_registro ? new Date(reporte.fecha_registro).toLocaleDateString("es-CO", {day:"2-digit",month:"short",year:"2-digit"}) : "Sin fecha"}
-              </div>
-              ${reporte.barrio_vereda || reporte.comuna_corregimiento ? `<div style="color:#475569;">🏘️ ${[reporte.barrio_vereda, reporte.comuna_corregimiento].filter(Boolean).join(' — ')}</div>` : reporte.direccion ? `<div style="color:#64748b;">📍 ${reporte.direccion}</div>` : ""}
-              ${reporte.observaciones ? `<div style="margin-top:4px;padding:4px 6px;background:#f8fafc;border-radius:4px;font-size:11px;color:#475569;">${reporte.observaciones}</div>` : ""}
-              ${(reporte.photos_uploaded ?? 0) > 0 ? `<div style="margin-top:4px;display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:#dbeafe;color:#1d4ed8;border-radius:999px;font-size:11px;font-weight:600;">📷 ${reporte.photos_uploaded} foto${reporte.photos_uploaded !== 1 ? "s" : ""}</div>` : ""}
-            </div>
-          </div>`,
-          { maxWidth: 320, className: "custom-popup" },
-        )
+      L.marker([lat, lng], { icon })
+        .bindPopup(buildPopupHtml(reporte, color), {
+          maxWidth: 300,
+          className: "custom-popup",
+        })
         .addTo(markersLayer!);
     });
 
-    // Ajustar vista si hay reportes
-    if (filteredReportes.length > 0) {
-      const bounds = filteredReportes
-        .filter((r) => r.coordinates_data && r.coordinates_data.length === 2)
-        .map(
-          (r) =>
-            [r.coordinates_data![1], r.coordinates_data![0]] as [
-              number,
-              number,
-            ],
-        );
+    fitToData(animate);
+  }
 
-      if (bounds.length > 0) {
-        map!.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+  function fitToData(animate: boolean) {
+    if (!map) return;
+
+    const pts = filteredReportes
+      .filter((r) => r.coordinates_data?.length === 2)
+      .map((r) => [r.coordinates_data![1], r.coordinates_data![0]] as [number, number]);
+
+    if (pts.length === 0) {
+      // Sin datos: volver a encuadre de Cali
+      if (animate) {
+        map.flyToBounds(CALI_BOUNDS, { duration: 0.8, maxZoom: 13 });
+      } else {
+        map.fitBounds(CALI_BOUNDS, { animate: false });
       }
+      return;
+    }
+
+    if (pts.length === 1) {
+      // Un solo punto: zoom fijo para no acercar demasiado
+      if (animate) {
+        map.flyTo(pts[0], 14, { duration: 0.8 });
+      } else {
+        map.setView(pts[0], 14, { animate: false });
+      }
+      return;
+    }
+
+    // Varios puntos
+    const bounds = L.latLngBounds(pts);
+    const pad: [number, number] = [48, 48];
+
+    if (animate) {
+      map.flyToBounds(bounds, { padding: pad, maxZoom: 15, duration: 0.9 });
+    } else {
+      map.fitBounds(bounds, { padding: pad, maxZoom: 15, animate: false });
     }
   }
 </script>
@@ -188,13 +233,110 @@
     border: none !important;
   }
 
+  /* ── Botón reset ── */
+  :global(.reset-view-btn) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background: white;
+    border: 1px solid #c8d3de;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #334155;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    padding: 0;
+    margin-top: 6px;
+    transition: background 0.15s;
+  }
+  :global(.reset-view-btn:hover) { background: #f0f4f8; }
+
+  /* ── Popup ── */
   :global(.custom-popup .leaflet-popup-content-wrapper) {
     border-radius: 10px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.14);
     padding: 0;
+    overflow: hidden;
+  }
+  :global(.custom-popup .leaflet-popup-content) {
+    margin: 0;
+    width: auto !important;
+  }
+  :global(.pp-wrap) {
+    font-family: system-ui, sans-serif;
+    font-size: 12px;
+    color: #1e293b;
+    min-width: 210px;
+    max-width: 290px;
+  }
+  :global(.pp-header) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px 8px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e9eef4;
+    gap: 8px;
+  }
+  :global(.pp-tipo) {
+    font-weight: 700;
+    font-size: 12.5px;
+    color: #0f172a;
+  }
+  :global(.pp-grupo) {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  :global(.pp-body) {
+    padding: 8px 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  :global(.pp-row) {
+    color: #475569;
+    line-height: 1.4;
+  }
+  :global(.pp-key) {
+    font-weight: 600;
+    color: #64748b;
+    margin-right: 4px;
+  }
+  :global(.pp-geo) { color: #1e40af; font-size: 11.5px; }
+  :global(.pp-date) { color: #64748b; }
+  :global(.pp-obs) {
+    margin-top: 4px;
+    padding: 5px 8px;
+    background: #f1f5f9;
+    border-radius: 6px;
+    color: #475569;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  :global(.pp-footer) {
+    padding: 6px 14px 10px;
+    border-top: 1px solid #f1f5f9;
+  }
+  :global(.pp-photos) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
   }
 
-  :global(.custom-popup .leaflet-popup-content) {
-    margin: 12px 14px;
+  /* ── Anillo pulsante para marcadores nuevos (<24 h) ── */
+  @keyframes pulse-map {
+    0%, 100% { opacity: 0.12; }
+    50%       { opacity: 0.32; }
+  }
+  :global(.custom-marker .pulse-ring) {
+    animation: pulse-map 2s ease-in-out infinite;
   }
 </style>
