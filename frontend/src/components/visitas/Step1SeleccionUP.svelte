@@ -2,12 +2,15 @@
   import { onMount } from "svelte";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
   import { getGoogleMapsUrl } from "../../api/actividades";
+  import type { GrupoKey } from "../../lib/grupos";
+  import { GRUPO_DISPLAY_NAMES } from "../../lib/grupos";
 
   export let actividades: ActividadPlanDistritoVerde[];
   export let selectedActividad: ActividadPlanDistritoVerde | null;
   export let onSelect: (actividad: ActividadPlanDistritoVerde) => void;
   export let onLoadActividades: () => Promise<void>;
   export let isLoading: boolean;
+  export let grupoFiltro: GrupoKey | null = null;
 
   let searchTerm = "";
 
@@ -30,7 +33,27 @@
     { key: "observaciones", label: "Observaciones", width: "260px" },
   ];
 
-  $: filteredActividades = actividades.filter((actividad) => {
+  function parseFecha(f: string): number {
+    if (!f) return 0;
+    const parts = f.split("/");
+    if (parts.length !== 3) return 0;
+    const [d, m, y] = parts;
+    return new Date(+y, +m - 1, +d).getTime();
+  }
+
+  $: grupoDisplayName = grupoFiltro ? GRUPO_DISPLAY_NAMES[grupoFiltro] : null;
+
+  $: actividadesFiltradas = actividades
+    .filter((a) =>
+      grupoDisplayName
+        ? a.grupos_requeridos?.some(
+            (g) => g.toLowerCase() === grupoDisplayName!.toLowerCase(),
+          )
+        : true,
+    )
+    .sort((a, b) => parseFecha(b.fecha_actividad) - parseFecha(a.fecha_actividad));
+
+  $: filteredActividades = actividadesFiltradas.filter((actividad) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     const direccion = actividad.punto_encuentro?.direccion || "";
@@ -114,7 +137,7 @@
 
         <div class="toolbar-actions">
           <span class="results-count">
-            {filteredActividades.length} actividad(es)
+            {filteredActividades.length} actividad(es){grupoDisplayName ? ` · ${grupoDisplayName}` : ""}
           </span>
         </div>
       </div>
