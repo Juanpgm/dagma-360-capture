@@ -1,4 +1,4 @@
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 
 const API_BASE_URL = '/api';
@@ -350,3 +350,131 @@ export const logout = async (): Promise<void> => {
   await auth.signOut();
   console.log('✅ Logout successful');
 };
+
+// ─── Google auth: datos parciales cuando el perfil no está completo ─────────
+
+export interface PartialGoogleUser {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL: string | null;
+  idToken: string;
+  full_name?: string;
+}
+
+/**
+ * Se lanza cuando un usuario se autentica con Google pero no tiene grupo asignado.
+ * El componente Login debe capturar este error y mostrar el modal de completar perfil.
+ */
+export class NeedsProfileCompletionError extends Error {
+  constructor(public readonly partialUser: PartialGoogleUser) {
+    super('NEEDS_PROFILE_COMPLETION');
+    this.name = 'NeedsProfileCompletionError';
+  }
+}
+
+/**
+ * Login con Google (popup).
+ * - Si el usuario ya tiene grupo → devuelve LoginResponse normal.
+ * - Si el usuario es nuevo (sin grupo) → lanza NeedsProfileCompletionError.
+ */
+export const loginWithGoogle = async (): Promise<LoginResponse> => {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const credential = await signInWithPopup(auth, provider);
+  const idToken = await credential.user.getIdToken();
+  const email = credential.user.email || '';
+
+  // validate-session crea el doc en Firestore si es usuario nuevo
+  const res = await fetch(`${API_BASE_URL}/auth/validate-session`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+  });
+
+  if (!res.ok) {
+    throw new Error('Error al validar sesión con el servidor. Intenta de nuevo.');
+  }
+
+  const backendData = await res.json();
+
+  if (backendData.needs_profile_completion) {
+    throw new NeedsProfileCompletionError({
+      uid: credential.user.uid,
+      email,
+      displayName: credential.user.displayName || email.split('@')[0],
+      photoURL: credential.user.photoURL ?? null,
+      idToken,
+      full_name: backendData.user?.full_name || credential.user.displayName || '',
+    });
+  }
+
+  const userData = {
+    email,
+    uid: credential.user.uid,
+    displayName: credential.user.displayName || email.split('@')[0],
+    photoURL: credential.user.photoURL ?? null,
+    username: email.split('@')[0],
+    ...backendData.user,
+  };
+
+  sessionStorage.setItem('userData', JSON.stringify(userData));
+  sessionStorage.setItem('authToken', idToken);
+
+  return { access_token: idToken, token_type: 'Bearer', user: userData };
+};
+
+/**
+ * Completa el perfil de un usuario registrado con Google que no tiene grupo.
+ * Llama a POST /auth/complete-google-profile con el idToken del usuario.
+ */
+export const completeGoogleProfile = async (
+  idToken: string,
+  data: { grupo: string; full_name?: string; cellphone?: string }
+): Promise<LoginResponse> => {
+  const res = await fetch(`${API_BASE_URL}/auth/complete-google-profile`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail ?? 'Error al completar el perfil');
+  }
+
+  // Después de completar, volvemos a validate-session para obtener datos actualizados
+  const sessionRes = await fetch(`${API_BASE_URL}/auth/validate-session`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+  });
+
+  const backendData = sessionRes.ok ? await sessionRes.json() : {};
+
+  // Obtener datos del usuario de Firebase (para photoURL)
+  const firebaseUser = auth.currentUser;
+  const userData = {
+    email: firebaseUser?.email || '',
+    uid: firebaseUser?.uid || '',
+    displayName: firebaseUser?.displayName || '',
+    photoURL: firebaseUser?.photoURL ?? null,
+    username: (firebaseUser?.email || '').split('@')[0],
+    ...backendData.user,
+  };
+
+  sessionStorage.setItem('userData', JSON.stringify(userData));
+  sessionStorage.setItem('authToken', idToken);
+
+  return { access_token: idToken, token_type: 'Bearer', user: userData };
+};
+
+/**
+ * Envía un correo de recuperación de contraseña via Firebase.
+ */
+export const sendPasswordReset = async (email: string): Promise<void> => {
+  await sendPasswordResetEmail(auth, email);
+};
+

@@ -206,6 +206,17 @@ const createAuthStore = () => {
       }
       return null;
     },
+    // Actualiza campos parciales del usuario en el store y en localStorage/sessionStorage
+    updateUser: (fields: Partial<Record<string, any>>) => {
+      update(state => {
+        const updatedUser = state.user ? { ...state.user, ...fields } : state.user;
+        if (updatedUser) {
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          sessionStorage.setItem('userData', JSON.stringify(updatedUser));
+        }
+        return { ...state, user: updatedUser };
+      });
+    },
     // Método para verificar si el usuario tiene un rol específico
     hasRole: (role: string) => {
       const user = authStore.getUser();

@@ -2,7 +2,7 @@
   import { authStore, permissions } from "../stores/authStore";
   import { GRUPO_DISPLAY_NAMES, type GrupoKey } from "../lib/grupos";
 
-  type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard" | "grupos";
+  type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard" | "grupos" | "usuarios";
   let currentView: View = "home";
 
   // Lazy-loaded view components
@@ -11,6 +11,7 @@
   let Convocatorias: any = null;
   let Dashboard: any = null;
   let GestionGrupos: any = null;
+  let GestionUsuarios: any = null;
 
   const viewLoaders: Record<string, () => Promise<{ default: any }>> = {
     visita:        () => import("./visitas/VisitaVerificacion.svelte"),
@@ -18,6 +19,7 @@
     convocatorias: () => import("./convocatorias/Convocatorias.svelte"),
     dashboard:     () => import("./dashboard/Dashboard.svelte"),
     grupos:        () => import("./grupos/GestionGrupos.svelte"),
+    usuarios:      () => import("./admin/GestionUsuarios.svelte"),
   };
 
   const handleLogout: () => Promise<void> = async () => {
@@ -29,9 +31,20 @@
   };
 
   let navigationError: string | null = null;
+  let showProfileModal = false;
+  let UserProfileModal: any = null;
+
+  async function openProfileModal() {
+    if (!UserProfileModal) {
+      const mod = await import("./admin/UserProfileModal.svelte");
+      UserProfileModal = mod.default;
+    }
+    showProfileModal = true;
+  }
 
   async function navigate(view: View): Promise<void> {
     if (view === "grupos" && !$permissions.canManageUsers) return;
+    if (view === "usuarios" && !$permissions.canAccessUserAdmin) return;
     navigationError = null;
     if (view !== "home" && viewLoaders[view]) {
       try {
@@ -41,6 +54,7 @@
         if (view === "convocatorias") Convocatorias      = mod.default;
         if (view === "dashboard")     Dashboard          = mod.default;
         if (view === "grupos")        GestionGrupos      = mod.default;
+        if (view === "usuarios")      GestionUsuarios    = mod.default;
       } catch (e) {
         console.error("Error al cargar módulo:", view, e);
         navigationError = "No se pudo cargar el módulo. Intenta de nuevo.";
@@ -51,6 +65,7 @@
   }
 
   $: currentUser = $authStore.user;
+  $: userPhotoURL = currentUser?.photoURL ?? null;
   $: userFullName =
     currentUser?.full_name ||
     currentUser?.nombre_completo ||
@@ -96,17 +111,37 @@
       </div>
       <div class="header-right">
         <div class="user-chip">
-          <div class="user-avatar">{userAvatarLetter}</div>
+          <div class="user-avatar">
+            {#if userPhotoURL}
+              <img src={userPhotoURL} alt={userFullName} class="user-photo" referrerpolicy="no-referrer" />
+            {:else}
+              {userAvatarLetter}
+            {/if}
+          </div>
           <div class="user-meta">
             <span class="user-name">{userFullName}</span>
             <span class="user-detail">{userGrupo} · <span style="color:{userRolColor};font-weight:500">{userRolLabel}</span></span>
           </div>
+          <button class="btn-gear" on:click={openProfileModal} title="Configuración de perfil" aria-label="Editar perfil">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
         </div>
         <button class="btn-icon" on:click={handleLogout} title="Cerrar sesión">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         </button>
       </div>
     </header>
+
+    {#if showProfileModal && UserProfileModal}
+      <svelte:component
+        this={UserProfileModal}
+        on:close={() => showProfileModal = false}
+        on:updated={(e) => {
+          // Reactive photoURL will auto-update from authStore
+          if (e.detail?.photoURL) userPhotoURL = e.detail.photoURL;
+        }}
+      />
+    {/if}
 
     {#if currentView === "reportes"}
       {#if KanbanReportes}
@@ -129,6 +164,12 @@
     {:else if currentView === "grupos"}
       {#if GestionGrupos}
         <svelte:component this={GestionGrupos} />
+      {:else}
+        <div class="loading-view">Cargando…</div>
+      {/if}
+    {:else if currentView === "usuarios"}
+      {#if GestionUsuarios}
+        <svelte:component this={GestionUsuarios} />
       {:else}
         <div class="loading-view">Cargando…</div>
       {/if}
@@ -199,6 +240,23 @@
             <div class="action-text">
               <span class="action-title">Grupos y Personal</span>
               <span class="action-desc">Gestionar grupos y personal</span>
+            </div>
+            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          {/if}
+
+          {#if $permissions.canAccessUserAdmin}
+          <button class="action-card" on:click={() => navigate("usuarios")}>
+            <div class="action-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4"/>
+                <path d="M20 21a8 8 0 1 0-16 0"/>
+                <path d="m16 18 2 2 4-4"/>
+              </svg>
+            </div>
+            <div class="action-text">
+              <span class="action-title">Gestión de Usuarios</span>
+              <span class="action-desc">Administrar cuentas y privilegios</span>
             </div>
             <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
@@ -281,6 +339,23 @@
     background: var(--surface-alt);
   }
 
+  .btn-gear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    padding: 0;
+    flex-shrink: 0;
+    transition: color var(--transition), background var(--transition);
+  }
+  .btn-gear:hover { color: var(--primary); background: rgba(5,150,105,.08); }
+
   .user-avatar {
     width: 30px;
     height: 30px;
@@ -292,6 +367,15 @@
     justify-content: center;
     font-weight: 600;
     font-size: 0.8125rem;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .user-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
   }
 
   .user-meta {

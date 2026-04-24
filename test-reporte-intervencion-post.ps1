@@ -1,4 +1,4 @@
-﻿# Test: POST /grupos/{grupo_key}/reporte_intervencion
+# Test: POST /grupos/{grupo_key}/reporte_intervencion
 # Uso: .\test-reporte-intervencion-post.ps1 -Token "ey..." [-GrupoFiltro gobernanza]
 
 param(
@@ -83,7 +83,7 @@ function Invoke-PostReporte {
   $buf.AddRange($photoBytes)
   $buf.AddRange($enc.GetBytes($CRLF))
 
-  # Foto 2 (workaround Pydantic v2 — enviar dos veces cuando hay una sola foto)
+  # Foto 2 (workaround Pydantic v2 ? enviar dos veces cuando hay una sola foto)
   $buf.AddRange($photoHeader)
   $buf.AddRange($photoBytes)
   $buf.AddRange($enc.GetBytes($CRLF))

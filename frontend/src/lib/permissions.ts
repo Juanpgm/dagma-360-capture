@@ -78,6 +78,11 @@ export function canManageUsers(user: { role?: string; rol?: string; roles?: stri
   return hasMinRole(user, 'lider');
 }
 
+/** Puede acceder al panel de Gestión de Usuarios (solo administrador+) */
+export function canAccessUserAdmin(user: { role?: string; rol?: string; roles?: string[] } | null | undefined): boolean {
+  return hasMinRole(user, 'administrador');
+}
+
 /** Puede ver grupos y personal de TODOS los grupos (admin/dev) */
 export function canSeeAllGroups(user: { role?: string; rol?: string; roles?: string[] } | null | undefined): boolean {
   return hasMinRole(user, 'administrador');
@@ -125,6 +130,7 @@ export function buildPermissions(user: { role?: string; rol?: string; roles?: st
     canEdit: canEdit(user),
     canDelete: canDelete(user),
     canManageUsers: canManageUsers(user),
+    canAccessUserAdmin: canAccessUserAdmin(user),
     canSeeAllGroups: canSeeAllGroups(user),
     canChangeRoles: canChangeRoles(user),
     /** Pass a target grupo string to check if the current user can assign in it */

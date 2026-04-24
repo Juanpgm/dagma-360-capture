@@ -1,4 +1,4 @@
-﻿# Test: GET /grupos/{grupo_key}/reportes_intervenciones
+# Test: GET /grupos/{grupo_key}/reportes_intervenciones
 # Uso: .\test-reporte-intervencion-get.ps1 [-Token "ey..."] [-GrupoFiltro gobernanza]
 
 param(

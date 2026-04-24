@@ -1,10 +1,10 @@
 # Test Reconocimiento Endpoint
 $API_URL = "https://web-production-2d737.up.railway.app"
 
-Write-Host "🔍 Testing /grupo-operativo/reconocimiento endpoint..." -ForegroundColor Cyan
+Write-Host "?? Testing /grupo-operativo/reconocimiento endpoint..." -ForegroundColor Cyan
 Write-Host ""
 
-# Intentar hacer una petición OPTIONS para ver qué acepta
+# Intentar hacer una petici?n OPTIONS para ver qu? acepta
 try {
     Write-Host "1. Trying OPTIONS request..." -ForegroundColor Yellow
     $response = Invoke-WebRequest -Uri "$API_URL/grupo-operativo/reconocimiento" -Method Options -TimeoutSec 10
@@ -17,7 +17,7 @@ catch {
 
 Write-Host ""
 
-# Intentar POST con datos mínimos para ver qué error da (revelará el schema)
+# Intentar POST con datos m?nimos para ver qu? error da (revelar? el schema)
 Write-Host "2. Testing POST with minimal data to see schema requirements..." -ForegroundColor Yellow
 
 $testBody = @{
@@ -27,7 +27,7 @@ $testBody = @{
 
 try {
     $response = Invoke-WebRequest -Uri "$API_URL/grupo-operativo/reconocimiento" -Method Post -Body $testBody -ContentType "application/json" -TimeoutSec 10
-    Write-Host "   ✅ Status: $($response.StatusCode)" -ForegroundColor Green
+    Write-Host "   ? Status: $($response.StatusCode)" -ForegroundColor Green
 }
 catch {
     $statusCode = $_.Exception.Response.StatusCode.value__
@@ -35,6 +35,6 @@ catch {
     
     $result = $_.ErrorDetails.Message
     Write-Host ""
-    Write-Host "📋 Response (reveals required schema):" -ForegroundColor Cyan
+    Write-Host "?? Response (reveals required schema):" -ForegroundColor Cyan
     Write-Host $result -ForegroundColor Gray
 }
