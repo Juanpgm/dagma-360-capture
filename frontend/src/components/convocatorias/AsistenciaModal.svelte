@@ -84,7 +84,7 @@
       .map((p: any): ItemEditable => ({
         nombre_completo: p.nombre_completo || "",
         email: p.email || "",
-        grupo: p.grupo || "",
+        grupo: (p.grupo || "").charAt(0).toUpperCase() + (p.grupo || "").slice(1),
         uid: p.uid || null,
         validacion: null,
         observacion: "",
@@ -96,7 +96,7 @@
     return record.personal_asignado.map((p): ItemEditable => ({
       nombre_completo: p.nombre_completo,
       email: p.email || "",
-      grupo: p.grupo || "",
+      grupo: (p.grupo || "").charAt(0).toUpperCase() + (p.grupo || "").slice(1),
       uid: p.uid || null,
       validacion: p.validacion,
       observacion: p.observacion || "",

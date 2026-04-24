@@ -486,7 +486,7 @@
                         </span>
                       {/if}
                       {#if rec.grupos_participantes.length > 0}
-                        <span class="asi-grupos">{rec.grupos_participantes.join(' · ')}</span>
+                        <span class="asi-grupos">{rec.grupos_participantes.map(g => g.charAt(0).toUpperCase() + g.slice(1)).join(' · ')}</span>
                       {/if}
                     </div>
                     <div class="asi-right">

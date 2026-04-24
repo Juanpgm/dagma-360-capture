@@ -167,6 +167,12 @@
     return `${value ?? ""}`.trim();
   }
 
+  /** Ensures the first character of a string is uppercase, leaves the rest untouched. */
+  function capitalizeFirst(s: string): string {
+    if (!s) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
   function parseCoordinate(value: string | number): number {
     const normalizedValue = normalizeTextInput(value).replace(",", ".");
     return Number(normalizedValue);
@@ -627,7 +633,7 @@
         id: item.id,
         nombreCompleto: item.nombre_completo,
         telefono: String(item.numero_contacto || ''),
-        grupo: item.grupo ?? '',
+        grupo: capitalizeFirst(item.grupo ?? ''),
         email: item.email ?? '',
       }));
 
@@ -637,7 +643,7 @@
           id: u.uid || u.id || `usr-${u.email}`,
           nombreCompleto: (u.nombre_completo || u.full_name || u.displayName || '').trim(),
           telefono: String(u.cellphone || ''),
-          grupo: (u.grupo || u.nombre_centro_gestor || '').trim(),
+          grupo: capitalizeFirst((u.grupo || u.nombre_centro_gestor || '').trim()),
           email: u.email ?? '',
         }));
 
@@ -712,7 +718,7 @@
           id: item.id,
           nombreCompleto: item.nombre_completo,
           telefono: String(item.numero_contacto || ''),
-          grupo: item.grupo ?? '',
+          grupo: capitalizeFirst(item.grupo ?? ''),
           email: item.email ?? '',
         }));
         const desdeUsuarios: PersonalGrupoItem[] = usuarios
@@ -721,7 +727,7 @@
             id: u.uid || u.id || `usr-${u.email}`,
             nombreCompleto: (u.nombre_completo || u.full_name || u.displayName || '').trim(),
             telefono: String(u.cellphone || ''),
-            grupo: (u.grupo || u.nombre_centro_gestor || '').trim(),
+            grupo: capitalizeFirst((u.grupo || u.nombre_centro_gestor || '').trim()),
             email: u.email ?? '',
           }));
         personalCatalogo = deduplicarPersonal([...desdeOperativo, ...desdeUsuarios]);
@@ -842,7 +848,7 @@
               id: item.id || `${actividadId}-${index}`,
               nombreCompleto: item.nombre_completo || '-',
               telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
-              grupo: item.grupo || '-',
+              grupo: capitalizeFirst(item.grupo || '-'),
               email: item.email || '',
             }))
         );
@@ -925,7 +931,7 @@
         id: item.id || `${actividadId}-${index}`,
         nombreCompleto: item.nombre_completo || "-",
         telefono: String(item.numero_contacto || item.telefono || "No registrado"),
-        grupo: item.grupo || "-",
+        grupo: capitalizeFirst(item.grupo || "-"),
         email: item.email || "",
       }));
 
@@ -997,7 +1003,7 @@
               id: item.id || `${actividadId}-${index}`,
               nombreCompleto: item.nombre_completo || '-',
               telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
-              grupo: item.grupo || '-',
+              grupo: capitalizeFirst(item.grupo || '-'),
               email: item.email || '',
             }))
         );
