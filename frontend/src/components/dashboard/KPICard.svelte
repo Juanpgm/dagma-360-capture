@@ -5,11 +5,45 @@
   export let icon: string = "";
   export let trend: "up" | "down" | "neutral" | undefined = undefined;
   export let trendValue: string | undefined = undefined;
+  // color: "green" | "blue" | "amber" | "purple" | "red" | "teal"
+  export let color: string = "green";
+
+  const gradients: Record<string, string> = {
+    green:  "var(--green-50)",
+    blue:   "var(--blue-50)",
+    amber:  "var(--amber-50)",
+    purple: "var(--purple-50)",
+    red:    "var(--red-50)",
+    teal:   "var(--teal-50)",
+    indigo: "var(--indigo-50)",
+  };
+  const accents: Record<string, string> = {
+    green:  "var(--green-50)",
+    blue:   "var(--blue-50)",
+    amber:  "var(--amber-50)",
+    purple: "var(--purple-50)",
+    red:    "var(--red-50)",
+    teal:   "var(--teal-50)",
+    indigo: "var(--indigo-50)",
+  };
+  const textAccents: Record<string, string> = {
+    green:  "var(--green-700)",
+    blue:   "var(--blue-600)",
+    amber:  "var(--amber-600)",
+    purple: "var(--purple-600)",
+    red:    "var(--red-600)",
+    teal:   "var(--teal-600)",
+    indigo: "var(--indigo-600)",
+  };
+
+  $: gradient = gradients[color] ?? gradients.green;
+  $: accent = accents[color] ?? accents.green;
+  $: textAccent = textAccents[color] ?? textAccents.green;
 </script>
 
-<div class="kpi-card">
+<div class="kpi-card" style="--accent: {accent}; --text-accent: {textAccent};">
   {#if icon}
-    <div class="icon">
+    <div class="icon" style="background: {gradient};">
       {@html icon}
     </div>
   {/if}
@@ -24,14 +58,15 @@
         class="trend"
         class:up={trend === "up"}
         class:down={trend === "down"}
+        class:neutral={trend === "neutral"}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          {#if trend === "up"}
-            <path d="M6 2L10 8H2L6 2Z" fill="currentColor" />
-          {:else if trend === "down"}
-            <path d="M6 10L10 4H2L6 10Z" fill="currentColor" />
-          {/if}
-        </svg>
+        {#if trend === "up"}
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2L10 8H2L6 2Z" fill="currentColor" /></svg>
+        {:else if trend === "down"}
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10L10 4H2L6 10Z" fill="currentColor" /></svg>
+        {:else}
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="2" y="5" width="8" height="2" fill="currentColor" rx="1"/></svg>
+        {/if}
         {trendValue}
       </div>
     {/if}
@@ -40,25 +75,28 @@
 
 <style>
   .kpi-card {
-    background: white;
-    border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    box-shadow: none;
+    border: 1px solid var(--border-light);
+    border-top: 2px solid var(--text-accent);
     display: flex;
-    gap: 1rem;
-    align-items: flex-start;
-    transition: box-shadow 0.2s;
+    gap: 10px;
+    align-items: center;
+    transition: box-shadow var(--transition), border-color var(--transition);
   }
 
   .kpi-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-sm);
+    border-top-color: var(--text-accent);
   }
 
   .icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -66,9 +104,10 @@
   }
 
   .icon :global(svg) {
-    width: 24px;
-    height: 24px;
-    color: white;
+    width: 15px;
+    height: 15px;
+    color: var(--text-accent);
+    stroke: var(--text-accent);
   }
 
   .content {
@@ -77,58 +116,46 @@
   }
 
   .title {
-    font-size: 0.875rem;
-    color: #64748b;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    margin-bottom: 1px;
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   .value {
-    font-size: 1.875rem;
-    font-weight: 700;
-    color: #1e293b;
-    line-height: 1;
-    margin-bottom: 0.25rem;
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--slate-800);
+    line-height: var(--leading-tight);
+    letter-spacing: -0.01em;
   }
 
   .subtitle {
-    font-size: 0.75rem;
-    color: #94a3b8;
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    margin-top: 1px;
   }
 
   .trend {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    margin-top: 0.5rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    gap: 3px;
+    font-size: var(--text-2xs);
+    font-weight: var(--font-weight-semibold);
+    margin-top: 3px;
+    padding: 1px 5px;
+    border-radius: var(--radius-full);
   }
 
-  .trend.up {
-    color: #059669;
-    background: #d1fae5;
-  }
-
-  .trend.down {
-    color: #dc2626;
-    background: #fee2e2;
-  }
+  .trend.up   { color: var(--green-700); background: var(--green-100); }
+  .trend.down { color: var(--red-600);   background: var(--red-50); }
+  .trend.neutral { color: var(--slate-500); background: var(--slate-100); }
 
   @media (max-width: 640px) {
-    .kpi-card {
-      padding: 1rem;
-    }
-
-    .icon {
-      width: 40px;
-      height: 40px;
-    }
-
-    .value {
-      font-size: 1.5rem;
-    }
+    .kpi-card { padding: 8px 12px; }
+    .icon { width: 28px; height: 28px; }
+    .value { font-size: var(--text-base); }
   }
 </style>
