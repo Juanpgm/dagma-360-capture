@@ -96,23 +96,48 @@ const BACKEND_ALLOWED_MIME = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic',
 ]);
 
-/** Convert any image File to JPEG via Canvas (for formats the backend rejects, e.g. AVIF). */
+// Extensions that the browser cannot decode in a canvas (pass through as-is)
+const PASSTHROUGH_EXT = /\.(heic|heif|avif|dng|raw|cr2|nef)$/i;
+
+/** Convert any image File to JPEG via Canvas (for formats the backend rejects, e.g. AVIF).
+ *  Falls back to the original file if conversion fails or takes too long (5s timeout).
+ */
 function convertToJpeg(file: File): Promise<File> {
+  // If the file extension suggests an undecoded format, skip canvas conversion
+  if (PASSTHROUGH_EXT.test(file.name)) return Promise.resolve(file);
+
   return new Promise((resolve) => {
+    let settled = false;
+    const done = (result: File) => {
+      if (!settled) { settled = true; resolve(result); }
+    };
+
+    // Safety timeout: if canvas never fires onload/onerror, resolve after 5s
+    const timeout = setTimeout(() => {
+      URL.revokeObjectURL(url);
+      done(file);
+    }, 5000);
+
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width  = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      canvas.getContext('2d')!.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      canvas.toBlob((blob) => {
-        const jpegName = file.name.replace(/\.[^.]+$/, '.jpg');
-        resolve(blob ? new File([blob], jpegName, { type: 'image/jpeg' }) : file);
-      }, 'image/jpeg', 0.92);
+      clearTimeout(timeout);
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width  = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d')!.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((blob) => {
+          const jpegName = file.name.replace(/\.[^.]+$/, '.jpg');
+          done(blob ? new File([blob], jpegName, { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', 0.92);
+      } catch {
+        URL.revokeObjectURL(url);
+        done(file);
+      }
     };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.onerror = () => { clearTimeout(timeout); URL.revokeObjectURL(url); done(file); };
     img.src = url;
   });
 }
