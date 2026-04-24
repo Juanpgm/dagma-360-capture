@@ -130,18 +130,24 @@
     return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
-  // Client-side search on already-loaded records
-  $: filtered = reportes.filter((r) => {
-    if (!debouncedSearch) return true;
-    const t = debouncedSearch.toLowerCase();
-    return (
-      (r.descripcion_intervencion || '').toLowerCase().includes(t) ||
-      (r.tipo_intervencion || '').toLowerCase().includes(t) ||
-      (r.barrio_vereda || '').toLowerCase().includes(t) ||
-      (r.comuna_corregimiento || '').toLowerCase().includes(t) ||
-      (r.direccion || '').toLowerCase().includes(t)
-    );
-  });
+  // Client-side search on already-loaded records, sorted most recent first
+  $: filtered = reportes
+    .filter((r) => {
+      if (!debouncedSearch) return true;
+      const t = debouncedSearch.toLowerCase();
+      return (
+        (r.descripcion_intervencion || '').toLowerCase().includes(t) ||
+        (r.tipo_intervencion || '').toLowerCase().includes(t) ||
+        (r.barrio_vereda || '').toLowerCase().includes(t) ||
+        (r.comuna_corregimiento || '').toLowerCase().includes(t) ||
+        (r.direccion || '').toLowerCase().includes(t)
+      );
+    })
+    .sort((a, b) => {
+      const da = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const db = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return db - da;
+    });
 
   $: totalCount = pagination?.total ?? reportes.length;
   $: hasMore = pagination?.has_next ?? false;

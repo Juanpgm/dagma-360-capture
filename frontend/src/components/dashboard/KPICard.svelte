@@ -2,7 +2,7 @@
   export let title: string;
   export let value: string | number;
   export let subtitle: string = "";
-  export let icon: string = "";
+  export const icon: string = ""; // kept for prop compatibility, not rendered
   export let trend: "up" | "down" | "neutral" | undefined = undefined;
   export let trendValue: string | undefined = undefined;
   // color: "green" | "blue" | "amber" | "purple" | "red" | "teal"
@@ -42,11 +42,6 @@
 </script>
 
 <div class="kpi-card" style="--accent: {accent}; --text-accent: {textAccent};">
-  {#if icon}
-    <div class="icon" style="background: {gradient};">
-      {@html icon}
-    </div>
-  {/if}
   <div class="content">
     <div class="title">{title}</div>
     <div class="value">{value}</div>
@@ -77,37 +72,15 @@
   .kpi-card {
     background: var(--surface);
     border-radius: var(--radius-md);
-    padding: 10px 14px;
+    padding: 12px 16px;
     box-shadow: none;
     border: 1px solid var(--border-light);
-    border-top: 2px solid var(--text-accent);
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    transition: box-shadow var(--transition), border-color var(--transition);
+    border-left: 3px solid var(--text-accent);
+    transition: box-shadow var(--transition);
   }
 
   .kpi-card:hover {
     box-shadow: var(--shadow-sm);
-    border-top-color: var(--text-accent);
-  }
-
-  .icon {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    background: var(--accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .icon :global(svg) {
-    width: 15px;
-    height: 15px;
-    color: var(--text-accent);
-    stroke: var(--text-accent);
   }
 
   .content {
@@ -155,7 +128,6 @@
 
   @media (max-width: 640px) {
     .kpi-card { padding: 8px 12px; }
-    .icon { width: 28px; height: 28px; }
     .value { font-size: var(--text-base); }
   }
 </style>

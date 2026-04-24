@@ -92,48 +92,54 @@
         })
       : "Sin fecha";
 
-    // Ubicación: barrio + comune o dirección
+    // Ubicación: barrio + comuna o dirección
     const geoLine = (() => {
       const parts = [reporte.barrio_vereda, reporte.comuna_corregimiento].filter(Boolean);
-      if (parts.length > 0) return `<div class="pp-row pp-geo">🏘️ ${parts.join(" · ")}</div>`;
-      if (reporte.direccion)  return `<div class="pp-row pp-geo">📍 ${reporte.direccion}</div>`;
+      if (parts.length > 0) return `<div class="pp-geo">${parts.join(" · ")}</div>`;
+      if (reporte.direccion)  return `<div class="pp-geo">${reporte.direccion}</div>`;
       return "";
     })();
 
-    // Detalle específico del grupo
-    let detalle = "";
-    if (reporte.tipo_arbol)
-      detalle += `<div class="pp-row"><span class="pp-key">Árbol</span>${reporte.tipo_arbol}</div>`;
+    // Impacto principal
+    let impactoHtml = "";
     if (reporte.numero_individuos_intervenidos != null)
-      detalle += `<div class="pp-row"><span class="pp-key">Individuos</span>${reporte.numero_individuos_intervenidos}</div>`;
-    if (reporte.tipos_plantas) {
-      const lista = Object.entries(reporte.tipos_plantas).map(([k, v]) => `${k} (${v})`).join(", ");
-      detalle += `<div class="pp-row"><span class="pp-key">Plantas</span>${lista}</div>`;
-    }
-    if (reporte.cantidad_total_plantas != null)
-      detalle += `<div class="pp-row"><span class="pp-key">Total plantas</span>${reporte.cantidad_total_plantas}</div>`;
-    if (reporte.unidades_impactadas != null)
-      detalle += `<div class="pp-row"><span class="pp-key">Unidades</span>${reporte.unidades_impactadas}${reporte.unidad_medida ? " " + reporte.unidad_medida : ""}</div>`;
-    if (reporte.observaciones)
-      detalle += `<div class="pp-obs">${reporte.observaciones}</div>`;
+      impactoHtml = `<div class="pp-impacto" style="color:${color}">${reporte.numero_individuos_intervenidos} <span>individuos</span></div>`;
+    else if (reporte.cantidad_total_plantas != null)
+      impactoHtml = `<div class="pp-impacto" style="color:${color}">${reporte.cantidad_total_plantas} <span>plantas</span></div>`;
+    else if (reporte.unidades_impactadas != null)
+      impactoHtml = `<div class="pp-impacto" style="color:${color}">${reporte.unidades_impactadas}${reporte.unidad_medida ? " <span>" + reporte.unidad_medida + "</span>" : ""}</div>`;
 
-    const photosBadge =
-      (reporte.photos_uploaded ?? 0) > 0
-        ? `<span class="pp-photos">📷 ${reporte.photos_uploaded} foto${reporte.photos_uploaded !== 1 ? "s" : ""}</span>`
-        : "";
+    // Detalle (especie / tipos)
+    let detalleHtml = "";
+    if (reporte.tipo_arbol)
+      detalleHtml = `<div class="pp-detail">${reporte.tipo_arbol}</div>`;
+    else if (reporte.tipos_plantas) {
+      const lista = Object.entries(reporte.tipos_plantas).map(([k, v]) => `${k} (${v})`).join(", ");
+      detalleHtml = `<div class="pp-detail">${lista}</div>`;
+    }
+
+    const obsHtml = reporte.observaciones
+      ? `<div class="pp-obs">${reporte.observaciones}</div>` : "";
+
+    const photosHtml = (reporte.photos_uploaded ?? 0) > 0
+      ? `<span class="pp-photos">${reporte.photos_uploaded} foto${reporte.photos_uploaded !== 1 ? "s" : ""}</span>` : "";
 
     return `
       <div class="pp-wrap">
-        <div class="pp-header" style="border-left:3px solid ${color};">
-          <span class="pp-tipo">${reporte.tipo_intervencion || "Intervención"}</span>
-          <span class="pp-grupo" style="color:${color};">${grupo}</span>
+        <div class="pp-header" style="border-left:3px solid ${color}">
+          <div class="pp-header-top">
+            <span class="pp-grupo-pill" style="color:${color};background:${color}14;border-color:${color}28">${grupo}</span>
+            <span class="pp-date">${fechaStr}</span>
+          </div>
+          <div class="pp-tipo">${reporte.tipo_intervencion || "Intervención"}</div>
         </div>
         <div class="pp-body">
-          <div class="pp-row pp-date">📅 ${fechaStr}</div>
           ${geoLine}
-          ${detalle}
+          ${detalleHtml}
+          ${impactoHtml}
+          ${obsHtml}
         </div>
-        ${photosBadge ? `<div class="pp-footer">${photosBadge}</div>` : ""}
+        ${photosHtml ? `<div class="pp-footer">${photosHtml}</div>` : ""}
       </div>`;
   }
 
@@ -255,80 +261,103 @@
   /* ── Popup ── */
   :global(.custom-popup .leaflet-popup-content-wrapper) {
     border-radius: 10px;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.14);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
     padding: 0;
     overflow: hidden;
+    border: 1px solid #e9eef4;
   }
   :global(.custom-popup .leaflet-popup-content) {
     margin: 0;
     width: auto !important;
   }
+  :global(.custom-popup .leaflet-popup-tip-container) {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.08));
+  }
   :global(.pp-wrap) {
     font-family: system-ui, sans-serif;
     font-size: 12px;
     color: #1e293b;
-    min-width: 210px;
-    max-width: 290px;
+    min-width: 200px;
+    max-width: 260px;
   }
   :global(.pp-header) {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 14px 8px;
-    background: #f8fafc;
-    border-bottom: 1px solid #e9eef4;
-    gap: 8px;
-  }
-  :global(.pp-tipo) {
-    font-weight: 700;
-    font-size: 12.5px;
-    color: #0f172a;
-  }
-  :global(.pp-grupo) {
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  :global(.pp-body) {
-    padding: 8px 14px 10px;
+    padding: 10px 14px 9px;
+    background: #fafbfd;
+    border-bottom: 1px solid #edf0f5;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 5px;
   }
-  :global(.pp-row) {
-    color: #475569;
-    line-height: 1.4;
+  :global(.pp-header-top) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
-  :global(.pp-key) {
-    font-weight: 600;
+  :global(.pp-grupo-pill) {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid;
+  }
+  :global(.pp-date) {
+    font-size: 10.5px;
+    color: #94a3b8;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  :global(.pp-tipo) {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.3;
+  }
+  :global(.pp-body) {
+    padding: 9px 14px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  :global(.pp-geo) {
+    font-size: 11.5px;
+    color: #334155;
+    font-weight: 500;
+  }
+  :global(.pp-detail) {
+    font-size: 11.5px;
     color: #64748b;
-    margin-right: 4px;
   }
-  :global(.pp-geo) { color: #1e40af; font-size: 11.5px; }
-  :global(.pp-date) { color: #64748b; }
-  :global(.pp-obs) {
-    margin-top: 4px;
-    padding: 5px 8px;
-    background: #f1f5f9;
-    border-radius: 6px;
-    color: #475569;
+  :global(.pp-impacto) {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  :global(.pp-impacto span) {
     font-size: 11px;
+    font-weight: 400;
+    color: #64748b;
+  }
+  :global(.pp-obs) {
+    font-size: 11px;
+    color: #64748b;
     line-height: 1.4;
+    padding: 5px 8px;
+    background: #f8fafc;
+    border-radius: 5px;
   }
   :global(.pp-footer) {
-    padding: 6px 14px 10px;
+    padding: 6px 14px 9px;
     border-top: 1px solid #f1f5f9;
   }
   :global(.pp-photos) {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 10px;
-    background: #dbeafe;
-    color: #1d4ed8;
-    border-radius: 999px;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
+    color: #3b82f6;
+    background: #dbeafe;
+    padding: 2px 8px;
+    border-radius: 999px;
   }
 
   /* ── Anillo pulsante para marcadores nuevos (<24 h) ── */
