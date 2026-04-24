@@ -144,6 +144,7 @@
     telefono: string;
     grupo: string;
     email: string;
+    photoURL?: string | null;
   }
 
   interface PersonalGrupoApiItem {

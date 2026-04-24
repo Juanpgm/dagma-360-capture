@@ -4,7 +4,7 @@
   import { ROLE_LABELS, ROLE_COLORS, normalizeRole } from "../../lib/permissions";
   import type { Role } from "../../lib/permissions";
 
-  export let persona: { uid?: string; id?: string; nombre_completo?: string; email?: string; role?: string; rol?: string; roles?: string[] };
+  export let persona: { uid?: string; id?: string; nombre_completo?: string; email?: string; role?: string; rol?: string; roles?: string[]; photoURL?: string | null };
   export let currentUserPermissions: { assignableRoles: Role[]; canChangeRoles: boolean };
 
   const dispatch = createEventDispatcher<{ close: void; changed: void }>();
@@ -51,7 +51,9 @@
   });
 </script>
 
-<div class="overlay" on:click|self={() => dispatch("close")} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+<div class="overlay" on:click|self={() => dispatch("close")} on:keydown={(e) => e.key === 'Escape' && dispatch('close')} role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <div class="modal">
     <div class="modal-header">
       <h2 id="modal-title" class="modal-title">Cambiar Rol</h2>

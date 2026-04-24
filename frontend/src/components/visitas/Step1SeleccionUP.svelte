@@ -225,7 +225,7 @@
                   </td>
                   <!-- svelte-ignore a11y-click-events-have-key-events -->
                   <!-- svelte-ignore a11y-no-static-element-interactions -->
-                  <td class="cell-actions" on:click|stopPropagation role="none">
+                  <td class="cell-actions" on:click|stopPropagation>
                     <button
                       class="btn-maps"
                       on:click={() => openGoogleMaps(actividad)}

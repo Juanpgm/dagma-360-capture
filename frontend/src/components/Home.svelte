@@ -42,6 +42,10 @@
     showProfileModal = true;
   }
 
+  function handleProfileUpdated(e: CustomEvent<{ photoURL?: string; full_name?: string; cellphone?: string }>) {
+    if (e.detail?.photoURL) userPhotoURL = e.detail.photoURL;
+  }
+
   async function navigate(view: View): Promise<void> {
     if (view === "grupos" && !$permissions.canManageUsers) return;
     if (view === "usuarios" && !$permissions.canAccessUserAdmin) return;
@@ -142,10 +146,7 @@
       <svelte:component
         this={UserProfileModal}
         on:close={() => showProfileModal = false}
-        on:updated={(e) => {
-          // Reactive photoURL will auto-update from authStore
-          if (e.detail?.photoURL) userPhotoURL = e.detail.photoURL;
-        }}
+        on:updated={handleProfileUpdated}
       />
     {/if}
 

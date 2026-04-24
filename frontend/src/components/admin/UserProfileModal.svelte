@@ -2,7 +2,7 @@
   import { createEventDispatcher, onMount } from "svelte";
   import { authStore } from "../../stores/authStore";
   import { selfUpdateMyProfile, uploadProfilePhoto } from "../../api/admin";
-  import { GRUPO_DISPLAY_NAMES } from "../../lib/grupos";
+  import { GRUPO_DISPLAY_NAMES, type GrupoKey } from "../../lib/grupos";
   import { ROLE_LABELS, ROLE_COLORS, normalizeRole } from "../../lib/permissions";
 
   const dispatch = createEventDispatcher<{ close: void; updated: { full_name?: string; cellphone?: string; photoURL?: string } }>();
@@ -37,7 +37,7 @@
   $: grupoLabel = (() => {
     const g = user?.grupo;
     if (!g) return "Sin grupo asignado";
-    return GRUPO_DISPLAY_NAMES[g as any] ?? (g.charAt(0).toUpperCase() + g.slice(1));
+    return GRUPO_DISPLAY_NAMES[g as GrupoKey] ?? (g.charAt(0).toUpperCase() + g.slice(1));
   })();
 
   function handleFileChange(e: Event) {
@@ -132,6 +132,7 @@
 <svelte:window on:keydown={handleKeydown} />
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 <div class="modal-overlay" on:click={handleOverlayClick} role="dialog" aria-modal="true" aria-label="Editar perfil">
   <div class="modal-card">
     <!-- Header -->
@@ -326,7 +327,7 @@
     gap: 1.5rem;
   }
 
-  .section {}
+  .section { display: contents; }
 
   .section-title {
     font-size: 0.75rem;

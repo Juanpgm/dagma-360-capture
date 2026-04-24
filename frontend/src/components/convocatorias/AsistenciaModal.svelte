@@ -33,6 +33,7 @@
     validacion: boolean | null; // null = sin marcar
     observacion: string;
     alerta: AlertaTipoValue | null;
+    photoURL?: string | null;
   };
 
   let items: ItemEditable[] = [];
