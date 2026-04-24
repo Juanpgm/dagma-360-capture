@@ -131,7 +131,9 @@ const createAuthStore = () => {
                 photoURL: firebaseUser.photoURL,
                 roles: [],
                 permissions: [],
-                ...backendUser
+                ...backendUser,
+                // Preserve Firebase photoURL if Firestore doesn't have one
+                photoURL: backendUser?.photoURL || firebaseUser.photoURL,
               };
               localStorage.setItem('token', idToken);
               localStorage.setItem('user', JSON.stringify(user));
@@ -151,7 +153,9 @@ const createAuthStore = () => {
               photoURL: firebaseUser.photoURL,
               roles: [],
               permissions: [],
-              ...backendUser
+              ...backendUser,
+              // Preserve Firebase photoURL if Firestore doesn't have one
+              photoURL: backendUser?.photoURL || firebaseUser.photoURL,
             };
             localStorage.setItem('token', idToken);
             localStorage.setItem('user', JSON.stringify(user));
