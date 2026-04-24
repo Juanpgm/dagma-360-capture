@@ -30,14 +30,20 @@
     <div class="card-content">
         <div class="card-header">
             <h3 class="card-title">
-                {reporte.barrio_vereda || reporte.barrio || reporte.comuna_corregimiento || "Sin nombre"}
+                {reporte.barrio_vereda || reporte.barrio || reporte.comuna_corregimiento || reporte.tipo_intervencion || "Intervención"}
             </h3>
             <span class="card-date">{formatDate(reporte.fecha_registro || reporte.timestamp)}</span>
         </div>
 
         <div class="card-details">
             <span class="badge-type">{reporte.tipo_intervencion}</span>
-            <span class="location-text">📍 {reporte.direccion}</span>
+            {#if reporte.barrio_vereda && reporte.comuna_corregimiento}
+                <span class="location-text">🏘️ {reporte.barrio_vereda} · {reporte.comuna_corregimiento}</span>
+            {:else if reporte.barrio_vereda || reporte.comuna_corregimiento}
+                <span class="location-text">🏘️ {reporte.barrio_vereda || reporte.comuna_corregimiento}</span>
+            {:else if reporte.direccion}
+                <span class="location-text">📍 {reporte.direccion}</span>
+            {/if}
         </div>
 
         <!-- Si quisieras mostrar 'estado' aquí, se podría agregar un badge -->
