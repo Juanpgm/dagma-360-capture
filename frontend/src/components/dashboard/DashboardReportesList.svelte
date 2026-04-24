@@ -88,7 +88,7 @@
     <div class="empty-state">Sin reportes para los filtros aplicados</div>
   {:else}
     <div class="cards-grid">
-      {#each visible as r (r.id)}
+      {#each visible as r, rIdx (r.id)}
         {@const color = getColor(r.grupo)}
         {@const impacto = getImpacto(r)}
         {@const detalle = getDetalle(r)}
@@ -100,6 +100,7 @@
             <span class="grupo-pill" style="color:{color}; background:{color}15; border-color:{color}28">
               {getLabel(r.grupo)}
             </span>
+            <span class="record-num" title="Número de registro">#{reportes.length - rIdx}</span>
             <span class="card-date">
               {#if rel}<span class="rel-date">{rel}</span>{:else}{formatDate(r.fecha_registro)}{/if}
             </span>
@@ -197,6 +198,17 @@
     border-radius: 999px;
     border: 1px solid;
     white-space: nowrap;
+  }
+
+  .record-num {
+    font-size: 9px;
+    font-weight: 700;
+    color: white;
+    background: #1e40af;
+    padding: 2px 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .card-date {

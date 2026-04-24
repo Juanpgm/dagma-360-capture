@@ -18,7 +18,7 @@
     assignableRoles,
     type Role,
   } from "../../lib/permissions";
-  import { GRUPO_DISPLAY_NAMES, GRUPO_KEYS, type GrupoKey } from "../../lib/grupos";
+  import { GRUPO_DISPLAY_NAMES, GRUPO_KEYS, getGruposConIds, type GrupoKey, type GrupoConId } from "../../lib/grupos";
 
   // ─── State ────────────────────────────────────────────────────────────────
   let users: UserRecord[] = [];
@@ -49,6 +49,8 @@
   let saving = false;
   let modalError = "";
   let modalSuccess = "";
+
+  let gruposAPI: GrupoConId[] = GRUPO_KEYS.map(k => ({ id: k, nombre: GRUPO_DISPLAY_NAMES[k] }));
 
   $: perms = $permissions;
   $: currentUser = $authStore.user;
@@ -108,7 +110,11 @@
     }
   }
 
-  onMount(loadUsers);
+  onMount(async () => {
+    loadUsers();
+    const apiGrupos = await getGruposConIds();
+    if (apiGrupos.length > 0) gruposAPI = apiGrupos;
+  });
 
   // ─── Modal helpers ─────────────────────────────────────────────────────────
   function openModal(type: ModalType, user?: UserRecord) {
@@ -136,7 +142,7 @@
       fEmail = "";
       fCreateName = "";
       fCreateCellphone = "";
-      fCreateGrupo = GRUPO_KEYS[0];
+      fCreateGrupo = gruposAPI[0]?.id || GRUPO_KEYS[0];
       fCreatePassword = "";
     }
   }
@@ -291,8 +297,8 @@
     </select>
     <select class="filter-select" bind:value={filterGrupo}>
       <option value="">Todos los grupos</option>
-      {#each GRUPO_KEYS as g}
-        <option value={g}>{GRUPO_DISPLAY_NAMES[g]}</option>
+      {#each gruposAPI as g}
+        <option value={g.id}>{g.nombre}</option>
       {/each}
     </select>
     <button class="btn-icon-sm" on:click={loadUsers} title="Actualizar" disabled={loading}>
@@ -474,14 +480,14 @@
         <div class="modal-body">
           <p class="modal-hint">Grupo actual: <strong>{grupoLabel(selectedUser.grupo)}</strong></p>
           <div class="role-grid">
-            {#each GRUPO_KEYS as g}
+            {#each gruposAPI as g}
               <button
                 class="role-option"
-                class:selected={fGrupo === g}
+                class:selected={fGrupo === g.id}
                 style="--rc: var(--primary)"
-                on:click={() => (fGrupo = g)}
+                on:click={() => (fGrupo = g.id)}
                 disabled={saving}
-              >{GRUPO_DISPLAY_NAMES[g]}</button>
+              >{g.nombre}</button>
             {/each}
           </div>
           {#if modalError}<div class="msg-error">{modalError}</div>{/if}
@@ -548,8 +554,8 @@
           <input id="create-phone" class="field-input" type="tel" bind:value={fCreateCellphone} disabled={saving} />
           <label class="field-label" for="create-grupo" style="margin-top:.75rem">Grupo *</label>
           <select id="create-grupo" class="field-input" bind:value={fCreateGrupo} disabled={saving}>
-            {#each GRUPO_KEYS as g}
-              <option value={g}>{GRUPO_DISPLAY_NAMES[g]}</option>
+            {#each gruposAPI as g}
+              <option value={g.id}>{g.nombre}</option>
             {/each}
           </select>
           <label class="field-label" for="create-pwd" style="margin-top:.75rem">Contraseña inicial *</label>

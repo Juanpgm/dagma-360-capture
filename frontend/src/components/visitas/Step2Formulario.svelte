@@ -87,12 +87,59 @@
   // ── Helpers CUADRILLA: filas dinámicas de árboles ──
   function addArbolRow() {
     arbolesData = [...arbolesData, { especie: "", cantidad: 0 }];
+    especieSearches = [...especieSearches, ""];
+    especieOpen = [...especieOpen, false];
   }
 
   function removeArbolRow(index: number) {
     if (arbolesData.length > 1) {
       arbolesData = arbolesData.filter((_, i) => i !== index);
+      especieSearches = especieSearches.filter((_, i) => i !== index);
+      especieOpen = especieOpen.filter((_, i) => i !== index);
     }
+  }
+
+  // ── Estado para búsqueda de especie por fila ──
+  let especieSearches: string[] = arbolesData.map(() => "");
+  let especieOpen: boolean[] = arbolesData.map(() => false);
+
+  // Sincronizar arrays si arbolesData cambia externamente
+  $: {
+    while (especieSearches.length < arbolesData.length) especieSearches = [...especieSearches, ""];
+    while (especieOpen.length < arbolesData.length) especieOpen = [...especieOpen, false];
+  }
+
+  function filteredEspecies(search: string) {
+    const q = search.trim().toLowerCase();
+    if (!q) return ESPECIES_ARBOLES.slice(0, 50);
+    return ESPECIES_ARBOLES.filter(
+      (e) => e.nombre_comun.toLowerCase().includes(q) || e.nombre_cientifico.toLowerCase().includes(q)
+    ).slice(0, 50);
+  }
+
+  function selectEspecie(index: number, e: typeof ESPECIES_ARBOLES[0]) {
+    arbolesData[index].especie = `${e.nombre_comun} (${e.nombre_cientifico})`;
+    especieSearches[index] = arbolesData[index].especie;
+    especieOpen[index] = false;
+    arbolesData = [...arbolesData];
+    especieSearches = [...especieSearches];
+    especieOpen = [...especieOpen];
+  }
+
+  function onEspecieInput(index: number, value: string) {
+    especieSearches[index] = value;
+    arbolesData[index].especie = value;
+    especieOpen[index] = true;
+    especieSearches = [...especieSearches];
+    especieOpen = [...especieOpen];
+    arbolesData = [...arbolesData];
+  }
+
+  function onEspecieBlur(index: number) {
+    setTimeout(() => {
+      especieOpen[index] = false;
+      especieOpen = [...especieOpen];
+    }, 180);
   }
 
   // ── Helpers VIVERO: filas dinámicas de plantas ──
@@ -254,14 +301,31 @@
             <label>Árboles Intervenidos <span class="required">*</span></label>
             {#each arbolesData as arbol, i}
               <div class="planta-row">
-                <select bind:value={arbol.especie} class="planta-nombre">
-                  <option value="" disabled>Seleccionar especie</option>
-                  {#each ESPECIES_ARBOLES as e}
-                    <option value="{e.nombre_comun} ({e.nombre_cientifico})">
-                      {e.nombre_comun} ({e.nombre_cientifico})
-                    </option>
-                  {/each}
-                </select>
+                <div class="especie-combobox">
+                  <input
+                    type="text"
+                    class="planta-nombre especie-input"
+                    value={especieSearches[i] || arbol.especie}
+                    placeholder="Buscar especie de árbol…"
+                    autocomplete="off"
+                    on:input={(e) => onEspecieInput(i, (e.target as HTMLInputElement).value)}
+                    on:focus={() => { especieOpen[i] = true; especieOpen = [...especieOpen]; }}
+                    on:blur={() => onEspecieBlur(i)}
+                  />
+                  {#if especieOpen[i] && filteredEspecies(especieSearches[i] || '').length > 0}
+                    <div class="especie-dropdown">
+                      {#each filteredEspecies(especieSearches[i] || '') as e}
+                        <div
+                          class="especie-option"
+                          on:mousedown|preventDefault={() => selectEspecie(i, e)}
+                        >
+                          <span class="especie-comun">{e.nombre_comun}</span>
+                          <span class="especie-cientifico">{e.nombre_cientifico}</span>
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
                 <input
                   type="number"
                   min="1"
@@ -692,8 +756,72 @@
   .planta-row {
     display: flex;
     gap: 0.5rem;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 0.5rem;
+  }
+
+  /* Combobox buscable para especies de árbol */
+  .especie-combobox {
+    flex: 2;
+    position: relative;
+  }
+
+  .especie-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: white;
+  }
+
+  .especie-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--shadow);
+  }
+
+  .especie-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .especie-option {
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .especie-option:last-child { border-bottom: none; }
+
+  .especie-option:hover, .especie-option:focus {
+    background: #f0fdf4;
+  }
+
+  .especie-comun {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .especie-cientifico {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #6b7280);
+    font-style: italic;
   }
 
   .planta-nombre {
@@ -762,5 +890,24 @@
 
   .add-planta-btn:hover {
     background: var(--surface);
+  }
+
+  /* Responsividad móvil para filas de árboles/plantas */
+  @media (max-width: 480px) {
+    .planta-row {
+      flex-wrap: wrap;
+    }
+    .especie-combobox,
+    .planta-nombre {
+      flex: 0 0 100%;
+      min-width: 0;
+    }
+    .planta-cantidad {
+      flex: 1;
+      min-width: 60px;
+    }
+    .remove-planta-btn {
+      flex-shrink: 0;
+    }
   }
 </style>

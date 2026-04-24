@@ -1581,10 +1581,19 @@
     .filters-row select { flex: none; width: 100%; }
     .date-range { width: 100%; }
     .date-range input[type="date"] { flex: 1; }
+    .kpi-map-layout { overflow-x: hidden; }
+    .chart-card { overflow-x: auto; min-width: 0; }
+    .charts-row { overflow-x: hidden; }
+    .map-side { min-height: 300px; }
   }
 
   @media (max-width: 480px) {
     .kpis-grid { grid-template-columns: 1fr; }
     .dashboard-header h1 { font-size: var(--text-xl); }
+    .kpi-map-layout { grid-template-columns: 1fr; }
+    .map-side { min-height: 260px; }
+    .chart-area { min-height: 180px !important; }
+    .tab-btn span { display: none; }
+    .aggregation-toggle { display: none; }
   }
 </style>

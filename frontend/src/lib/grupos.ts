@@ -49,6 +49,25 @@ export async function getGruposNombres(): Promise<string[]> {
 	}
 }
 
+export interface GrupoConId {
+	id: string;
+	nombre: string;
+}
+
+/** Devuelve grupos con su id (clave de Firestore) y nombre de display */
+export async function getGruposConIds(): Promise<GrupoConId[]> {
+	try {
+		const res = await ApiClient.get<any>('/grupos', { requireAuth: false });
+		const data: any[] = Array.isArray(res) ? res : res.data ?? res.grupos ?? [];
+		const grupos = data
+			.filter((g: any) => g.id && g.nombre)
+			.map((g: any) => ({ id: g.id.toString().trim(), nombre: g.nombre.toString().trim() }));
+		return grupos.length > 0 ? grupos : GRUPO_KEYS.map(k => ({ id: k, nombre: GRUPO_DISPLAY_NAMES[k] }));
+	} catch (err) {
+		return GRUPO_KEYS.map(k => ({ id: k, nombre: GRUPO_DISPLAY_NAMES[k] }));
+	}
+}
+
 export interface LiderGrupoOption {
 	nombre: string;
 	grupo: string;

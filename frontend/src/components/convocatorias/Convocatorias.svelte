@@ -326,7 +326,10 @@
       if (actividadesCargadas.status === 'rejected') {
         throw actividadesCargadas.reason;
       }
-      actividades = actividadesCargadas.value;
+      // Ordenar más reciente primero
+      actividades = (actividadesCargadas.value ?? []).sort((a, b) =>
+        (b.marca_temporal ?? "").localeCompare(a.marca_temporal ?? "")
+      );
       lideresGrupoOptions = lideresCargados.status === 'fulfilled' ? lideresCargados.value : [];
       gruposCatalogo = gruposNombresCargados.status === 'fulfilled' ? gruposNombresCargados.value : [];
 
@@ -1311,7 +1314,10 @@
       if (actividadesCargadas.status === 'rejected') {
         throw actividadesCargadas.reason;
       }
-      actividades = actividadesCargadas.value;
+      // Ordenar más reciente primero
+      actividades = (actividadesCargadas.value ?? []).sort((a, b) =>
+        (b.marca_temporal ?? "").localeCompare(a.marca_temporal ?? "")
+      );
       lideresGrupoOptions = lideresCargados.status === 'fulfilled' ? lideresCargados.value : [];
       gruposCatalogo = gruposNombresCargados.status === 'fulfilled' ? gruposNombresCargados.value : [];
 
@@ -1709,12 +1715,13 @@
     {:else}
       <!-- Contenedores de actividades -->
       <div class="actividades-container">
-        {#each filteredActividades as actividad (actividad.id)}
+        {#each filteredActividades as actividad, actIdx (actividad.id)}
           <div class="actividad-card">
             <!-- Contenido principal del card -->
             <div class="card-header">
               <div class="header-top">
                 <div class="type-and-state">
+                  <span class="badge-numero" title="Número de registro">#{filteredActividades.length - actIdx}</span>
                   <span class="badge-tipo">{actividad.tipo_jornada || "-"}</span
                   >
                   <span
@@ -3438,6 +3445,19 @@
   /* Footer eliminado */
   .card-footer {
     display: none;
+  }
+
+  .badge-numero {
+    display: inline-block;
+    padding: 0.15rem 0.45rem;
+    background: #1e40af;
+    color: white;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 0.625rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .badge-tipo {
