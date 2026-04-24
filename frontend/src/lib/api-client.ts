@@ -52,8 +52,6 @@ export class ApiClient {
     if (auth.currentUser) {
       try {
         token = await auth.currentUser.getIdToken();
-        // Actualizar el store con el token fresco
-        authStore.refreshToken && void auth.currentUser.getIdToken(false);
       } catch {
         // Fallo al obtener token de Firebase, caer a store
       }

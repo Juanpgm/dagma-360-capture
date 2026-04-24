@@ -136,7 +136,7 @@ describe('loginWithGoogle() — mobile (redirect)', () => {
 
 // ── handleGoogleRedirectResult ────────────────────────────────────────────────
 describe('handleGoogleRedirectResult()', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it('returns null when no pending redirect', async () => {
     mockGetRedirect.mockResolvedValue(null);
@@ -163,7 +163,7 @@ describe('handleGoogleRedirectResult()', () => {
 
 // ── completeGoogleProfile ─────────────────────────────────────────────────────
 describe('completeGoogleProfile()', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it('completes profile and returns updated user', async () => {
     mockFetch
