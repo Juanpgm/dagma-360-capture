@@ -739,14 +739,14 @@
         class:active={activeTab === "tabla"}
         on:click={() => (activeTab = "tabla")}
       >
-        {@html icons.table} Tabla ({filteredReportes.length})
+        {@html icons.table} <span>Tabla ({filteredReportes.length})</span>
       </button>
       <button
         class="tab-btn"
         class:active={activeTab === "graficas"}
         on:click={() => (activeTab = "graficas")}
       >
-        {@html icons.chart} Análisis
+        {@html icons.chart} <span>Análisis</span>
       </button>
     </div>
 

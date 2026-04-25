@@ -308,7 +308,7 @@
                     value={especieSearches[i] || arbol.especie}
                     placeholder="Buscar especie de árbol…"
                     autocomplete="off"
-                    on:input={(e) => onEspecieInput(i, (e.target as HTMLInputElement).value)}
+                    on:input={(e) => onEspecieInput(i, e.currentTarget.value)}
                     on:focus={() => { especieOpen[i] = true; especieOpen = [...especieOpen]; }}
                     on:blur={() => onEspecieBlur(i)}
                   />
