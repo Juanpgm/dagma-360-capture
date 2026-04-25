@@ -210,7 +210,7 @@
         <div class="reconoc-card">
           <!-- Header -->
           <div class="card-header">
-            <span class="req-id">INT-{i + 1}</span>
+            <span class="req-id">INT-{r.numero_registro ?? '?'}</span>
             <span class="card-date">{formatDate(r.timestamp)}</span>
           </div>
 
@@ -262,7 +262,7 @@
                   <button
                     class="carousel-main-btn"
                     class:loaded={loadedImages[currentPhoto]}
-                    on:click={() => openLightbox(currentPhoto, `INT-${i + 1} · foto ${curIdx + 1}`)}
+                    on:click={() => openLightbox(currentPhoto, `INT-${r.numero_registro ?? '?'} · foto ${curIdx + 1}`)}
                     title="Ver foto completa"
                   >
                     <img
@@ -501,6 +501,8 @@
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.04em;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .card-date {

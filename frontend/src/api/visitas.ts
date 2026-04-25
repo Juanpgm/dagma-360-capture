@@ -42,6 +42,7 @@ export interface ReporteIntervencion {
     url_descarga?: string;     // presigned attachment
     url_expiration_seconds?: number;
   }>;
+  numero_registro?: number;
   coordinates_data?: [number, number];
   fecha_registro?: string;
   comuna?: string;
@@ -180,7 +181,14 @@ function parseErrorResponse(errorData: any, status: number, statusText: string):
   return errorData.message || errorData.error || `Error ${status}: ${statusText}`;
 }
 
-const IMAGE_EXT = /\.(jpe?g|png|gif|webp)$/i;
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i;
+
+function isImageDoc(d: { filename?: string; content_type?: string }): boolean {
+  if (!d.filename) return true; // sin filename → incluir
+  if (IMAGE_EXT.test(d.filename)) return true; // extensión imagen conocida
+  const ct = (d.content_type ?? '').toLowerCase();
+  return ct.startsWith('image/'); // tipo MIME imagen
+}
 
 function normalizeReporte(reporte: ReporteIntervencion): ReporteIntervencion {
   // ── Coordinates ──
@@ -205,7 +213,7 @@ function normalizeReporte(reporte: ReporteIntervencion): ReporteIntervencion {
   let photosUrl = reporte.photosUrl ?? [];
   if (Array.isArray(reporte.documentos_con_enlaces) && reporte.documentos_con_enlaces.length > 0) {
     const presigned = reporte.documentos_con_enlaces
-      .filter((d) => !d.filename || IMAGE_EXT.test(d.filename))
+      .filter((d) => isImageDoc(d))
       .map((d) => d.url_visualizar || d.url_presigned || '')
       .filter((url) => url.length > 0);
     if (presigned.length > 0) {
