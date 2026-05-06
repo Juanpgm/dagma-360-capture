@@ -126,11 +126,53 @@
     loadingAsistencias = true;
     errorAsistencias = '';
     try {
-      asistencias = await getAsistenciasResumen();
+      const grupoFilter = $permissions.canSeeAllGroups ? undefined : ($authStore.user?.grupo ?? undefined);
+      asistencias = await getAsistenciasResumen(grupoFilter);
     } catch (e: any) {
       errorAsistencias = e?.message ?? 'Error al obtener asistencias';
     } finally {
       loadingAsistencias = false;
+    }
+  }
+
+  // ── Modal nuevo grupo ──
+
+  let showNuevoGrupoModal = false;
+  let nuevoGrupoNombre = "";
+  let nuevoGrupoTelefono = "";
+  let nuevoGrupoLider = "";
+  let savingGrupo = false;
+  let errorNuevoGrupo = "";
+  let grupoCreado = false;
+
+  function resetNuevoGrupoForm() {
+    nuevoGrupoNombre = "";
+    nuevoGrupoTelefono = "";
+    nuevoGrupoLider = "";
+    grupoCreado = false;
+    errorNuevoGrupo = "";
+  }
+
+  async function crearGrupo() {
+    savingGrupo = true;
+    errorNuevoGrupo = "";
+    grupoCreado = false;
+    try {
+      await ApiClient.post("/grupos", {
+        nombre: nuevoGrupoNombre.trim(),
+        lider: nuevoGrupoLider.trim(),
+        telefono_contacto: nuevoGrupoTelefono.trim(),
+      });
+      grupoCreado = true;
+      await fetchGrupos();
+      setTimeout(() => {
+        showNuevoGrupoModal = false;
+        resetNuevoGrupoForm();
+      }, 1200);
+    } catch (e: any) {
+      errorNuevoGrupo = e?.message ?? "Error al crear el grupo";
+    } finally {
+      savingGrupo = false;
     }
   }
 
@@ -188,7 +230,8 @@
     loadingGrupos = true;
     errorGrupos = "";
     try {
-      const res = await ApiClient.get<any>("/grupos");
+      const grupoParam = $permissions.canSeeAllGroups ? '' : ($authStore.user?.grupo ? `?grupo=${encodeURIComponent($authStore.user.grupo)}` : '');
+      const res = await ApiClient.get<any>(`/grupos${grupoParam}`);
       // Handles both { data: [] } and plain array responses
       grupos = Array.isArray(res) ? res : res.data ?? res.grupos ?? [];
     } catch (e: any) {
@@ -202,10 +245,16 @@
     loadingPersonal = true;
     errorPersonal = "";
     try {
-      const res = await ApiClient.get<any>("/personal_operativo");
+      const grupoParam = $permissions.canSeeAllGroups ? '' : ($authStore.user?.grupo ? `?grupo=${encodeURIComponent($authStore.user.grupo)}` : '');
+      const res = await ApiClient.get<any>(`/personal_operativo${grupoParam}`);
       personal = Array.isArray(res) ? res : res.data ?? res.personal ?? [];
     } catch (e: any) {
-      errorPersonal = e?.message ?? "Error al obtener personal operativo";
+      // 403 means user doesn't have lider+ role — show empty list silently
+      const status = e?.status ?? e?.response?.status;
+      if (status !== 403 && status !== 401) {
+        errorPersonal = e?.message ?? "Error al obtener personal operativo";
+      }
+      personal = [];
     } finally {
       loadingPersonal = false;
     }
@@ -215,7 +264,8 @@
     loadingUsuarios = true;
     errorUsuarios = "";
     try {
-      const data = await getUsers();
+      const grupoFilter = $permissions.canSeeAllGroups ? undefined : ($authStore.user?.grupo ?? undefined);
+      const data = await getUsers(grupoFilter);
       usuarios = data.map((u) => ({
         ...u,
         id: u.uid ?? u.id ?? "",
@@ -258,6 +308,17 @@
   }
 
   onMount(async () => {
+    // Wait for auth to initialize before making authenticated API calls
+    await new Promise<void>((resolve) => {
+      let unsub: (() => void) | undefined;
+      unsub = authStore.subscribe((state) => {
+        if (!state.loading) {
+          unsub?.();
+          resolve();
+        }
+      });
+    });
+
     await fetchGrupos();
     await fetchPersonal();
     await fetchUsuarios();
@@ -277,6 +338,18 @@
    */
   function toRole(r: string) {
     return ['operador','lider','administrador','desarrollador'].includes(r) ? r as 'operador'|'lider'|'administrador'|'desarrollador' : 'operador';
+  }
+
+  /** Get the effective role for a personal_operativo person by cross-referencing the usuarios array */
+  function getRoleForPersona(persona: PersonalOperativo): 'operador' | 'lider' | 'administrador' | 'desarrollador' {
+    if (persona.email && usuarios.length > 0) {
+      const user = usuarios.find((u) => u.email?.toLowerCase() === persona.email!.toLowerCase());
+      if (user) {
+        const r = normalizeRole(user.role ?? user.rol ?? 'operador');
+        return toRole(r);
+      }
+    }
+    return toRole(normalizeRole(persona.role ?? (persona as any).rol ?? 'operador'));
   }
 </script>
 
@@ -309,6 +382,12 @@
     <!-- Sidebar: Grupos -->
     <aside class="sidebar">
       <div class="section-label">Grupos</div>
+      {#if $permissions.canSeeAllGroups}
+        <button class="btn-nuevo-grupo" on:click={() => { showNuevoGrupoModal = true; resetNuevoGrupoForm(); }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo Grupo
+        </button>
+      {/if}
 
       {#if loadingGrupos}
         <div class="loading-list">
@@ -419,6 +498,7 @@
         {#if activeTab === 'operarios' && personalFiltrado.length > 0}
           <div class="personal-grid">
             {#each personalFiltrado as persona (persona.id)}
+              {@const rolPersona = getRoleForPersona(persona)}
               <div class="persona-card">
                 <div class="persona-avatar">
                   {#if persona.photoURL}
@@ -431,7 +511,7 @@
                   <div class="persona-name">{persona.nombre_completo}</div>
                   <div class="persona-sub">
                     {#if persona.grupo}<span class="sub-grupo">{grupoLabel(persona.grupo)}</span><span class="sub-sep">·</span>{/if}
-                    <span class="sub-role sub-role-operador">operador</span>
+                    <span class="sub-role sub-role-{rolPersona}">{ROLE_LABELS_MAP[rolPersona] ?? rolPersona}</span>
                   </div>
                   {#if persona.email}
                     <div class="persona-cargo">{persona.email}</div>
@@ -717,6 +797,78 @@
   </div>
 {/if}
 
+<!-- Modal: Nuevo Grupo -->
+{#if showNuevoGrupoModal}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div class="modal-overlay" on:click|self={() => { showNuevoGrupoModal = false; resetNuevoGrupoForm(); }}>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-grupo-title">
+      <div class="modal-header">
+        <h2 id="modal-grupo-title" class="modal-title">Nuevo Grupo Operativo</h2>
+        <button class="btn-icon-sm" on:click={() => { showNuevoGrupoModal = false; resetNuevoGrupoForm(); }} aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form class="modal-body" on:submit|preventDefault={crearGrupo}>
+        <div class="field">
+          <label for="grupo-nombre" class="label">Nombre del Grupo <span class="required">*</span></label>
+          <input
+            id="grupo-nombre"
+            class="input"
+            type="text"
+            placeholder="Ej. Cuadrilla Norte"
+            bind:value={nuevoGrupoNombre}
+            required
+          />
+        </div>
+        <div class="field">
+          <label for="grupo-tel" class="label">Teléfono de contacto</label>
+          <input
+            id="grupo-tel"
+            class="input"
+            type="tel"
+            placeholder="Ej. 3001234567"
+            bind:value={nuevoGrupoTelefono}
+          />
+        </div>
+        <div class="field">
+          <label for="grupo-lider" class="label">Líder (nombre)</label>
+          <input
+            id="grupo-lider"
+            class="input"
+            type="text"
+            placeholder="Nombre del líder"
+            bind:value={nuevoGrupoLider}
+          />
+        </div>
+        {#if errorNuevoGrupo}
+          <div class="alert error">{errorNuevoGrupo}</div>
+        {/if}
+        {#if grupoCreado}
+          <div class="alert success">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Grupo creado con éxito
+          </div>
+        {/if}
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" on:click={() => { showNuevoGrupoModal = false; resetNuevoGrupoForm(); }} disabled={savingGrupo}>
+            Cancelar
+          </button>
+          <button type="submit" class="btn-primary" disabled={savingGrupo || grupoCreado}>
+            {#if savingGrupo}
+              <span class="spinner"></span> Creando…
+            {:else if grupoCreado}
+              Creado
+            {:else}
+              Crear Grupo
+            {/if}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+{/if}
+
 <style>
   /* ── Layout ─────────────────────────────────────────── */
   .page {
@@ -797,6 +949,26 @@
     text-transform: uppercase;
     color: var(--text-muted);
     padding: 0.25rem 0.5rem 0.5rem;
+  }
+
+  .btn-nuevo-grupo {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.4rem 0.625rem;
+    margin-bottom: 0.375rem;
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    color: var(--primary);
+    border: 1px dashed color-mix(in srgb, var(--primary) 40%, transparent);
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-nuevo-grupo:hover {
+    background: color-mix(in srgb, var(--primary) 16%, transparent);
   }
 
   .grupo-item {

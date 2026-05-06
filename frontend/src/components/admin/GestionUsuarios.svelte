@@ -102,7 +102,8 @@
     loading = true;
     error = "";
     try {
-      users = await getUsers();
+      const grupoFilter = isAdmin ? undefined : (currentUser?.grupo ?? undefined);
+      users = await getUsers(grupoFilter);
     } catch (e: any) {
       error = e?.message ?? "Error al cargar usuarios";
     } finally {

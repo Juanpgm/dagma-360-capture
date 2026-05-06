@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { login, registerUser, loginWithGoogle, sendPasswordReset, NeedsProfileCompletionError, type PartialGoogleUser } from "../api/auth";
-  import { getGruposNombres } from "../lib/grupos";
+  import { getGruposConIds, type GrupoConId } from "../lib/grupos";
   import { authStore } from "../stores/authStore";
   import CompleteProfileModal from "./auth/CompleteProfileModal.svelte";
 
   type AuthMode = "login" | "register";
 
-  let grupos: string[] = [];
+  let gruposConIds: GrupoConId[] = [];
 
   let mode: AuthMode = "login";
   let email = "";
@@ -37,10 +37,10 @@
   onMount(async () => {
     loadingGrupos = true;
     try {
-      grupos = await getGruposNombres();
+      gruposConIds = await getGruposConIds();
     } catch (err) {
       console.error("Error al cargar grupos:", err);
-      grupos = [];
+      gruposConIds = [];
     } finally {
       loadingGrupos = false;
     }
@@ -61,15 +61,15 @@
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
 
-  $: filteredGrupos = grupos.filter((item) =>
-    normalizeText(item).includes(normalizeText(grupoSearch.trim())),
+  $: filteredGrupos = gruposConIds.filter((g) =>
+    normalizeText(g.nombre).includes(normalizeText(grupoSearch.trim())),
   );
   $: visibleGrupos =
-    grupo && !filteredGrupos.includes(grupo)
-      ? [grupo, ...filteredGrupos]
+    grupo && !filteredGrupos.some((g) => g.id === grupo)
+      ? [{ id: grupo, nombre: grupo }, ...filteredGrupos]
       : filteredGrupos;
 
-  $: selectedGrupoLabel = grupo || "Selecciona un grupo";
+  $: selectedGrupoLabel = gruposConIds.find((g) => g.id === grupo)?.nombre || grupo || "Selecciona un grupo";
 
   const toggleGrupoDropdown = () => {
     if (loading) return;
@@ -80,7 +80,7 @@
   };
 
   const selectGrupo = (value: string) => {
-    grupo = value;
+    grupo = value;   // value is always the lowercase id
     isGrupoOpen = false;
     grupoSearch = "";
   };
@@ -273,10 +273,10 @@
                       <button
                         type="button"
                         class="grupo-option"
-                        class:selected={grupo === item}
-                        on:click={() => selectGrupo(item)}
+                        class:selected={grupo === item.id}
+                        on:click={() => selectGrupo(item.id)}
                       >
-                        {item}
+                        {item.nombre}
                       </button>
                     {/each}
                   {/if}

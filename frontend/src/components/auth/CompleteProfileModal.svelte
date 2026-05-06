@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from "svelte";
   import { completeGoogleProfile, type PartialGoogleUser } from "../../api/auth";
-  import { getGruposNombres } from "../../lib/grupos";
+  import { getGruposConIds, type GrupoConId } from "../../lib/grupos";
 
   export let partialUser: PartialGoogleUser;
 
@@ -17,7 +17,7 @@
   let error = "";
 
   // Grupos cargados desde la API
-  let grupos: string[] = [];
+  let gruposConIds: GrupoConId[] = [];
   let loadingGrupos = true;
   let grupoSearch = "";
   let isGrupoOpen = false;
@@ -25,9 +25,9 @@
 
   onMount(async () => {
     try {
-      grupos = await getGruposNombres();
+      gruposConIds = await getGruposConIds();
     } catch {
-      grupos = [];
+      gruposConIds = [];
     } finally {
       loadingGrupos = false;
     }
@@ -37,8 +37,8 @@
     return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   }
 
-  $: filteredGrupos = grupos.filter((g) =>
-    normalizeText(g).includes(normalizeText(grupoSearch.trim())),
+  $: filteredGrupos = gruposConIds.filter((g) =>
+    normalizeText(g.nombre).includes(normalizeText(grupoSearch.trim())),
   );
 
   function toggleDropdown() {
@@ -47,8 +47,8 @@
     if (isGrupoOpen) grupoSearch = "";
   }
 
-  function selectGrupo(g: string) {
-    selectedGrupo = g;
+  function selectGrupo(id: string) {
+    selectedGrupo = id;   // always lowercase key
     isGrupoOpen = false;
     grupoSearch = "";
   }
@@ -164,7 +164,7 @@
             {#if loadingGrupos}
               <span class="grupo-placeholder">Cargando grupos...</span>
             {:else if selectedGrupo}
-              <span class="grupo-selected">{selectedGrupo}</span>
+              <span class="grupo-selected">{gruposConIds.find((g) => g.id === selectedGrupo)?.nombre ?? selectedGrupo}</span>
             {:else}
               <span class="grupo-placeholder">Selecciona un grupo</span>
             {/if}
@@ -189,11 +189,11 @@
                     <button
                       type="button"
                       class="grupo-option"
-                      class:selected={selectedGrupo === g}
-                      on:click={() => selectGrupo(g)}
+                      class:selected={selectedGrupo === g.id}
+                      on:click={() => selectGrupo(g.id)}
                     >
-                      {g}
-                      {#if selectedGrupo === g}
+                      {g.nombre}
+                      {#if selectedGrupo === g.id}
                         <span class="check-icon">✓</span>
                       {/if}
                     </button>

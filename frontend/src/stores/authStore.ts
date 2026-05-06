@@ -124,9 +124,23 @@ const createAuthStore = () => {
           
           if (userStr) {
             try {
-              const user = JSON.parse(userStr);
+              let user = JSON.parse(userStr);
               // Obtener token fresco de Firebase
               const idToken = await firebaseUser.getIdToken();
+
+              // Si el usuario cacheado no tiene grupo, re-fetch del backend para obtenerlo
+              if (!user.grupo) {
+                const backendUser = await fetchFullUserProfile(idToken);
+                if (backendUser?.grupo) {
+                  user = {
+                    ...user,
+                    ...backendUser,
+                    roles: backendUser.role ? [backendUser.role] : (user.roles || []),
+                    photoURL: backendUser.photoURL || user.photoURL || firebaseUser.photoURL,
+                  };
+                  console.log('🔄 Stale cache refreshed from backend:', { grupo: user.grupo, role: user.role });
+                }
+              }
               
               // Actualizar ambos storages
               localStorage.setItem('token', idToken);
@@ -149,7 +163,7 @@ const createAuthStore = () => {
                 email: firebaseUser.email,
                 uid: firebaseUser.uid,
                 displayName: firebaseUser.displayName,
-                roles: [],
+                roles: backendUser?.role ? [backendUser.role] : [],
                 permissions: [],
                 ...backendUser,
                 // Preserve Firebase photoURL if Firestore doesn't have one
@@ -170,7 +184,7 @@ const createAuthStore = () => {
               email: firebaseUser.email,
               uid: firebaseUser.uid,
               displayName: firebaseUser.displayName,
-              roles: [],
+              roles: backendUser?.role ? [backendUser.role] : [],
               permissions: [],
               ...backendUser,
               // Preserve Firebase photoURL if Firestore doesn't have one

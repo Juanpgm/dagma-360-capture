@@ -139,10 +139,10 @@ const loginWithAPI = async (credentials: LoginCredentials): Promise<LoginRespons
       uid: firebaseAuth.user.uid,
       displayName: data.user?.nombre_completo || data.user?.nombre || email.split('@')[0],
       username: data.user?.username || data.user?.email?.split('@')[0] || email.split('@')[0],
-      photoURL: data.user?.photo_url || null,
+      photoURL: data.user?.photoURL || data.user?.photo_url || firebaseAuth.user.photoURL || null,
       ...data.user,
       ...adminUser,
-      roles: data.user?.roles || [],
+      roles: data.user?.role ? [data.user.role] : [],
       permissions: data.user?.permissions || []
     };
 
@@ -250,7 +250,7 @@ const loginWithFirebase = async (credentials: LoginCredentials): Promise<LoginRe
       ...adminUser,
       
       // Roles y permisos
-      roles: backendData.roles || [],
+      roles: backendData.user?.role ? [backendData.user.role] : [],
       permissions: backendData.permissions || []
     };
 
@@ -452,9 +452,10 @@ async function _processGoogleCredential(credential: { user: import('firebase/aut
     email,
     uid: credential.user.uid,
     displayName: credential.user.displayName || email.split('@')[0],
-    photoURL: credential.user.photoURL ?? null,
+    photoURL: credential.user.photoURL ?? backendData.user?.photoURL ?? null,
     username: email.split('@')[0],
     ...backendData.user,
+    roles: backendData.user?.role ? [backendData.user.role] : [],
   };
 
   sessionStorage.setItem('userData', JSON.stringify(userData));
@@ -500,9 +501,10 @@ export const completeGoogleProfile = async (
     email: firebaseUser?.email || '',
     uid: firebaseUser?.uid || '',
     displayName: firebaseUser?.displayName || '',
-    photoURL: firebaseUser?.photoURL ?? null,
+    photoURL: firebaseUser?.photoURL ?? backendData.user?.photoURL ?? null,
     username: (firebaseUser?.email || '').split('@')[0],
     ...backendData.user,
+    roles: backendData.user?.role ? [backendData.user.role] : [],
   };
 
   sessionStorage.setItem('userData', JSON.stringify(userData));

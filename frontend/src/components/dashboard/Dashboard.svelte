@@ -12,6 +12,7 @@
     type ReporteIntervencion,
   } from "../../api/visitas";
   import { GRUPO_KEYS } from "../../lib/grupos";
+  import { authStore, permissions } from "../../stores/authStore";
   import KPICard from "./KPICard.svelte";
   import MapaIntervenciones from "./MapaIntervenciones.svelte";
   import MapaCoropletico from "./MapaCoropletico.svelte";
@@ -402,8 +403,12 @@
     loading = true;
     error = null;
     try {
+      const userGrupo = $authStore.user?.grupo?.toLowerCase() ?? '';
+      const keysToFetch = $permissions.canSeeAllGroups
+        ? GRUPO_KEYS
+        : GRUPO_KEYS.filter((k) => k === userGrupo);
       const resultados = await Promise.allSettled(
-        GRUPO_KEYS.map((key) => obtenerReportes(key)),
+        keysToFetch.map((key) => obtenerReportes(key)),
       );
       let todos: ReporteIntervencion[] = [];
       resultados.forEach((r) => {

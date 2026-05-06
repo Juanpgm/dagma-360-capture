@@ -24,6 +24,7 @@
   import { getUsers } from "../../api/admin";
   import { getGruposNombres, getLideresFromGrupos } from "../../lib/grupos";
   import { authStore } from "../../stores/authStore";
+  import { hasMinRole } from "../../lib/permissions";
   import type { LiderGrupoOption, PersonalOperativoItem } from "../../api/actividades";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
 
@@ -63,13 +64,14 @@
   let showBackToTopButton = false;
   let timeNow = new Date(); // Variable reactiva para actualizar contadores
   let gruposCatalogo: string[] = [];
-  const tiposJornadaDefault = [
-    "Jornada de Limpieza",
-    "Jornada de Siembra",
-    "Jornada de Mantenimiento",
-    "Jornada de Sensibilización",
-    "Jornada Comunitaria",
+  const TIPOS_JORNADA = [
     "Avanzada",
+    "Distrito+Verde",
+    "IEC",
+    "IVC",
+    "Intervención DAGMA",
+    "Recorrido en área protegida",
+    "PMU",
   ];
 
   // Estado modal convocar actividad
@@ -205,17 +207,7 @@
   $: latitudPuntoEncuentroNumero = parseCoordinate(latitudPuntoEncuentroForm);
   $: longitudPuntoEncuentroNumero = parseCoordinate(longitudPuntoEncuentroForm);
 
-  $: tiposJornadaDisponibles = Array.from(
-    new Set(
-      [...tiposJornada, ...tiposJornadaDefault].filter((tipo) =>
-        Boolean(tipo?.trim()),
-      ),
-    ),
-  ).sort((a, b) => {
-    if (a === "Avanzada") return -1;
-    if (b === "Avanzada") return 1;
-    return 0;
-  });
+  $: tiposJornadaDisponibles = TIPOS_JORNADA;
 
   /**
    * Filtra líderes según:
@@ -259,6 +251,9 @@
   });
 
   $: currentUser = $authStore.user;
+  $: canProgramar = hasMinRole(currentUser, 'lider');
+  $: canModificarEliminar = hasMinRole(currentUser, 'administrador');
+  $: grupoFilter = hasMinRole(currentUser, 'administrador') ? undefined : (currentUser?.grupo ?? undefined);
   $: currentUserEmail = currentUser?.email || "";
   $: currentUserTelefono =
     currentUser?.cellphone ||
@@ -312,13 +307,24 @@
     !Number.isNaN(longitudPuntoEncuentroNumero);
 
   onMount(async () => {
+    // Wait for auth to initialize before making authenticated API calls
+    await new Promise<void>((resolve) => {
+      let unsub: (() => void) | undefined;
+      unsub = authStore.subscribe((state) => {
+        if (!state.loading) {
+          unsub?.();
+          resolve();
+        }
+      });
+    });
+
     try {
       loading = true;
       error = "";
 
       // Cargar actividades, líderes y catálogo de grupos en paralelo
       const [actividadesCargadas, lideresCargados, gruposNombresCargados] = await Promise.allSettled([
-        getActividadesPlanDistritoVerde(),
+        getActividadesPlanDistritoVerde(grupoFilter),
         getLideresFromGrupos(),
         getGruposNombres(),
       ]);
@@ -1306,7 +1312,7 @@
     error = "";
     try {
       const [actividadesCargadas, lideresCargados, gruposNombresCargados] = await Promise.allSettled([
-        getActividadesPlanDistritoVerde(),
+        getActividadesPlanDistritoVerde(grupoFilter),
         getLideresFromGrupos(),
         getGruposNombres(),
       ]);
@@ -1574,6 +1580,7 @@
         </div>
 
         <div class="header-buttons">
+          {#if canProgramar}
           <button
             class="btn-programar-actividad"
             type="button"
@@ -1581,6 +1588,7 @@
           >
             + Programar nueva actividad
           </button>
+          {/if}
 
           <button
             type="button"
@@ -1852,6 +1860,7 @@
                             <span class={`personal-asignado-grupo-badge ${getGrupoColorClass(persona.grupo)}`}>
                               {persona.grupo}
                             </span>
+                            {#if canProgramar}
                             <button
                               type="button"
                               class="btn-quitar-persona"
@@ -1861,11 +1870,12 @@
                             >
                               {marcado ? "↩" : "✕"}
                             </button>
+                            {/if}
                           </div>
                         {/each}
                       </div>
                     {/if}
-                    {#if Object.values(personalMarcadoParaQuitar[actividad.id] ?? {}).some(Boolean)}
+                    {#if canProgramar && Object.values(personalMarcadoParaQuitar[actividad.id] ?? {}).some(Boolean)}
                       <div class="personal-edit-actions">
                         <button
                           type="button"
@@ -1891,6 +1901,7 @@
 
               <!-- Botones de acción -->
               <div class="acciones-section">
+                {#if canProgramar}
                 <button
                   type="button"
                   class="btn-asignar-personal"
@@ -1947,7 +1958,9 @@
                       : "Tomar Asistencia"}
                   </span>
                 </button>
+                {/if}
 
+                {#if canModificarEliminar}
                 <div class="acciones-row">
                   <button
                     type="button"
@@ -2004,6 +2017,7 @@
                     <span>Eliminar</span>
                   </button>
                 </div>
+                {/if}
               </div>
             </div>
 

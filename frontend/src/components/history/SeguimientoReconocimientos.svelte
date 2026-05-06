@@ -2,6 +2,11 @@
   import { onMount, onDestroy } from 'svelte';
   import { obtenerReportesAll } from '../../api/visitas';
   import { GRUPO_DISPLAY_NAMES, type GrupoKey } from '../../lib/grupos';
+  import { authStore, permissions } from '../../stores/authStore';
+
+  $: canSeeAll = $permissions.canSeeAllGroups;
+  $: lockedGrupo = canSeeAll ? '' : ($authStore.user?.grupo ?? '');
+  $: if (lockedGrupo && filterGrupo !== lockedGrupo) { filterGrupo = lockedGrupo; }
 
   function grupoLabel(g: string): string {
     return GRUPO_DISPLAY_NAMES[g as GrupoKey] ?? g.charAt(0).toUpperCase() + g.slice(1);
