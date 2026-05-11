@@ -3,6 +3,7 @@ import { logout as firebaseLogout, handleGoogleRedirectResult, NeedsProfileCompl
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { buildPermissions } from '../lib/permissions';
+import { ApiClient } from '../lib/api-client';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -41,6 +42,9 @@ const createAuthStore = () => {
   return {
     subscribe,
     login: (token: string, user: any) => {
+      // Limpiar el caché del ApiClient para evitar datos del usuario anterior
+      ApiClient.clearCache();
+      
       // Guardar en localStorage (persistencia entre sesiones)
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
@@ -53,11 +57,16 @@ const createAuthStore = () => {
       console.log('💾 Session saved (localStorage + sessionStorage):', {
         email: user.email,
         roles: user.roles,
-        permissions: user.permissions
+        permissions: user.permissions,
+        grupo: user.grupo
       });
     },
     logout: async () => {
       console.log('🚪 Logging out...');
+      
+      // Limpiar el caché del ApiClient para evitar que datos del usuario anterior persistan
+      ApiClient.clearCache();
+      
       try {
         await firebaseLogout();
       } catch (error) {
@@ -73,7 +82,7 @@ const createAuthStore = () => {
       sessionStorage.removeItem('userData');
       
       set({ isAuthenticated: false, token: null, user: null, loading: false });
-      console.log('✅ Logout complete - All session data cleared');
+      console.log('✅ Logout complete - All session data and API cache cleared');
     },
     init: () => {
       console.log('🔄 Initializing auth state...');
@@ -83,19 +92,13 @@ const createAuthStore = () => {
         .then((response) => {
           if (response) {
             console.log('✅ Google redirect sign-in completed:', response.user?.email);
+            // Limpiar caché para nueva sesión
+            ApiClient.clearCache();
             localStorage.setItem('token', response.access_token);
             localStorage.setItem('user', JSON.stringify(response.user));
             sessionStorage.setItem('authToken', response.access_token);
             sessionStorage.setItem('userData', JSON.stringify(response.user));
             set({ isAuthenticated: true, token: response.access_token, user: response.user, loading: false });
-          }
-        })
-        .catch((err) => {
-          if (err instanceof NeedsProfileCompletionError) {
-            // Store partial user so Login.svelte can show CompleteProfileModal
-            sessionStorage.setItem('pendingGoogleUser', JSON.stringify(err.partialUser));
-          } else {
-            console.error('Google redirect error:', err);
           }
         });
       
@@ -128,18 +131,28 @@ const createAuthStore = () => {
               // Obtener token fresco de Firebase
               const idToken = await firebaseUser.getIdToken();
 
-              // Si el usuario cacheado no tiene grupo, re-fetch del backend para obtenerlo
-              if (!user.grupo) {
-                const backendUser = await fetchFullUserProfile(idToken);
-                if (backendUser?.grupo) {
-                  user = {
-                    ...user,
-                    ...backendUser,
-                    roles: backendUser.role ? [backendUser.role] : (user.roles || []),
-                    photoURL: backendUser.photoURL || user.photoURL || firebaseUser.photoURL,
-                  };
-                  console.log('🔄 Stale cache refreshed from backend:', { grupo: user.grupo, role: user.role });
+              const backendUser = await fetchFullUserProfile(idToken);
+              if (backendUser) {
+                // Detectar si es un usuario diferente al anterior
+                const previousUid = user.uid;
+                const newUid = backendUser.uid;
+                if (previousUid && newUid && previousUid !== newUid) {
+                  console.log(`🔄 User changed from ${previousUid} to ${newUid} - clearing API cache`);
+                  ApiClient.clearCache();
                 }
+                
+                user = {
+                  ...user,
+                  ...backendUser,
+                  roles: backendUser.role ? [backendUser.role] : (user.roles || []),
+                  photoURL: backendUser.photoURL || user.photoURL || firebaseUser.photoURL,
+                };
+                console.log('🔄 Session refreshed from backend:', { 
+                  uid: user.uid,
+                  email: user.email,
+                  grupo: user.grupo, 
+                  role: user.role 
+                });
               }
               
               // Actualizar ambos storages
@@ -151,6 +164,8 @@ const createAuthStore = () => {
               set({ isAuthenticated: true, token: idToken, user, loading: false });
               console.log(`✅ Session restored from ${source} with fresh token:`, {
                 email: user.email,
+                uid: user.uid,
+                grupo: user.grupo,
                 roles: user.roles || [],
                 permissions: user.permissions || []
               });
@@ -159,6 +174,10 @@ const createAuthStore = () => {
               const idToken = await firebaseUser.getIdToken();
               // Intentar recuperar perfil completo (con grupo/role) del backend
               const backendUser = await fetchFullUserProfile(idToken);
+              
+              // Limpiar caché para asegurar datos frescos del nuevo usuario
+              ApiClient.clearCache();
+              
               const user = {
                 email: firebaseUser.email,
                 uid: firebaseUser.uid,
@@ -174,12 +193,21 @@ const createAuthStore = () => {
               sessionStorage.setItem('authToken', idToken);
               sessionStorage.setItem('userData', JSON.stringify(user));
               set({ isAuthenticated: true, token: idToken, user, loading: false });
-              console.log('✅ Session restored from Firebase with profile:', { grupo: user.grupo, role: user.role || user.rol });
+              console.log('✅ Session restored from Firebase with profile:', { 
+                uid: user.uid,
+                email: user.email,
+                grupo: user.grupo, 
+                role: user.role || user.rol 
+              });
             }
           } else {
             // Usuario de Firebase pero sin datos locales — buscar perfil completo en el backend
             const idToken = await firebaseUser.getIdToken();
             const backendUser = await fetchFullUserProfile(idToken);
+            
+            // Limpiar caché para nueva sesión
+            ApiClient.clearCache();
+            
             const user = {
               email: firebaseUser.email,
               uid: firebaseUser.uid,
@@ -195,7 +223,12 @@ const createAuthStore = () => {
             sessionStorage.setItem('authToken', idToken);
             sessionStorage.setItem('userData', JSON.stringify(user));
             set({ isAuthenticated: true, token: idToken, user, loading: false });
-            console.log('✅ Session created from Firebase + backend profile:', { grupo: user.grupo, role: user.role || user.rol });
+            console.log('✅ Session created from Firebase + backend profile:', { 
+              uid: user.uid,
+              email: user.email,
+              grupo: user.grupo, 
+              role: user.role || user.rol 
+            });
           }
         } else {
           console.log('ℹ️ No Firebase user detected - user is logged out');
