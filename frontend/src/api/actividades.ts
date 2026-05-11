@@ -7,7 +7,7 @@ import type {
   ConvocarActividadResponse,
 } from '../types/actividades';
 
-const LIDERES_GRUPO_URL = '/api/personal_operativo';
+const LIDERES_GRUPO_URL = '/admin/users/lideres';
 
 export interface LiderGrupoOption {
   nombre: string;
@@ -27,28 +27,16 @@ export interface ModificarActividadResponse {
 }
 
 /**
- * Obtiene actividades del Plan Distrito Verde — sin caché.
- * Usa fetch directo con cache:'no-store' y cache-buster para evitar
- * cualquier caché (browser HTTP cache, Service Worker, ApiClient._inflight).
+ * Obtiene actividades del Plan Distrito Verde.
+ * Va a través de ApiClient para beneficiarse de la deduplicación de peticiones
+ * en vuelo y el manejo centralizado de auth/errores.
  */
 export async function getActividadesPlanDistritoVerde(grupo?: string): Promise<ActividadPlanDistritoVerde[]> {
-  const ts = Date.now();
-  const params = new URLSearchParams({ _t: String(ts) });
-  if (grupo) params.set('grupo', grupo);
-  const url = `/api/actividades?${params.toString()}`;
+  const endpoint = grupo
+    ? `/actividades?grupo=${encodeURIComponent(grupo)}`
+    : '/actividades';
 
-  const token = sessionStorage.getItem('authToken') || localStorage.getItem('token');
-  const headers: Record<string, string> = { 'Accept': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers,
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-  const json: ActividadesAPIResponse = await response.json();
+  const json = await ApiClient.get<ActividadesAPIResponse>(endpoint);
   if (json.success && json.data) {
     return json.data.sort((a, b) => {
       const fechaA = a.marca_temporal ? new Date(a.marca_temporal).getTime() : 0;
@@ -71,7 +59,8 @@ export function getGoogleMapsUrl(geometry: { coordinates: [number, number] }): s
  * Obtiene catálogo de líderes de grupo
  */
 export async function getLideresGrupo(): Promise<LiderGrupoOption[]> {
-  const response = await ApiClient.get<any>('/personal_operativo');
+  // Catalogo de personal operativo: cambia raramente, cacheamos 30s.
+  const response = await ApiClient.get<any>('/personal_operativo', { cacheMs: 30_000 });
 
   const rows = Array.isArray(response)
     ? response
@@ -170,7 +159,8 @@ export interface PersonalOperativoItem {
 }
 
 export async function getPersonalOperativo(): Promise<PersonalOperativoItem[]> {
-  const response = await ApiClient.get<any>('/personal_operativo');
+  // Catalogo: cacheamos 30s; cualquier POST/PATCH/DELETE a /personal_operativo lo invalida.
+  const response = await ApiClient.get<any>('/personal_operativo', { cacheMs: 30_000 });
   const rows = Array.isArray(response)
     ? response
     : Array.isArray(response?.data)
@@ -303,16 +293,16 @@ export async function agregarPersonalAsignado(
 }
 
 /**
- * Obtiene una actividad específica por su ID, sin caché.
- * Usa el parámetro ?id= del GET /actividades.
+ * Obtiene una actividad específica por su ID.
+ * Usa el parámetro ?id= del GET /actividades; se beneficia de la deduplicación
+ * en vuelo de ApiClient.
  */
 export async function getActividadPorId(
   actividadId: string,
 ): Promise<ActividadPlanDistritoVerde | null> {
-  const ts = Date.now();
-  const params = new URLSearchParams({ id: actividadId, _t: String(ts) });
-
-  const json: ActividadesAPIResponse = await ApiClient.get<ActividadesAPIResponse>(`/actividades?${params.toString()}`);
+  const json: ActividadesAPIResponse = await ApiClient.get<ActividadesAPIResponse>(
+    `/actividades?id=${encodeURIComponent(actividadId)}`,
+  );
   if (json.success && json.data && json.data.length > 0) {
     return json.data[0];
   }
@@ -332,7 +322,6 @@ export async function modificarActividadPlanDistritoVerde(
     return await ApiClient.put<ModificarActividadResponse>(
       `/actividades/${encodeURIComponent(id)}`,
       payload,
-      { requireAuth: false },
     );
   } catch (error) {
     console.error('Error al modificar actividad:', error);
@@ -395,7 +384,7 @@ export interface AsistenciaResponse {
 /** GET /alertas_tipos — catálogo de tipos de alerta predefinidos */
 export async function getAlertasTipos(): Promise<AlertaTipoOption[]> {
   try {
-    const result = await ApiClient.get<AlertaTipoOption[]>('/alertas_tipos', { requireAuth: false });
+    const result = await ApiClient.get<AlertaTipoOption[]>('/alertas_tipos', { requireAuth: false, cacheMs: 60_000 });
     return Array.isArray(result) ? result : [];
   } catch {
     // Fallback hardcoded si el endpoint no responde
@@ -418,7 +407,7 @@ export async function getAlertasTipos(): Promise<AlertaTipoOption[]> {
 export async function getAsistenciaActividad(actividadId: string): Promise<AsistenciaResponse | null> {
   try {
     const result = await ApiClient.get<AsistenciaResponse>(
-      `/asistencia_actividades?actividad_id=${encodeURIComponent(actividadId)}&_t=${Date.now()}`,
+      `/asistencia_actividades?actividad_id=${encodeURIComponent(actividadId)}`,
     );
     return result;
   } catch (err: any) {

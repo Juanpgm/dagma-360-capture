@@ -26,6 +26,13 @@ function notifyForbidden() {
 
 interface ApiRequestOptions {
   requireAuth?: boolean;
+  /** Time-to-live for caching this GET response, in ms. 0 / undefined = no cache, dedup only. */
+  cacheMs?: number;
+}
+
+interface CacheEntry {
+  expires: number;
+  value: unknown;
 }
 
 /**
@@ -34,10 +41,76 @@ interface ApiRequestOptions {
 export class ApiClient {
   /** In-flight GET requests — prevents duplicate simultaneous calls */
   private static _inflight = new Map<string, Promise<unknown>>();
+  /** Optional response cache, opt-in per call via `cacheMs`. */
+  private static _cache = new Map<string, CacheEntry>();
+
+  /** Cached Firebase ID token + expiry (epoch ms). */
+  private static _cachedToken: string | null = null;
+  private static _cachedTokenExp = 0;
+  /** Refresh el token cuando le quedan <= 60s. */
+  private static readonly _TOKEN_SKEW_MS = 60_000;
+
+  /** Invalida entradas de cache cuyo URL incluya el `prefix`. Llamar tras mutaciones. */
+  static invalidate(prefix: string): void {
+    const fullPrefix = resolveUrl(prefix);
+    for (const key of ApiClient._cache.keys()) {
+      if (key.startsWith(fullPrefix)) ApiClient._cache.delete(key);
+    }
+  }
+
+  /** Limpia la cache completa (útil tras logout). */
+  static clearCache(): void {
+    ApiClient._cache.clear();
+    ApiClient._cachedToken = null;
+    ApiClient._cachedTokenExp = 0;
+  }
+
+  private static _decodeJwtExpMs(token: string): number {
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return 0;
+      const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+      const payload = JSON.parse(atob(padded));
+      return typeof payload.exp === 'number' ? payload.exp * 1000 : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** Devuelve un token válido, reutilizándolo hasta ~60s antes de expirar. */
+  private static async _getValidToken(): Promise<string | null> {
+    const now = Date.now();
+    if (
+      ApiClient._cachedToken &&
+      ApiClient._cachedTokenExp - ApiClient._TOKEN_SKEW_MS > now
+    ) {
+      return ApiClient._cachedToken;
+    }
+    let token: string | null = null;
+    if (auth.currentUser) {
+      try {
+        token = await auth.currentUser.getIdToken();
+      } catch {
+        // fallback abajo
+      }
+    }
+    if (!token) {
+      token = get(authStore).token;
+    }
+    if (!token) {
+      token = await authStore.refreshToken();
+    }
+    if (token) {
+      ApiClient._cachedToken = token;
+      ApiClient._cachedTokenExp = ApiClient._decodeJwtExpMs(token) || (now + 55 * 60_000);
+    }
+    return token;
+  }
 
   /**
    * Obtiene headers con autenticación.
-   * Siempre intenta obtener un token fresco de Firebase (auto-renovado).
+   * Reutiliza el ID token de Firebase cacheado hasta su expiración (ver `_getValidToken`).
    */
   private static async getHeaders(requireAuth = true): Promise<HeadersInit> {
     if (!requireAuth) {
@@ -47,25 +120,7 @@ export class ApiClient {
       };
     }
 
-    // Intentar token fresco de Firebase (se auto-renueva si expira en <5 min)
-    let token: string | null = null;
-    if (auth.currentUser) {
-      try {
-        token = await auth.currentUser.getIdToken();
-      } catch {
-        // Fallo al obtener token de Firebase, caer a store
-      }
-    }
-
-    // Fallback: token del store (puede estar en cache)
-    if (!token) {
-      token = get(authStore).token;
-    }
-
-    // Último recurso: forzar refresh
-    if (!token) {
-      token = await authStore.refreshToken();
-    }
+    const token = await ApiClient._getValidToken();
 
     if (!token) {
       throw new Error('No authentication token available');
@@ -79,10 +134,19 @@ export class ApiClient {
   }
 
   /**
-   * GET request with in-flight deduplication
+   * GET request with in-flight deduplication and opt-in TTL caching.
    */
   static async get<T = any>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
     const requestUrl = resolveUrl(endpoint);
+    const cacheMs = options.cacheMs ?? 0;
+
+    // Cache TTL hit (solo si cacheMs > 0)
+    if (cacheMs > 0) {
+      const cached = ApiClient._cache.get(requestUrl);
+      if (cached && cached.expires > Date.now()) {
+        return cached.value as T;
+      }
+    }
 
     // Reuse an in-flight request for the same URL to avoid duplicate network calls
     const existing = ApiClient._inflight.get(requestUrl) as Promise<T> | undefined;
@@ -97,6 +161,11 @@ export class ApiClient {
 
         if (!response.ok) {
           if (response.status === 403) notifyForbidden();
+          // Token expirado: limpia cache para forzar refresh en la siguiente request
+          if (response.status === 401) {
+            ApiClient._cachedToken = null;
+            ApiClient._cachedTokenExp = 0;
+          }
           if (import.meta.env.DEV) {
             const errorText = await response.text();
             console.error(`[API] Error response:`, errorText);
@@ -104,7 +173,11 @@ export class ApiClient {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        return response.json() as Promise<T>;
+        const value = (await response.json()) as T;
+        if (cacheMs > 0) {
+          ApiClient._cache.set(requestUrl, { value, expires: Date.now() + cacheMs });
+        }
+        return value;
       } catch (error) {
         if (import.meta.env.DEV) console.error(`[API] Request failed:`, error);
         throw error;
@@ -134,6 +207,7 @@ export class ApiClient {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
+    ApiClient._invalidateForEndpoint(endpoint);
     return response.json();
   }
 
@@ -154,6 +228,7 @@ export class ApiClient {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
+    ApiClient._invalidateForEndpoint(endpoint);
     return response.json();
   }
 
@@ -174,6 +249,7 @@ export class ApiClient {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
+    ApiClient._invalidateForEndpoint(endpoint);
     return response.json();
   }
 
@@ -197,6 +273,19 @@ export class ApiClient {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
+    ApiClient._invalidateForEndpoint(endpoint);
     return response.json();
+  }
+
+  /** Heuristica: invalida cache para el recurso base de un endpoint de mutacion. */
+  private static _invalidateForEndpoint(endpoint: string): void {
+    // Quita query string
+    const path = endpoint.split('?')[0];
+    // Recorta el ultimo segmento si parece un ID (no contiene barras adicionales)
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length === 0) return;
+    // Invalida el recurso base y el path completo
+    const base = '/' + segments[0];
+    ApiClient.invalidate(base);
   }
 }

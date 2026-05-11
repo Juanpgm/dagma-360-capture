@@ -44,7 +44,18 @@ export default defineConfig(({ mode }) => {
           ]
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+          globPatterns: ['**/*.{js,css,html}'],
+          globIgnores: [
+            '**/images/**',
+            '**/tiles/**',
+            '**/basemaps/**',
+            '**/*.png',
+            '**/*.jpg',
+            '**/*.jpeg',
+            '**/*.webp'
+          ],
+          // Evita inflar el bundle del Service Worker con archivos muy grandes
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024
         }
       })
     ],
@@ -67,7 +78,22 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
-      emptyOutDir: true
+      emptyOutDir: true,
+      // Subir un poco el umbral para no spamear warnings en chunks legitimos
+      chunkSizeWarningLimit: 800,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            firebase: [
+              'firebase/app',
+              'firebase/auth',
+              'firebase/firestore'
+            ],
+            leaflet: ['leaflet'],
+            charts: ['chart.js', 'svelte-chartjs']
+          }
+        }
+      }
     },
     test: {
       environment: 'node',
