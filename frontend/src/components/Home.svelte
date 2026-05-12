@@ -2,7 +2,7 @@
   import { authStore, permissions } from "../stores/authStore";
   import { GRUPO_DISPLAY_NAMES, type GrupoKey } from "../lib/grupos";
 
-  type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard" | "grupos" | "usuarios";
+  type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard" | "grupos" | "usuarios" | "anuncios";
   let currentView: View = "home";
 
   // Lazy-loaded view components
@@ -12,6 +12,7 @@
   let Dashboard: any = null;
   let GestionGrupos: any = null;
   let GestionUsuarios: any = null;
+  let Anuncios: any = null;
 
   const viewLoaders: Record<string, () => Promise<{ default: any }>> = {
     visita:        () => import("./visitas/VisitaVerificacion.svelte"),
@@ -20,6 +21,7 @@
     dashboard:     () => import("./dashboard/Dashboard.svelte"),
     grupos:        () => import("./grupos/GestionGrupos.svelte"),
     usuarios:      () => import("./admin/GestionUsuarios.svelte"),
+    anuncios:      () => import("./admin/Anuncios.svelte"),
   };
 
   const handleLogout: () => Promise<void> = async () => {
@@ -49,6 +51,7 @@
   async function navigate(view: View): Promise<void> {
     if (view === "grupos" && !$permissions.canManageUsers) return;
     if (view === "usuarios" && !$permissions.canAccessUserAdmin) return;
+    if (view === "anuncios" && !$permissions.canAccessUserAdmin) return;
     navigationError = null;
     if (view !== "home" && viewLoaders[view]) {
       try {
@@ -59,6 +62,7 @@
         if (view === "dashboard")     Dashboard          = mod.default;
         if (view === "grupos")        GestionGrupos      = mod.default;
         if (view === "usuarios")      GestionUsuarios    = mod.default;
+        if (view === "anuncios")      Anuncios           = mod.default;
       } catch (e) {
         console.error("Error al cargar módulo:", view, e);
         navigationError = "No se pudo cargar el módulo. Intenta de nuevo.";
@@ -180,6 +184,12 @@
       {:else}
         <div class="loading-view">Cargando…</div>
       {/if}
+    {:else if currentView === "anuncios"}
+      {#if Anuncios}
+        <svelte:component this={Anuncios} />
+      {:else}
+        <div class="loading-view">Cargando…</div>
+      {/if}
     {:else}
       <main class="home-content">
         {#if navigationError}
@@ -264,6 +274,21 @@
             <div class="action-text">
               <span class="action-title">Gestión de Usuarios</span>
               <span class="action-desc">Administrar cuentas y privilegios</span>
+            </div>
+            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          {/if}
+          {#if $permissions.canAccessUserAdmin}
+          <button class="action-card" on:click={() => navigate("anuncios")} data-testid="home-card-anuncios">
+            <div class="action-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 11v3a4 4 0 0 0 4 4h.5l3 4v-4h6a4 4 0 0 0 4-4v-3a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4z"/>
+                <line x1="7" y1="11" x2="17" y2="11"/>
+              </svg>
+            </div>
+            <div class="action-text">
+              <span class="action-title">Anuncios</span>
+              <span class="action-desc">Envía notificaciones a usuarios y grupos</span>
             </div>
             <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>

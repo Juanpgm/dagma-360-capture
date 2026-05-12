@@ -4,12 +4,25 @@
  * Cubre: navegación, visitas (Step1), registro de intervención.
  */
 import { test, expect } from '@playwright/test';
-import { APP_URL, TEST_USER, injectAuthState } from './helpers';
+import { APP_URL, TEST_USER, injectAuthState, firebaseSignIn } from './helpers';
 
 const BASE = APP_URL;
+let authBootstrapError: string | null = null;
+let authReady = false;
 
 test.describe('App autenticada — navegación principal', () => {
+  test.beforeAll(async () => {
+    try {
+      await firebaseSignIn(TEST_USER.email, TEST_USER.password);
+      authReady = true;
+    } catch (err) {
+      authReady = false;
+      authBootstrapError = err instanceof Error ? err.message : String(err);
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
+    test.skip(!authReady, `No se pudo autenticar usuario E2E en Firebase: ${authBootstrapError ?? 'sin detalle'}`);
     await injectAuthState(page, TEST_USER.email, TEST_USER.password);
     await page.reload({ waitUntil: 'networkidle' });
   });
@@ -62,6 +75,68 @@ test.describe('App autenticada — navegación principal', () => {
       const badge = page.locator('[class*="badge"], [class*="results"], [class*="count"]').first();
       // Just verify no error thrown
       await expect(page).not.toHaveURL(/error/);
+    }
+  });
+
+  test('programación — líder depende de grupos requeridos', async ({ page }) => {
+    // Navegar al módulo Intervención / Programación
+    const intervencionBtn = page.locator('button:has-text("Intervención"), a:has-text("Intervención"), [class*="card"]:has-text("Intervención")').first();
+    await expect(intervencionBtn).toBeVisible({ timeout: 15000 });
+    await intervencionBtn.click();
+
+    // Si el usuario E2E no tiene permisos de líder, saltar la prueba con mensaje explícito
+    const programarBtn = page.locator('button:has-text("Programar nueva actividad")').first();
+    const canProgramar = await programarBtn.isVisible({ timeout: 6000 }).catch(() => false);
+    test.skip(!canProgramar, 'El usuario E2E no tiene rol líder para abrir el modal de programación.');
+
+    await programarBtn.click();
+    await expect(page.locator('h2:has-text("Programación de Actividad")').first()).toBeVisible({ timeout: 10000 });
+
+    const liderTrigger = page.locator('.lider-dropdown-trigger').first();
+    const gruposTrigger = page.locator('.grupos-required-trigger').first();
+
+    // 1) Antes de elegir grupos, el selector de líder debe estar deshabilitado
+    await expect(liderTrigger).toBeDisabled();
+    await expect(liderTrigger).toContainText('Selecciona primero los grupos requeridos');
+
+    // 2) Seleccionar un grupo requerido habilita el selector de líder
+    await gruposTrigger.click();
+    const firstGroupOption = page.locator('.grupos-option-item').first();
+    await expect(firstGroupOption).toBeVisible({ timeout: 10000 });
+    const selectedGroup = ((await firstGroupOption.textContent()) || '').trim().replace(/^✓\s*/, '');
+    await firstGroupOption.click();
+
+    // Cerrar panel de grupos y validar habilitación
+    await gruposTrigger.click();
+    await expect(liderTrigger).toBeEnabled();
+
+    // 3) Abrir líderes y verificar hint de filtro por grupo
+    await liderTrigger.click();
+    await expect(page.locator('.lider-filter-hint').first()).toContainText('Mostrando líderes de:');
+    if (selectedGroup) {
+      await expect(page.locator('.lider-filter-hint').first()).toContainText(selectedGroup);
+    }
+
+    const leaderOptions = page.locator('.lider-option-item');
+    const hasLeaderOptions = (await leaderOptions.count()) > 0;
+
+    // Si hay opciones, seleccionar una y luego remover el grupo para validar limpieza automática
+    if (hasLeaderOptions) {
+      const chosenLeaderName = ((await leaderOptions.first().locator('.lider-option-name').textContent()) || '').trim();
+      await leaderOptions.first().click();
+      await expect(liderTrigger).toContainText(chosenLeaderName);
+
+      // Quitar el grupo seleccionado (toggle en el panel) y validar reset del líder
+      await gruposTrigger.click();
+      await firstGroupOption.click();
+      await gruposTrigger.click();
+
+      await expect(liderTrigger).toBeDisabled();
+      await expect(liderTrigger).toContainText('Selecciona primero los grupos requeridos');
+      await expect(liderTrigger).not.toContainText(chosenLeaderName);
+    } else {
+      // Sin líderes para el grupo seleccionado: validar empty state específico
+      await expect(page.locator('.lider-empty-state').first()).toContainText('No hay líderes registrados para');
     }
   });
 

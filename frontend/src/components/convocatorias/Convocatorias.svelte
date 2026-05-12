@@ -52,7 +52,9 @@
   let tiposJornada: string[] = [];
   let lideres: string[] = [];
   let lideresGrupoOptions: LiderGrupoOption[] = [];
+  let lideresPermitidosPorGrupo: LiderGrupoOption[] = [];
   let liderDropdownOpen = false;
+  let liderDropdownDisabled = true;
   let liderSearchQuery = "";
   let liderDropdownRef: HTMLDivElement | null = null;
   let gruposDropdownOpen = false;
@@ -130,6 +132,7 @@
   let duracionHorasForm: string | number = "";
   let gruposRequeridosForm: string[] = [];
   let liderActividadForm = "";
+  let liderActividadEmailForm = "";
   let objetivoActividadForm = "";
   let observacionesForm = "";
 
@@ -216,19 +219,22 @@
    * Esto permite que al elegir los grupos de la actividad el dropdown de líderes
    * muestre automáticamente solo los integrantes relevantes.
    */
-  $: filteredLideresGrupoOptions = (() => {
-    let lista = lideresGrupoOptions;
+  $: liderDropdownDisabled = gruposRequeridosForm.length === 0;
 
-    // Filtrar por grupos requeridos (case-insensitive)
-    if (gruposRequeridosForm.length > 0) {
-      const gruposLower = gruposRequeridosForm.map((g) => normalizeSearchValue(g));
-      lista = lista.filter((lider) => {
-        const liderGrupoNorm = normalizeSearchValue(lider.grupo);
-        return gruposLower.some(
-          (g) => liderGrupoNorm.includes(g) || g.includes(liderGrupoNorm),
-        );
-      });
-    }
+  $: lideresPermitidosPorGrupo = (() => {
+    if (gruposRequeridosForm.length === 0) return [];
+
+    const gruposSet = new Set(
+      gruposRequeridosForm.map((g) => normalizeSearchValue(g)).filter(Boolean),
+    );
+
+    return lideresGrupoOptions.filter((lider) =>
+      gruposSet.has(normalizeSearchValue(lider.grupo)),
+    );
+  })();
+
+  $: filteredLideresGrupoOptions = (() => {
+    let lista = lideresPermitidosPorGrupo;
 
     // Filtrar por texto de búsqueda
     const query = normalizeSearchValue(liderSearchQuery);
@@ -239,6 +245,24 @@
         normalizeSearchValue(lider.grupo).includes(query),
     );
   })();
+
+  $: {
+    if (liderDropdownDisabled) {
+      liderDropdownOpen = false;
+      liderSearchQuery = "";
+    }
+  }
+
+  $: {
+    if (
+      liderActividadForm &&
+      lideresPermitidosPorGrupo.every(
+        (lider) => lider.nombre !== liderActividadForm,
+      )
+    ) {
+      liderActividadForm = "";
+    }
+  }
 
   $: liderSeleccionado =
     lideresGrupoOptions.find((lider) => lider.nombre === liderActividadForm) ||
@@ -519,6 +543,7 @@
     duracionHorasForm = "";
     gruposRequeridosForm = [];
     liderActividadForm = "";
+    liderActividadEmailForm = "";
     objetivoActividadForm = "";
     observacionesForm = "";
 
@@ -532,6 +557,11 @@
   }
 
   function toggleLiderDropdown() {
+    if (liderDropdownDisabled) {
+      liderDropdownOpen = false;
+      return;
+    }
+
     liderDropdownOpen = !liderDropdownOpen;
     if (!liderDropdownOpen) {
       liderSearchQuery = "";
@@ -540,6 +570,9 @@
 
   function seleccionarLider(lider: LiderGrupoOption) {
     liderActividadForm = lider.nombre;
+    if (lider.email && !liderActividadEmailForm.trim()) {
+      liderActividadEmailForm = lider.email;
+    }
     liderDropdownOpen = false;
     liderSearchQuery = "";
   }
@@ -1150,6 +1183,7 @@
       : "";
     gruposRequeridosForm = [...(actividad.grupos_requeridos || [])];
     liderActividadForm = (actividad.lider_actividad || "").trim();
+    liderActividadEmailForm = ((actividad as any).lider_actividad_email || "").trim();
     objetivoActividadForm = actividad.objetivo_actividad || "";
     observacionesForm = actividad.observaciones || "";
 
@@ -1213,6 +1247,7 @@
         duracion_actividad: duracionHorasForm ? Number(duracionHorasForm) : 0,
         grupos_requeridos: gruposRequeridosForm,
         lider_actividad: liderActividadForm.trim(),
+        lider_actividad_email: liderActividadEmailForm.trim() || undefined,
         objetivo_actividad: objetivoActividadForm.trim(),
         observaciones: observacionesForm.trim(),
         punto_encuentro: {
@@ -2110,6 +2145,8 @@
                 type="button"
                 class="lider-dropdown-trigger"
                 class:open={liderDropdownOpen}
+                class:disabled={liderDropdownDisabled}
+                disabled={liderDropdownDisabled}
                 on:click={toggleLiderDropdown}
               >
                 {#if liderSeleccionado}
@@ -2122,7 +2159,11 @@
                     {liderSeleccionado.grupo}
                   </span>
                 {:else}
-                  <span class="lider-placeholder">Selecciona un líder</span>
+                  <span class="lider-placeholder"
+                    >{liderDropdownDisabled
+                      ? "Selecciona primero los grupos requeridos"
+                      : "Selecciona un líder"}</span
+                  >
                 {/if}
                 <span class="lider-dropdown-arrow">▾</span>
               </button>
@@ -2145,7 +2186,7 @@
                     {#if filteredLideresGrupoOptions.length === 0}
                       <div class="lider-empty-state">
                         {gruposRequeridosForm.length > 0
-                          ? `No hay líderes registrados en ${gruposRequeridosForm.join(', ')}. Busca por nombre para ver todos.`
+                          ? `No hay líderes registrados para ${gruposRequeridosForm.join(', ')}.`
                           : 'No se encontraron líderes.'}
                       </div>
                     {:else}
@@ -2171,6 +2212,17 @@
                 </div>
               {/if}
             </div>
+          </label>
+
+          <label>
+            <span>Email del líder (opcional)</span>
+            <input
+              type="email"
+              bind:value={liderActividadEmailForm}
+              placeholder="lider@ejemplo.com"
+              autocomplete="email"
+            />
+            <small class="form-hint">Se enviará una notificación específica al líder en este email.</small>
           </label>
 
           <label class="grupos-field grupos-required-field">
@@ -4870,6 +4922,12 @@
     font-family: inherit;
     cursor: pointer;
     transition: all var(--transition);
+  }
+
+  .lider-dropdown-trigger.disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
+    background: #f3f4f6;
   }
 
   .lider-dropdown-trigger.open,

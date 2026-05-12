@@ -62,6 +62,8 @@ export interface ConvocarActividadRequest {
   hora_encuentro: string;
   grupos_requeridos: string[];
   lider_actividad: string;
+  /** Email del líder de la actividad — opcional, para enviarle notificación al confirmar la convocatoria. */
+  lider_actividad_email?: string;
   punto_encuentro: {
     direccion: string;
     geometry: {

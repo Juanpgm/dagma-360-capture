@@ -71,25 +71,29 @@ export async function getGruposConIds(): Promise<GrupoConId[]> {
 export interface LiderGrupoOption {
 	nombre: string;
 	grupo: string;
+	email?: string;
 }
 
-/** Obtiene líderes desde /personal_operativo para usarlos en selects de actividades */
+/** Obtiene líderes desde el catálogo canónico de usuarios para usarlos en selects de actividades */
 export async function getLideresFromGrupos(): Promise<LiderGrupoOption[]> {
 	try {
-		const res = await ApiClient.get<any>('/personal_operativo', { requireAuth: true });
+		const res = await ApiClient.get<any>('/admin/users/lideres', { requireAuth: true });
 		const rows: any[] = Array.isArray(res) ? res : res.data ?? res.personal ?? [];
 		const map = new Map<string, LiderGrupoOption>();
 		for (const item of rows) {
 			const nombre = (
 				item.nombre_completo ||
 				item.full_name ||
+				item.displayName ||
 				item.nombre ||
+				item.email ||
 				''
 			).toString().trim();
 			const grupo = (item.grupo || '').toString().trim();
+			const email = (item.email || '').toString().trim();
 			if (!nombre) continue;
 			const key = `${nombre}::${grupo}`.toLowerCase();
-			if (!map.has(key)) map.set(key, { nombre, grupo });
+			if (!map.has(key)) map.set(key, { nombre, grupo, email: email || undefined });
 		}
 		return [...map.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 	} catch {
