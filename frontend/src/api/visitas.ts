@@ -286,6 +286,34 @@ export async function registrarIntervencion(
 
   const url = buildApiUrl(`/grupos/${grupoKey}/reporte_intervencion`);
 
+  // ── Offline-first: si no hay conexión, encolar y devolver respuesta sintética ──
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const { enqueueReporte } = await import('../lib/offline/offlineQueue');
+    const fields: Record<string, string | number> = {
+      tipo_intervencion: params.tipo_intervencion,
+      descripcion_intervencion: params.descripcion_intervencion,
+      coordinates_type: params.coordinates_type ?? 'Point',
+      coordinates_data: params.coordinates_data,
+    };
+    if (params.direccion) fields.direccion = params.direccion;
+    if (params.registrado_por) fields.registrado_por = params.registrado_por;
+    if (params.grupo) fields.grupo = params.grupo;
+    if (params.id_actividad) fields.id_actividad = params.id_actividad;
+    if (params.observaciones) fields.observaciones = params.observaciones;
+    if (params.arboles_data) fields.arboles_data = params.arboles_data;
+    if (params.tipos_plantas) fields.tipos_plantas = params.tipos_plantas;
+    if (params.unidades_impactadas != null) fields.unidades_impactadas = params.unidades_impactadas;
+    if (params.unidad_medida) fields.unidad_medida = params.unidad_medida;
+
+    const queueId = await enqueueReporte({ grupoKey, fields, fotos: validPhotoFiles });
+    return {
+      success: true,
+      message: 'Reporte guardado localmente. Se enviará cuando vuelva la conexión.',
+      reporte_id: queueId,
+      queued: true,
+    } as ReconocimientoResponse & { queued: boolean };
+  }
+
   // Obtener token fresco de Firebase (se auto-renueva si está próximo a expirar)
   let token: string | null = null;
   if (auth.currentUser) {
@@ -295,24 +323,81 @@ export async function registrarIntervencion(
   if (!token) token = localStorage.getItem('token') || sessionStorage.getItem('authToken');
   if (!token) token = await authStore.refreshToken();
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { ...(token && { 'Authorization': `Bearer ${token}` }) },
-    body: formData,
-  });
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { ...(token && { 'Authorization': `Bearer ${token}` }) },
+      body: formData,
+    });
 
-  if (!response.ok) {
-    let errorData: any = {};
-    try { errorData = await response.json(); } catch {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Error ${response.status}: ${response.statusText} - ${text}`);
+    if (!response.ok) {
+      // 5xx → encolar para reintento posterior; 4xx → error de validación, no encolar
+      if (response.status >= 500) {
+        const { enqueueReporte } = await import('../lib/offline/offlineQueue');
+        const fields: Record<string, string | number> = {
+          tipo_intervencion: params.tipo_intervencion,
+          descripcion_intervencion: params.descripcion_intervencion,
+          coordinates_type: params.coordinates_type ?? 'Point',
+          coordinates_data: params.coordinates_data,
+        };
+        if (params.direccion) fields.direccion = params.direccion;
+        if (params.registrado_por) fields.registrado_por = params.registrado_por;
+        if (params.grupo) fields.grupo = params.grupo;
+        if (params.id_actividad) fields.id_actividad = params.id_actividad;
+        if (params.observaciones) fields.observaciones = params.observaciones;
+        if (params.arboles_data) fields.arboles_data = params.arboles_data;
+        if (params.tipos_plantas) fields.tipos_plantas = params.tipos_plantas;
+        if (params.unidades_impactadas != null) fields.unidades_impactadas = params.unidades_impactadas;
+        if (params.unidad_medida) fields.unidad_medida = params.unidad_medida;
+        const queueId = await enqueueReporte({ grupoKey, fields, fotos: validPhotoFiles });
+        return {
+          success: true,
+          message: `Servidor no disponible (${response.status}). Reporte guardado y se reintentará automáticamente.`,
+          reporte_id: queueId,
+          queued: true,
+        } as ReconocimientoResponse & { queued: boolean };
+      }
+      let errorData: any = {};
+      try { errorData = await response.json(); } catch {
+        const text = await response.text().catch(() => '');
+        throw new Error(`Error ${response.status}: ${response.statusText} - ${text}`);
+      }
+      throw new Error(parseErrorResponse(errorData, response.status, response.statusText));
     }
-    throw new Error(parseErrorResponse(errorData, response.status, response.statusText));
-  }
 
-  const result: ReconocimientoResponse = await response.json();
-  if (!result.success) throw new Error(result.message || 'Error al registrar intervención');
-  return result;
+    const result: ReconocimientoResponse = await response.json();
+    if (!result.success) throw new Error(result.message || 'Error al registrar intervención');
+    return result;
+  } catch (err: any) {
+    // Errores de red (TypeError: Failed to fetch) → encolar
+    const isNetworkError = err?.name === 'TypeError' || /failed to fetch|network/i.test(err?.message ?? '');
+    if (isNetworkError) {
+      const { enqueueReporte } = await import('../lib/offline/offlineQueue');
+      const fields: Record<string, string | number> = {
+        tipo_intervencion: params.tipo_intervencion,
+        descripcion_intervencion: params.descripcion_intervencion,
+        coordinates_type: params.coordinates_type ?? 'Point',
+        coordinates_data: params.coordinates_data,
+      };
+      if (params.direccion) fields.direccion = params.direccion;
+      if (params.registrado_por) fields.registrado_por = params.registrado_por;
+      if (params.grupo) fields.grupo = params.grupo;
+      if (params.id_actividad) fields.id_actividad = params.id_actividad;
+      if (params.observaciones) fields.observaciones = params.observaciones;
+      if (params.arboles_data) fields.arboles_data = params.arboles_data;
+      if (params.tipos_plantas) fields.tipos_plantas = params.tipos_plantas;
+      if (params.unidades_impactadas != null) fields.unidades_impactadas = params.unidades_impactadas;
+      if (params.unidad_medida) fields.unidad_medida = params.unidad_medida;
+      const queueId = await enqueueReporte({ grupoKey, fields, fotos: validPhotoFiles });
+      return {
+        success: true,
+        message: 'Sin conexión al servidor. Reporte guardado y se enviará automáticamente.',
+        reporte_id: queueId,
+        queued: true,
+      } as ReconocimientoResponse & { queued: boolean };
+    }
+    throw err;
+  }
 }
 
 // ── GET: Obtener reportes de intervención (unificado) ──

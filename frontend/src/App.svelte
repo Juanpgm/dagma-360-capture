@@ -2,9 +2,14 @@
   import { onMount } from "svelte";
   import Login from "./components/Login.svelte";
   import Home from "./components/Home.svelte";
+  import InstallPrompt from "./components/ui/InstallPrompt.svelte";
+  import OfflineBanner from "./components/ui/OfflineBanner.svelte";
+  import PendientesView from "./components/ui/PendientesView.svelte";
   import { authStore, initAuth } from "./stores/authStore";
+  import { pendingCount } from "./lib/offline/offlineQueue";
 
   let initError: string | null = null;
+  let pendientesOpen = false;
 
   onMount(() => {
     try {
@@ -26,7 +31,21 @@
         "Error al inicializar la aplicación: " + (error as Error).message;
     }
   });
+
+  function openPendientes() { pendientesOpen = true; }
+  function closePendientes() { pendientesOpen = false; }
 </script>
+
+<OfflineBanner />
+<InstallPrompt />
+<PendientesView open={pendientesOpen} onClose={closePendientes} />
+
+{#if $pendingCount > 0}
+  <button class="fab-pendientes" on:click={openPendientes} aria-label="Ver capturas pendientes">
+    <span class="fab-icon">📤</span>
+    <span class="fab-badge">{$pendingCount}</span>
+  </button>
+{/if}
 
 <main>
   {#if initError}
@@ -151,4 +170,37 @@
     font-family: monospace;
     font-size: 0.875rem;
   }
+
+  .fab-pendientes {
+    position: fixed;
+    bottom: 88px;
+    right: 16px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #f59e0b;
+    color: white;
+    border: none;
+    box-shadow: 0 6px 18px rgba(245, 158, 11, 0.4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    z-index: 9997;
+  }
+  .fab-pendientes:hover { background: #d97706; }
+  .fab-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #b91c1c;
+    color: white;
+    border-radius: 999px;
+    padding: 2px 7px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border: 2px solid white;
+  }
+  .fab-icon { line-height: 1; }
 </style>

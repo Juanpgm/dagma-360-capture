@@ -126,108 +126,120 @@ const createAuthStore = () => {
           }
           
           if (userStr) {
+            // Parseo defensivo del cache. Si está corrupto, lo tratamos como "sin cache"
+            // en lugar de pisar la sesión actual con un user vacío (perderíamos rol/grupo offline).
+            let cachedUser: any = null;
             try {
-              let user = JSON.parse(userStr);
-              // Obtener token fresco de Firebase
-              const idToken = await firebaseUser.getIdToken();
+              cachedUser = JSON.parse(userStr);
+            } catch (parseError) {
+              console.warn('⚠️ Cached user data is corrupted - will rely on backend:', parseError);
+            }
 
-              const backendUser = await fetchFullUserProfile(idToken);
-              if (backendUser) {
-                // Detectar si es un usuario diferente al anterior
-                const previousUid = user.uid;
-                const newUid = backendUser.uid;
-                if (previousUid && newUid && previousUid !== newUid) {
-                  console.log(`🔄 User changed from ${previousUid} to ${newUid} - clearing API cache`);
-                  ApiClient.clearCache();
-                }
-                
-                user = {
-                  ...user,
-                  ...backendUser,
-                  roles: backendUser.role ? [backendUser.role] : (user.roles || []),
-                  photoURL: backendUser.photoURL || user.photoURL || firebaseUser.photoURL,
-                };
-                console.log('🔄 Session refreshed from backend:', { 
-                  uid: user.uid,
-                  email: user.email,
-                  grupo: user.grupo, 
-                  role: user.role 
-                });
+            // Token fresco (Firebase devuelve cache offline si no está expirado)
+            let idToken: string;
+            try {
+              idToken = await firebaseUser.getIdToken();
+            } catch (tokenError) {
+              console.warn('⚠️ getIdToken failed (likely offline) - using last stored token:', tokenError);
+              idToken = sessionStorage.getItem('authToken') || localStorage.getItem('token') || '';
+            }
+
+            // Intentar enriquecer con backend, pero NUNCA pisar rol/grupo cacheado si el backend no responde
+            const backendUser = idToken ? await fetchFullUserProfile(idToken) : null;
+
+            let user: any;
+            if (backendUser) {
+              // Detectar cambio de usuario
+              const previousUid = cachedUser?.uid;
+              const newUid = backendUser.uid;
+              if (previousUid && newUid && previousUid !== newUid) {
+                console.log(`🔄 User changed from ${previousUid} to ${newUid} - clearing API cache`);
+                ApiClient.clearCache();
               }
-              
-              // Actualizar ambos storages
-              localStorage.setItem('token', idToken);
-              localStorage.setItem('user', JSON.stringify(user));
-              sessionStorage.setItem('authToken', idToken);
-              sessionStorage.setItem('userData', JSON.stringify(user));
-              
-              set({ isAuthenticated: true, token: idToken, user, loading: false });
-              console.log(`✅ Session restored from ${source} with fresh token:`, {
-                email: user.email,
-                uid: user.uid,
-                grupo: user.grupo,
-                roles: user.roles || [],
-                permissions: user.permissions || []
+              user = {
+                ...(cachedUser || {}),
+                ...backendUser,
+                roles: backendUser.role ? [backendUser.role] : (cachedUser?.roles || []),
+                photoURL: backendUser.photoURL || cachedUser?.photoURL || firebaseUser.photoURL,
+              };
+              console.log('🔄 Session refreshed from backend:', {
+                uid: user.uid, email: user.email, grupo: user.grupo, role: user.role
               });
-            } catch (error) {
-              console.error('Error parsing user data:', error);
-              const idToken = await firebaseUser.getIdToken();
-              // Intentar recuperar perfil completo (con grupo/role) del backend
-              const backendUser = await fetchFullUserProfile(idToken);
-              
-              // Limpiar caché para asegurar datos frescos del nuevo usuario
-              ApiClient.clearCache();
-              
-              const user = {
+            } else if (cachedUser) {
+              // OFFLINE / backend caído: conservar rol/grupo del cache
+              user = {
+                ...cachedUser,
+                email: cachedUser.email || firebaseUser.email,
+                uid: cachedUser.uid || firebaseUser.uid,
+                displayName: cachedUser.displayName || firebaseUser.displayName,
+                photoURL: cachedUser.photoURL || firebaseUser.photoURL,
+              };
+              console.log('📴 Backend unavailable - using cached profile:', {
+                uid: user.uid, email: user.email, grupo: user.grupo, role: user.role || user.rol
+              });
+            } else {
+              // Sin backend y sin cache válido (caso raro: primera carga offline tras corrupción)
+              user = {
                 email: firebaseUser.email,
                 uid: firebaseUser.uid,
                 displayName: firebaseUser.displayName,
-                roles: backendUser?.role ? [backendUser.role] : [],
+                photoURL: firebaseUser.photoURL,
+                roles: [],
                 permissions: [],
-                ...backendUser,
-                // Preserve Firebase photoURL if Firestore doesn't have one
-                photoURL: backendUser?.photoURL || firebaseUser.photoURL,
               };
-              localStorage.setItem('token', idToken);
-              localStorage.setItem('user', JSON.stringify(user));
-              sessionStorage.setItem('authToken', idToken);
-              sessionStorage.setItem('userData', JSON.stringify(user));
-              set({ isAuthenticated: true, token: idToken, user, loading: false });
-              console.log('✅ Session restored from Firebase with profile:', { 
-                uid: user.uid,
-                email: user.email,
-                grupo: user.grupo, 
-                role: user.role || user.rol 
-              });
+              console.warn('⚠️ No cache and no backend - minimal user profile (no role assigned)');
             }
+
+            // Actualizar storages solo con campos definidos
+            if (idToken) {
+              localStorage.setItem('token', idToken);
+              sessionStorage.setItem('authToken', idToken);
+            }
+            localStorage.setItem('user', JSON.stringify(user));
+            sessionStorage.setItem('userData', JSON.stringify(user));
+
+            set({ isAuthenticated: true, token: idToken, user, loading: false });
+            console.log(`✅ Session restored from ${source}:`, {
+              email: user.email, uid: user.uid, grupo: user.grupo,
+              roles: user.roles || [], permissions: user.permissions || []
+            });
           } else {
             // Usuario de Firebase pero sin datos locales — buscar perfil completo en el backend
-            const idToken = await firebaseUser.getIdToken();
-            const backendUser = await fetchFullUserProfile(idToken);
-            
+            let idToken: string;
+            try {
+              idToken = await firebaseUser.getIdToken();
+            } catch (tokenError) {
+              console.warn('⚠️ getIdToken failed - using stored token if any:', tokenError);
+              idToken = sessionStorage.getItem('authToken') || localStorage.getItem('token') || '';
+            }
+            const backendUser = idToken ? await fetchFullUserProfile(idToken) : null;
+
             // Limpiar caché para nueva sesión
             ApiClient.clearCache();
-            
+
             const user = {
               email: firebaseUser.email,
               uid: firebaseUser.uid,
               displayName: firebaseUser.displayName,
               roles: backendUser?.role ? [backendUser.role] : [],
               permissions: [],
-              ...backendUser,
+              ...(backendUser || {}),
               // Preserve Firebase photoURL if Firestore doesn't have one
               photoURL: backendUser?.photoURL || firebaseUser.photoURL,
             };
-            localStorage.setItem('token', idToken);
+            if (idToken) {
+              localStorage.setItem('token', idToken);
+              sessionStorage.setItem('authToken', idToken);
+            }
             localStorage.setItem('user', JSON.stringify(user));
-            sessionStorage.setItem('authToken', idToken);
             sessionStorage.setItem('userData', JSON.stringify(user));
             set({ isAuthenticated: true, token: idToken, user, loading: false });
-            console.log('✅ Session created from Firebase + backend profile:', { 
+            console.log('✅ Session created from Firebase + backend profile:', {
               uid: user.uid,
               email: user.email,
-              grupo: user.grupo, 
-              role: user.role || user.rol 
+              grupo: user.grupo,
+              role: user.role || user.rol,
+              hadBackend: !!backendUser,
             });
           }
         } else {

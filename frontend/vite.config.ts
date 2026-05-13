@@ -12,55 +12,70 @@ export default defineConfig(({ mode }) => {
     plugins: [
       svelte(),
       VitePWA({
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+        injectRegister: false,
+        includeAssets: ['apple-touch-icon.png', 'masked-icon.svg', 'favicon-32.png'],
         manifest: {
-          name: 'CaliTrack 360',
-          short_name: 'CaliTrack',
-          description: 'Captura de información de proyectos de infraestructura',
-          theme_color: '#2563eb',
+          id: '/',
+          name: 'DAGMA 360',
+          short_name: 'DAGMA 360',
+          description: 'Captura y gestión de intervenciones ambientales DAGMA',
+          lang: 'es',
+          theme_color: '#059669',
           background_color: '#ffffff',
           display: 'standalone',
           orientation: 'portrait',
           scope: '/',
-          start_url: '/',
+          start_url: '/?source=pwa',
+          categories: ['productivity', 'utilities', 'government'],
           icons: [
-            {
-              src: 'pwa-192x192.png',
-              sizes: '192x192',
-              type: 'image/png'
-            },
-            {
-              src: 'pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png'
-            },
-            {
-              src: 'pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any maskable'
-            }
+            { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: 'pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
           ]
         },
-        workbox: {
-          globPatterns: ['**/*.{js,css,html}'],
+        injectManifest: {
+          globPatterns: ['**/*.{js,css,html,svg}'],
           globIgnores: [
             '**/images/**',
             '**/tiles/**',
             '**/basemaps/**',
-            '**/*.png',
+            '**/cartografia_base/**',
             '**/*.jpg',
             '**/*.jpeg',
             '**/*.webp'
           ],
-          // Evita inflar el bundle del Service Worker con archivos muy grandes
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024
+        },
+        devOptions: {
+          enabled: false,
+          type: 'module'
         }
       })
     ],
     server: {
       port: 5173,
+      proxy: {
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, ''),
+          secure: false
+        },
+        '/api-capturas': {
+          target: 'https://gestorproyectoapi-production.up.railway.app',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api-capturas/, ''),
+          secure: false
+        }
+      }
+    },
+    // Mismo proxy en preview para validar el SW localmente contra Railway
+    preview: {
+      port: 4173,
       proxy: {
         '/api': {
           target: apiTarget,
