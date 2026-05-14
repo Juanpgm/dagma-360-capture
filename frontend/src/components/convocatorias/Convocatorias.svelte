@@ -86,6 +86,8 @@
   let convocatoriaFeedbackType: "success" | "error" = "success";
   let convocatoriaModalElement: HTMLDivElement | null = null;
   let deletingActividadId: string | null = null;
+  let isConfirmDeleteModalOpen = false;
+  let actividadParaEliminarId: string | null = null;
   let modifyingActividadId: string | null = null;
   let isEditMode = false;
   let editingActividadId: string | null = null;
@@ -899,6 +901,7 @@
     }
 
     const actividadId = actividadAsignacionActual.id;
+    const tipoJornada = actividadAsignacionActual.tipo_jornada;
 
     try {
       // Build PUT payload from all selected personnel
@@ -912,53 +915,58 @@
       // PUT: overwrite personal_asignado in Firestore document field
       await reemplazarPersonalAsignado(actividadId, personalParaPut);
 
-      // Re-fetch the activity to confirm the backend state
-      const actFresca = await getActividadPorId(actividadId);
-
-      if (actFresca) {
-        const rawFresco = (actFresca.personal_asignado || []) as PersonalGrupoApiItem[];
-        const personalFresco = deduplicarPersonal(
-          rawFresco
-            .filter((item) => item.nombre_completo)
-            .map((item, index) => ({
-              id: item.id || `${actividadId}-${index}`,
-              nombreCompleto: item.nombre_completo || '-',
-              telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
-              grupo: capitalizeFirst(item.grupo || '-'),
-              email: item.email || '',
-            }))
-        );
-
-        personalAsignadoPorActividad = {
-          ...personalAsignadoPorActividad,
-          [actividadId]: personalFresco,
+      // Actualización optimista: reflejar asignación inmediatamente con la selección local
+      const seleccionLocal = [...personalSeleccionadoAsignacion];
+      personalAsignadoPorActividad = {
+        ...personalAsignadoPorActividad,
+        [actividadId]: seleccionLocal,
+      };
+      const idxOpt = actividades.findIndex((a) => a.id === actividadId);
+      if (idxOpt >= 0) {
+        actividades[idxOpt] = {
+          ...actividades[idxOpt],
+          personal_asignado: personalParaPut as any,
         };
-
-        const idx = actividades.findIndex((a) => a.id === actividadId);
-        if (idx >= 0) {
-          actividades[idx] = { ...actFresca };
-          actividades = [...actividades];
-        }
-
-        convocatoriaFeedbackType = "success";
-        convocatoriaFeedback = `Se asignaron ${personalFresco.length} integrante(s) a la actividad ${actividadAsignacionActual?.tipo_jornada || "seleccionada"}.`;
-      } else {
-        // Fallback: use local selection
-        personalAsignadoPorActividad = {
-          ...personalAsignadoPorActividad,
-          [actividadId]: [...personalSeleccionadoAsignacion],
-        };
-
-        convocatoriaFeedbackType = "success";
-        convocatoriaFeedback = `Se asignaron ${totalIntegrantesAsignados} integrante(s) a la actividad ${actividadAsignacionActual?.tipo_jornada || "seleccionada"}.`;
+        actividades = [...actividades];
       }
+
+      convocatoriaFeedbackType = "success";
+      convocatoriaFeedback = `Se asignaron ${seleccionLocal.length} integrante(s) a la actividad ${tipoJornada || "seleccionada"}.`;
+
+      closeAsignarPersonalModal();
+
+      // Re-fetch en background para confirmar con el backend
+      getActividadPorId(actividadId).then((actFresca) => {
+        if (actFresca) {
+          const rawFresco = (actFresca.personal_asignado || []) as PersonalGrupoApiItem[];
+          const personalFresco = deduplicarPersonal(
+            rawFresco
+              .filter((item) => item.nombre_completo)
+              .map((item, index) => ({
+                id: item.id || `${actividadId}-${index}`,
+                nombreCompleto: item.nombre_completo || '-',
+                telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
+                grupo: capitalizeFirst(item.grupo || '-'),
+                email: item.email || '',
+              }))
+          );
+          personalAsignadoPorActividad = {
+            ...personalAsignadoPorActividad,
+            [actividadId]: personalFresco,
+          };
+          const idx = actividades.findIndex((a) => a.id === actividadId);
+          if (idx >= 0) {
+            actividades[idx] = { ...actFresca };
+            actividades = [...actividades];
+          }
+        }
+      }).catch(() => {});
     } catch (err) {
       console.error("Error al asignar personal:", err);
       convocatoriaFeedbackType = "error";
       convocatoriaFeedback = "Error al asignar personal a la actividad.";
+      closeAsignarPersonalModal();
     }
-
-    closeAsignarPersonalModal();
   }
 
   function getGrupoColorClass(grupo: string): string {
@@ -1066,51 +1074,51 @@
       // 2. PUT al endpoint que sobreescribe personal_asignado en Firestore
       await reemplazarPersonalAsignado(actividadId, personalParaPut);
 
-      // 3. Re-fetch la actividad específica por su ID (GET fresco, sin caché)
-      const actFresca = await getActividadPorId(actividadId);
-
-      if (actFresca) {
-        // 5a. Parsear personal_asignado de la respuesta fresca del GET
-        const rawFresco = (actFresca.personal_asignado || []) as PersonalGrupoApiItem[];
-        const personalFresco = deduplicarPersonal(
-          rawFresco
-            .filter((item) => item.nombre_completo)
-            .map((item, index) => ({
-              id: item.id || `${actividadId}-${index}`,
-              nombreCompleto: item.nombre_completo || '-',
-              telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
-              grupo: capitalizeFirst(item.grupo || '-'),
-              email: item.email || '',
-            }))
-        );
-
-        // 6a. Actualizar estado local con la data del backend
-        personalAsignadoPorActividad = {
-          ...personalAsignadoPorActividad,
-          [actividadId]: personalFresco,
+      // Actualización optimista: reflejar la lista filtrada inmediatamente
+      personalAsignadoPorActividad = {
+        ...personalAsignadoPorActividad,
+        [actividadId]: [...listaFinal],
+      };
+      const idxPersonal = actividades.findIndex((a) => a.id === actividadId);
+      if (idxPersonal >= 0) {
+        actividades[idxPersonal] = {
+          ...actividades[idxPersonal],
+          personal_asignado: personalParaPut as any,
         };
-
-        // 7a. Actualizar la actividad en el array local
-        const idx = actividades.findIndex((a) => a.id === actividadId);
-        if (idx >= 0) {
-          actividades[idx] = { ...actFresca };
-          actividades = [...actividades];
-        }
-
-        convocatoriaFeedbackType = "success";
-        convocatoriaFeedback = `Personal actualizado. ${personalFresco.length} persona(s) asignadas.`;
-      } else {
-        // 5b. Fallback: no se encontró la actividad en GET, usar la lista local
-        personalAsignadoPorActividad = {
-          ...personalAsignadoPorActividad,
-          [actividadId]: [...listaFinal],
-        };
-
-        convocatoriaFeedbackType = "success";
-        convocatoriaFeedback = `Personal actualizado. ${listaFinal.length} persona(s) asignadas.`;
+        actividades = [...actividades];
       }
 
+      convocatoriaFeedbackType = "success";
+      convocatoriaFeedback = `Personal actualizado. ${listaFinal.length} persona(s) asignadas.`;
+
       cancelarEdicionPersonal(actividadId);
+
+      // 3. Re-fetch en background para confirmar con el backend
+      getActividadPorId(actividadId).then((actFresca) => {
+        if (actFresca) {
+          const rawFresco = (actFresca.personal_asignado || []) as PersonalGrupoApiItem[];
+          const personalFresco = deduplicarPersonal(
+            rawFresco
+              .filter((item) => item.nombre_completo)
+              .map((item, index) => ({
+                id: item.id || `${actividadId}-${index}`,
+                nombreCompleto: item.nombre_completo || '-',
+                telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
+                grupo: capitalizeFirst(item.grupo || '-'),
+                email: item.email || '',
+              }))
+          );
+          personalAsignadoPorActividad = {
+            ...personalAsignadoPorActividad,
+            [actividadId]: personalFresco,
+          };
+          const idx2 = actividades.findIndex((a) => a.id === actividadId);
+          if (idx2 >= 0) {
+            actividades[idx2] = { ...actFresca };
+            actividades = [...actividades];
+          }
+        }
+      }).catch(() => {});
     } catch (err) {
       console.error("Error al actualizar personal:", err);
       convocatoriaFeedbackType = "error";
@@ -1345,13 +1353,32 @@
         (response as { message?: string })?.message ||
         "Actividad modificada exitosamente.";
 
+      // Actualización optimista: reflejar cambios inmediatamente en el array local
+      const idxMod = actividades.findIndex((a) => a.id === pendingModifyActividadId);
+      if (idxMod >= 0) {
+        actividades[idxMod] = {
+          ...actividades[idxMod],
+          tipo_jornada: pendingModifyPayload.tipo_jornada,
+          fecha_actividad: pendingModifyPayload.fecha_actividad,
+          hora_encuentro: pendingModifyPayload.hora_encuentro,
+          duracion_actividad: pendingModifyPayload.duracion_actividad,
+          grupos_requeridos: pendingModifyPayload.grupos_requeridos,
+          lider_actividad: pendingModifyPayload.lider_actividad,
+          objetivo_actividad: pendingModifyPayload.objetivo_actividad,
+          observaciones: pendingModifyPayload.observaciones,
+          punto_encuentro: pendingModifyPayload.punto_encuentro,
+        };
+        actividades = [...actividades];
+      }
+
       // Limpiar estados
       pendingModifyPayload = null;
       pendingModifyActividadId = null;
       isConfirmModifyModalOpen = false;
 
       closeConvocatoriaModal();
-      await retry();
+      // Sincronizar con backend en segundo plano
+      setTimeout(() => retry(), 1000);
     } catch (err) {
       console.error("[Convocatorias] Error al modificar actividad:", err);
       convocatoriaError =
@@ -1408,27 +1435,44 @@
 
   async function eliminarActividad(actividadId: string) {
     if (!actividadId || deletingActividadId) return;
+    actividadParaEliminarId = actividadId;
+    isConfirmDeleteModalOpen = true;
+  }
 
-    const shouldDelete = window.confirm(
-      "¿Deseas eliminar esta actividad de forma permanente?",
-    );
+  async function confirmarEliminarActividad() {
+    const actividadId = actividadParaEliminarId;
+    if (!actividadId) return;
 
-    if (!shouldDelete) return;
+    isConfirmDeleteModalOpen = false;
+    actividadParaEliminarId = null;
 
     try {
       deletingActividadId = actividadId;
       await eliminarActividadPlanDistritoVerde(actividadId);
+
+      // Remoción optimista: quitar del array inmediatamente
+      actividades = actividades.filter((a) => a.id !== actividadId);
+
       convocatoriaFeedbackType = "success";
       convocatoriaFeedback = "Actividad eliminada exitosamente.";
-      await retry();
+
+      // Sincronizar con backend en segundo plano
+      setTimeout(() => retry(), 800);
     } catch (err) {
       console.error("[Convocatorias] Error al eliminar actividad:", err);
       convocatoriaFeedbackType = "error";
       convocatoriaFeedback =
         "No fue posible eliminar la actividad. Intenta nuevamente.";
+      // Recargar para restaurar estado
+      await retry();
     } finally {
       deletingActividadId = null;
     }
+  }
+
+  function cancelarEliminarActividad() {
+    isConfirmDeleteModalOpen = false;
+    actividadParaEliminarId = null;
   }
 
   function modificarActividad(actividad: ActividadPlanDistritoVerde) {
@@ -2424,6 +2468,42 @@
           </button>
         </div>
       {/if}
+    </div>
+  </div>
+{/if}
+
+{#if isConfirmDeleteModalOpen}
+  <div
+    class="confirm-modify-modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Confirmar eliminación de actividad"
+  >
+    <div class="confirm-modify-modal">
+      <div class="confirm-modify-header">
+        <h2>Eliminar Actividad</h2>
+      </div>
+
+      <div class="confirm-modify-content">
+        <p>¿Deseas eliminar esta actividad de forma permanente? Esta acción no se puede deshacer.</p>
+      </div>
+
+      <div class="confirm-modify-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          on:click={cancelarEliminarActividad}
+        >
+          No, Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn-danger"
+          on:click={confirmarEliminarActividad}
+        >
+          Sí, Eliminar
+        </button>
+      </div>
     </div>
   </div>
 {/if}
@@ -5177,6 +5257,21 @@
   .btn-secondary {
     background: var(--text-secondary);
     color: white;
+  }
+
+  .btn-danger {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+
+  .btn-danger:hover {
+    background: #c0392b;
   }
 
   /* Nuevos estilos para tabla restructurada */
