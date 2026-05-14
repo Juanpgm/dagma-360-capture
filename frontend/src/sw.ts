@@ -29,14 +29,14 @@ registerRoute(
     (url.pathname.startsWith('/api/') || url.pathname.startsWith('/api-capturas/')),
   new NetworkFirst({
     cacheName: 'dagma-api-get',
-    networkTimeoutSeconds: 8,
+    networkTimeoutSeconds: 15,
   })
 );
 
-// Toma control inmediato cuando hay nueva version
-self.addEventListener('install', () => {
-  void self.skipWaiting();
-});
+// NO llamamos skipWaiting() automáticamente en install para no interrumpir
+// POSTs en vuelo (subida de fotos) cuando se activa un nuevo SW.
+// El salto de versión se controla via mensaje SKIP_WAITING (ver más abajo)
+// que sólo se envía cuando el usuario acepta la actualización en OfflineBanner.
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });

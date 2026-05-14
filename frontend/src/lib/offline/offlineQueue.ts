@@ -52,7 +52,7 @@ async function getAuthToken(): Promise<string | null> {
 function buildApiUrl(endpoint: string): string {
   // Reproduce lo que hacen los clientes de API existentes (proxy Vite + Vercel).
   if (endpoint.startsWith('http')) return endpoint;
-  const apiBase = (import.meta.env.VITE_API_URL as string | undefined) || '/api';
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '/api';
   if (endpoint.startsWith('/')) return apiBase + endpoint;
   return apiBase + '/' + endpoint;
 }

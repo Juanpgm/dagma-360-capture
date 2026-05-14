@@ -287,7 +287,24 @@ export async function registrarIntervencion(
   const url = buildApiUrl(`/grupos/${grupoKey}/reporte_intervencion`);
 
   // ── Offline-first: si no hay conexión, encolar y devolver respuesta sintética ──
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+  // Usamos un ping a /health en lugar de navigator.onLine (poco fiable en móviles).
+  // Timeout de 4 s: si el servidor no responde, asumimos offline y encolamos.
+  const isOffline = await (async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+    try {
+      const healthUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)
+        ? `${import.meta.env.VITE_API_BASE_URL as string}/health`
+        : '/api/health';
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 4000);
+      const r = await fetch(healthUrl, { method: 'GET', signal: ctrl.signal, cache: 'no-store' });
+      clearTimeout(tid);
+      return !r.ok;
+    } catch {
+      return true;
+    }
+  })();
+  if (isOffline) {
     const { enqueueReporte } = await import('../lib/offline/offlineQueue');
     const fields: Record<string, string | number> = {
       tipo_intervencion: params.tipo_intervencion,
@@ -317,7 +334,7 @@ export async function registrarIntervencion(
   // Obtener token fresco de Firebase (se auto-renueva si está próximo a expirar)
   let token: string | null = null;
   if (auth.currentUser) {
-    try { token = await auth.currentUser.getIdToken(); } catch { /* ignore */ }
+    try { token = await auth.currentUser.getIdToken(true); } catch { /* ignore */ }
   }
   if (!token) token = get(authStore).token;
   if (!token) token = localStorage.getItem('token') || sessionStorage.getItem('authToken');

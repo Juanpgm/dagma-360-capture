@@ -1,6 +1,10 @@
 import { defineConfig, loadEnv } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
+import { readFileSync } from 'fs';
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8')) as { version: string };
+const APP_VERSION = pkg.version;
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -15,7 +19,7 @@ export default defineConfig(({ mode }) => {
         strategies: 'injectManifest',
         srcDir: 'src',
         filename: 'sw.ts',
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         injectRegister: false,
         includeAssets: ['apple-touch-icon.png', 'masked-icon.svg', 'favicon-32.png'],
         manifest: {
@@ -24,6 +28,7 @@ export default defineConfig(({ mode }) => {
           short_name: 'DAGMA 360',
           description: 'Captura y gestión de intervenciones ambientales DAGMA',
           lang: 'es',
+          version: APP_VERSION,
           theme_color: '#059669',
           background_color: '#ffffff',
           display: 'standalone',
@@ -56,6 +61,9 @@ export default defineConfig(({ mode }) => {
         }
       })
     ],
+      define: {
+        __APP_VERSION__: JSON.stringify(APP_VERSION),
+      },
     server: {
       port: 5173,
       proxy: {
