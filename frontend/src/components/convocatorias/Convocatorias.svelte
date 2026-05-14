@@ -1266,8 +1266,6 @@
         response.message || "Programación registrada exitosamente.";
 
       closeConvocatoriaModal();
-      // Sincronizar con backend después de que Firestore propague el documento
-      setTimeout(() => retry(), 1500);
     } catch (err) {
       console.error("[Convocatorias] Error al guardar actividad:", err);
       convocatoriaError =
@@ -1401,11 +1399,10 @@
       convocatoriaFeedback = "Actividad eliminada exitosamente.";
     } catch (err) {
       console.error("[Convocatorias] Error al eliminar actividad:", err);
+      // Restaurar la actividad en el array local si el DELETE falló
       convocatoriaFeedbackType = "error";
       convocatoriaFeedback =
         "No fue posible eliminar la actividad. Intenta nuevamente.";
-      // Recargar para restaurar estado
-      await retry();
     } finally {
       deletingActividadId = null;
     }
