@@ -934,33 +934,6 @@
       convocatoriaFeedback = `Se asignaron ${seleccionLocal.length} integrante(s) a la actividad ${tipoJornada || "seleccionada"}.`;
 
       closeAsignarPersonalModal();
-
-      // Re-fetch en background para confirmar con el backend
-      getActividadPorId(actividadId).then((actFresca) => {
-        if (actFresca) {
-          const rawFresco = (actFresca.personal_asignado || []) as PersonalGrupoApiItem[];
-          const personalFresco = deduplicarPersonal(
-            rawFresco
-              .filter((item) => item.nombre_completo)
-              .map((item, index) => ({
-                id: item.id || `${actividadId}-${index}`,
-                nombreCompleto: item.nombre_completo || '-',
-                telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
-                grupo: capitalizeFirst(item.grupo || '-'),
-                email: item.email || '',
-              }))
-          );
-          personalAsignadoPorActividad = {
-            ...personalAsignadoPorActividad,
-            [actividadId]: personalFresco,
-          };
-          const idx = actividades.findIndex((a) => a.id === actividadId);
-          if (idx >= 0) {
-            actividades[idx] = { ...actFresca };
-            actividades = [...actividades];
-          }
-        }
-      }).catch(() => {});
     } catch (err) {
       console.error("Error al asignar personal:", err);
       convocatoriaFeedbackType = "error";
@@ -1092,33 +1065,6 @@
       convocatoriaFeedback = `Personal actualizado. ${listaFinal.length} persona(s) asignadas.`;
 
       cancelarEdicionPersonal(actividadId);
-
-      // 3. Re-fetch en background para confirmar con el backend
-      getActividadPorId(actividadId).then((actFresca) => {
-        if (actFresca) {
-          const rawFresco = (actFresca.personal_asignado || []) as PersonalGrupoApiItem[];
-          const personalFresco = deduplicarPersonal(
-            rawFresco
-              .filter((item) => item.nombre_completo)
-              .map((item, index) => ({
-                id: item.id || `${actividadId}-${index}`,
-                nombreCompleto: item.nombre_completo || '-',
-                telefono: String(item.numero_contacto || item.telefono || 'No registrado'),
-                grupo: capitalizeFirst(item.grupo || '-'),
-                email: item.email || '',
-              }))
-          );
-          personalAsignadoPorActividad = {
-            ...personalAsignadoPorActividad,
-            [actividadId]: personalFresco,
-          };
-          const idx2 = actividades.findIndex((a) => a.id === actividadId);
-          if (idx2 >= 0) {
-            actividades[idx2] = { ...actFresca };
-            actividades = [...actividades];
-          }
-        }
-      }).catch(() => {});
     } catch (err) {
       console.error("Error al actualizar personal:", err);
       convocatoriaFeedbackType = "error";
@@ -1377,8 +1323,6 @@
       isConfirmModifyModalOpen = false;
 
       closeConvocatoriaModal();
-      // Sincronizar con backend en segundo plano
-      setTimeout(() => retry(), 1000);
     } catch (err) {
       console.error("[Convocatorias] Error al modificar actividad:", err);
       convocatoriaError =
@@ -1455,9 +1399,6 @@
 
       convocatoriaFeedbackType = "success";
       convocatoriaFeedback = "Actividad eliminada exitosamente.";
-
-      // Sincronizar con backend en segundo plano
-      setTimeout(() => retry(), 800);
     } catch (err) {
       console.error("[Convocatorias] Error al eliminar actividad:", err);
       convocatoriaFeedbackType = "error";
