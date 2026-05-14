@@ -3,7 +3,7 @@
  *   E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD
  *
  * Cubre:
- *  1. Modal de Convocatorias acepta lider_actividad_email (UI-level).
+ *  1. Modal de Convocatorias: selector líder se habilita al elegir grupo (dropdown custom).
  *  2. Modal "Asignar Personal" abre en alguna actividad existente.
  *  3. Cambiar rol del primer usuario no-self en Gestión de Usuarios y revertir.
  */
@@ -45,7 +45,7 @@ test.describe('Admin flows — requiere credenciales E2E_ADMIN_*', () => {
     await firebaseSignIn(ADMIN_EMAIL, ADMIN_PASSWORD);
   });
 
-  test('modal de Convocatorias acepta lider_actividad_email', async ({ page }) => {
+  test('modal de Convocatorias — selector líder se habilita al elegir grupo', async ({ page }) => {
     await gotoHome(page);
     await openProgramacion(page);
 
@@ -53,16 +53,37 @@ test.describe('Admin flows — requiere credenciales E2E_ADMIN_*', () => {
     await expect(programarBtn).toBeVisible({ timeout: 15_000 });
     await programarBtn.click();
 
-    const modal = page.locator('.convocatoria-modal, [aria-label*="programación"]').first();
+    const modal = page.locator('.convocatoria-modal').first();
     await expect(modal).toBeVisible({ timeout: 10_000 });
 
-    const liderEmailInput = page.locator('.convocatoria-modal input[type="email"]').first();
-    await expect(liderEmailInput).toBeVisible({ timeout: 5_000 });
-    await liderEmailInput.fill('lider.e2e@dagma.local');
-    await expect(liderEmailInput).toHaveValue('lider.e2e@dagma.local');
+    // 1) El dropdown de líder debe estar visible pero deshabilitado hasta tener grupos
+    const liderTrigger = modal.locator('.lider-dropdown-trigger').first();
+    await expect(liderTrigger).toBeVisible({ timeout: 5_000 });
+    await expect(liderTrigger).toBeDisabled();
 
-    const closeBtn = page
-      .locator('.convocatoria-modal button[aria-label*="cerrar" i], .convocatoria-modal button:has-text("Cancelar"), .convocatoria-modal button:has-text("✕")')
+    // 2) Abrir el dropdown de Grupos requeridos y seleccionar el primero disponible
+    const gruposTrigger = modal.locator('.grupos-required-trigger').first();
+    await expect(gruposTrigger).toBeVisible({ timeout: 5_000 });
+    await gruposTrigger.click();
+    const firstGrupoOption = modal.locator('.grupos-option-item').first();
+    await expect(firstGrupoOption).toBeVisible({ timeout: 8_000 });
+    await firstGrupoOption.click();
+    // Cerrar el dropdown de grupos volviendo a hacer click en el trigger
+    await gruposTrigger.click();
+
+    // 3) Ahora el dropdown de líder debe estar habilitado
+    await expect(liderTrigger).toBeEnabled({ timeout: 5_000 });
+
+    // 4) Abrir dropdown líder y verificar que aparece el buscador
+    await liderTrigger.click();
+    const liderSearch = modal.locator('.lider-search-input').first();
+    await expect(liderSearch).toBeVisible({ timeout: 5_000 });
+    await liderSearch.fill('test');
+    await expect(liderSearch).toHaveValue('test');
+
+    // Cerrar modal
+    const closeBtn = modal
+      .locator('button:has-text("Cancelar"), button[aria-label*="cerrar" i], button:has-text("✕")')
       .first();
     if (await closeBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
       await closeBtn.click().catch(() => {});

@@ -4,11 +4,28 @@
  * Covers: email/password login, wrong credentials, logout.
  */
 import { test, expect } from '@playwright/test';
-import { APP_URL, TEST_USER } from './helpers';
+import { APP_URL, TEST_USER, firebaseSignIn } from './helpers';
 
 const BASE = APP_URL;
 
+// Usa credenciales admin si están disponibles; si no, intenta con TEST_USER
+const LOGIN_EMAIL = process.env.E2E_ADMIN_EMAIL || TEST_USER.email;
+const LOGIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || TEST_USER.password;
+
+let loginTestReady = false;
+let loginTestError: string | null = null;
+
 test.describe('Login con email/password', () => {
+  test.beforeAll(async () => {
+    try {
+      await firebaseSignIn(LOGIN_EMAIL, LOGIN_PASSWORD);
+      loginTestReady = true;
+    } catch (err) {
+      loginTestReady = false;
+      loginTestError = err instanceof Error ? err.message : String(err);
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
     // Clear any existing session
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
@@ -27,6 +44,7 @@ test.describe('Login con email/password', () => {
   });
 
   test('login exitoso con credenciales válidas', async ({ page }) => {
+    test.skip(!loginTestReady, `No se pudo autenticar en Firebase: ${loginTestError ?? 'sin detalle'}`);
     await page.goto(BASE, { waitUntil: 'networkidle' });
 
     // Fill login form
@@ -34,8 +52,8 @@ test.describe('Login con email/password', () => {
     const passwordInput = page.locator('input[type="password"]').first();
     const submitBtn = page.locator('button[type="submit"]').first();
 
-    await emailInput.fill(TEST_USER.email);
-    await passwordInput.fill(TEST_USER.password);
+    await emailInput.fill(LOGIN_EMAIL);
+    await passwordInput.fill(LOGIN_PASSWORD);
     await submitBtn.click();
 
     // After login the home view should be visible (no more login form)

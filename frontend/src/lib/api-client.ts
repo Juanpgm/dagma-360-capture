@@ -50,11 +50,15 @@ export class ApiClient {
   /** Refresh el token cuando le quedan <= 60s. */
   private static readonly _TOKEN_SKEW_MS = 60_000;
 
-  /** Invalida entradas de cache cuyo URL incluya el `prefix`. Llamar tras mutaciones. */
+  /** Invalida entradas de cache e in-flight cuyo URL incluya el `prefix`. Llamar tras mutaciones. */
   static invalidate(prefix: string): void {
     const fullPrefix = resolveUrl(prefix);
     for (const key of ApiClient._cache.keys()) {
       if (key.startsWith(fullPrefix)) ApiClient._cache.delete(key);
+    }
+    // También cancela peticiones en vuelo para que la siguiente lectura sea fresca
+    for (const key of ApiClient._inflight.keys()) {
+      if (key.startsWith(fullPrefix)) ApiClient._inflight.delete(key);
     }
   }
 

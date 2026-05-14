@@ -25,6 +25,7 @@
   import { getGruposNombres, getLideresFromGrupos } from "../../lib/grupos";
   import { authStore } from "../../stores/authStore";
   import { hasMinRole } from "../../lib/permissions";
+  import { ApiClient } from "../../lib/api-client";
   import type { LiderGrupoOption, PersonalOperativoItem } from "../../api/actividades";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
 
@@ -132,7 +133,7 @@
   let duracionHorasForm: string | number = "";
   let gruposRequeridosForm: string[] = [];
   let liderActividadForm = "";
-  let liderActividadEmailForm = "";
+
   let objetivoActividadForm = "";
   let observacionesForm = "";
 
@@ -223,13 +224,12 @@
 
   $: lideresPermitidosPorGrupo = (() => {
     if (gruposRequeridosForm.length === 0) return [];
-
+    // Mostrar todos los líderes de TODOS los grupos seleccionados
     const gruposSet = new Set(
       gruposRequeridosForm.map((g) => normalizeSearchValue(g)).filter(Boolean),
     );
-
     return lideresGrupoOptions.filter((lider) =>
-      gruposSet.has(normalizeSearchValue(lider.grupo)),
+      gruposSet.has(normalizeSearchValue(lider.grupo))
     );
   })();
 
@@ -313,7 +313,7 @@
 
   $: puedeContinuarPasoUno =
     !!tipoJornadaForm &&
-    !!fechaActividadForm &&
+    /^\d{2}\/\d{2}\/\d{4}$/.test(fechaActividadForm) &&
     !!horaEncuentroForm &&
     !!normalizeTextInput(duracionHorasForm) &&
     !Number.isNaN(Number(normalizeTextInput(duracionHorasForm))) &&
@@ -372,8 +372,6 @@
       lideres = [
         ...new Set(actividades.map((a) => a.lider_actividad).filter(Boolean)),
       ].sort();
-
-      filteredActividades = actividades;
     } catch (err) {
       error = "Error al cargar las actividades. Por favor, intenta de nuevo.";
     } finally {
@@ -513,23 +511,36 @@
   }
 
   function formatDateToDDMMYYYY(dateInput: string): string {
+    if (!dateInput) return "";
+    // Ya está en dd/mm/yyyy
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateInput)) return dateInput;
+    // Viene en yyyy-mm-dd
     const [year, month, day] = dateInput.split("-");
+    if (!year || !month || !day) return dateInput;
     return `${day}/${month}/${year}`;
   }
 
   function formatDateToInput(dateValue: string): string {
     if (!dateValue) return "";
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-      return dateValue;
-    }
-
+    // dd/mm/yyyy o d/m/yyyy → normalizar a dd/mm/yyyy
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
       const [day, month, year] = dateValue.split("/");
-      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+      return `${day.padStart(2, "0")}/${month.padStart(2, "0")}/${year}`;
     }
-
+    // yyyy-mm-dd → dd/mm/yyyy
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      const [year, month, day] = dateValue.split("-");
+      return `${day}/${month}/${year}`;
+    }
     return "";
+  }
+
+  function onFechaActividadInput(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    let v = input.value.replace(/[^\d]/g, '');
+    if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2);
+    if (v.length > 5) v = v.slice(0, 5) + '/' + v.slice(5);
+    fechaActividadForm = v.slice(0, 10);
   }
 
   function resetConvocatoriaForm() {
@@ -543,7 +554,6 @@
     duracionHorasForm = "";
     gruposRequeridosForm = [];
     liderActividadForm = "";
-    liderActividadEmailForm = "";
     objetivoActividadForm = "";
     observacionesForm = "";
 
@@ -570,9 +580,6 @@
 
   function seleccionarLider(lider: LiderGrupoOption) {
     liderActividadForm = lider.nombre;
-    if (lider.email && !liderActividadEmailForm.trim()) {
-      liderActividadEmailForm = lider.email;
-    }
     liderDropdownOpen = false;
     liderSearchQuery = "";
   }
@@ -1183,7 +1190,7 @@
       : "";
     gruposRequeridosForm = [...(actividad.grupos_requeridos || [])];
     liderActividadForm = (actividad.lider_actividad || "").trim();
-    liderActividadEmailForm = ((actividad as any).lider_actividad_email || "").trim();
+    // liderActividadEmailForm eliminado, ya no se usa
     objetivoActividadForm = actividad.objetivo_actividad || "";
     observacionesForm = actividad.observaciones || "";
 
@@ -1247,7 +1254,6 @@
         duracion_actividad: duracionHorasForm ? Number(duracionHorasForm) : 0,
         grupos_requeridos: gruposRequeridosForm,
         lider_actividad: liderActividadForm.trim(),
-        lider_actividad_email: liderActividadEmailForm.trim() || undefined,
         objetivo_actividad: objetivoActividadForm.trim(),
         observaciones: observacionesForm.trim(),
         punto_encuentro: {
@@ -1280,12 +1286,34 @@
       convocatoriaError = "";
       const response = await convocarActividad(payload);
 
+      // Actualización optimista: añadir la nueva actividad al listado inmediatamente
+      // sin esperar a que Firestore propague el documento
+      const nuevaActividad: ActividadPlanDistritoVerde = {
+        id: response.id,
+        tipo_jornada: payload.tipo_jornada,
+        fecha_actividad: payload.fecha_actividad,
+        hora_encuentro: payload.hora_encuentro,
+        duracion_actividad: payload.duracion_actividad,
+        grupos_requeridos: payload.grupos_requeridos,
+        lider_actividad: payload.lider_actividad,
+        objetivo_actividad: payload.objetivo_actividad,
+        observaciones: payload.observaciones,
+        punto_encuentro: payload.punto_encuentro,
+        telefono: payload.telefono,
+        marca_temporal: response.marca_temporal || new Date().toISOString(),
+        estado_actividad: 'Programada',
+        personal_asignado: [],
+        personas_requeridas_grupo: 0,
+      };
+      actividades = [nuevaActividad, ...actividades];
+
       convocatoriaFeedbackType = "success";
       convocatoriaFeedback =
         response.message || "Programación registrada exitosamente.";
 
       closeConvocatoriaModal();
-      await retry();
+      // Sincronizar con backend después de que Firestore propague el documento
+      setTimeout(() => retry(), 1500);
     } catch (err) {
       console.error("[Convocatorias] Error al guardar actividad:", err);
       convocatoriaError =
@@ -1343,6 +1371,7 @@
   }
 
   async function retry() {
+    ApiClient.invalidate('/actividades');
     loading = true;
     error = "";
     try {
@@ -1370,7 +1399,6 @@
       lideres = [
         ...new Set(actividades.map((a) => a.lider_actividad).filter(Boolean)),
       ].sort();
-      filteredActividades = actividades;
     } catch (err) {
       error = "Error al cargar las actividades. Por favor, intenta de nuevo.";
     } finally {
@@ -1609,8 +1637,13 @@
       <div class="header-actions">
         <div class="stats">
           <div class="stat-item">
-            <span class="stat-value">{filteredActividades.length}</span>
-            <span class="stat-label">Actividades</span>
+            <span class="stat-value">
+              {filteredActividades.length}
+              {#if filteredActividades.length !== actividades.length}
+                <span class="stat-total">/ {actividades.length}</span>
+              {/if}
+            </span>
+            <span class="stat-label">{filteredActividades.length !== actividades.length ? 'filtradas' : 'Actividades'}</span>
           </div>
         </div>
 
@@ -1764,7 +1797,7 @@
             <div class="card-header">
               <div class="header-top">
                 <div class="type-and-state">
-                  <span class="badge-numero" title="Número de registro">#{filteredActividades.length - actIdx}</span>
+                  <span class="badge-numero" title="Número de registro">#{actividades.length - actividades.findIndex(a => a.id === actividad.id)}</span>
                   <span class="badge-tipo">{actividad.tipo_jornada || "-"}</span
                   >
                   <span
@@ -2114,7 +2147,13 @@
 
           <label>
             <span>Fecha de actividad *</span>
-            <input type="date" bind:value={fechaActividadForm} />
+            <input
+              type="text"
+              placeholder="dd/mm/aaaa"
+              maxlength="10"
+              bind:value={fechaActividadForm}
+              on:input={onFechaActividadInput}
+            />
           </label>
 
           <label>
@@ -2136,93 +2175,6 @@
               />
               <span class="duration-suffix">h</span>
             </div>
-          </label>
-
-          <label>
-            <span>Líder de actividad *</span>
-            <div class="lider-dropdown" bind:this={liderDropdownRef}>
-              <button
-                type="button"
-                class="lider-dropdown-trigger"
-                class:open={liderDropdownOpen}
-                class:disabled={liderDropdownDisabled}
-                disabled={liderDropdownDisabled}
-                on:click={toggleLiderDropdown}
-              >
-                {#if liderSeleccionado}
-                  <span class="lider-name">{liderSeleccionado.nombre}</span>
-                  <span
-                    class={`lider-grupo-badge ${getGrupoColorClass(
-                      liderSeleccionado.grupo,
-                    )}`}
-                  >
-                    {liderSeleccionado.grupo}
-                  </span>
-                {:else}
-                  <span class="lider-placeholder"
-                    >{liderDropdownDisabled
-                      ? "Selecciona primero los grupos requeridos"
-                      : "Selecciona un líder"}</span
-                  >
-                {/if}
-                <span class="lider-dropdown-arrow">▾</span>
-              </button>
-
-              {#if liderDropdownOpen}
-                <div class="lider-dropdown-panel">
-                  <input
-                    type="search"
-                    class="lider-search-input"
-                    bind:value={liderSearchQuery}
-                    placeholder="Buscar líder o grupo..."
-                  />
-                  {#if gruposRequeridosForm.length > 0 && !liderSearchQuery}
-                    <div class="lider-filter-hint">
-                      Mostrando líderes de: <strong>{gruposRequeridosForm.join(', ')}</strong>
-                    </div>
-                  {/if}
-
-                  <div class="lider-options-list">
-                    {#if filteredLideresGrupoOptions.length === 0}
-                      <div class="lider-empty-state">
-                        {gruposRequeridosForm.length > 0
-                          ? `No hay líderes registrados para ${gruposRequeridosForm.join(', ')}.`
-                          : 'No se encontraron líderes.'}
-                      </div>
-                    {:else}
-                      {#each filteredLideresGrupoOptions as lider}
-                        <button
-                          type="button"
-                          class="lider-option-item"
-                          class:selected={lider.nombre === liderActividadForm}
-                          on:click={() => seleccionarLider(lider)}
-                        >
-                          <span class="lider-option-name">{lider.nombre}</span>
-                          <span
-                            class={`lider-grupo-badge ${getGrupoColorClass(
-                              lider.grupo,
-                            )}`}
-                          >
-                            {lider.grupo}
-                          </span>
-                        </button>
-                      {/each}
-                    {/if}
-                  </div>
-                </div>
-              {/if}
-            </div>
-          </label>
-
-          <label>
-            <span>Email del líder (opcional)</span>
-            <input
-              type="email"
-              bind:value={liderActividadEmailForm}
-              placeholder="lider@ejemplo.com"
-              autocomplete="email"
-            />
-            <small class="form-hint">Se enviará una notificación específica al líder en este email.</small>
           </label>
 
           <label class="grupos-field grupos-required-field">
@@ -2308,6 +2260,82 @@
                       {/each}
                     </div>
                   {/if}
+                </div>
+              {/if}
+            </div>
+          </label>
+
+          <label>
+            <span>Líder de actividad *</span>
+            <div class="lider-dropdown" bind:this={liderDropdownRef}>
+              <button
+                type="button"
+                class="lider-dropdown-trigger"
+                class:open={liderDropdownOpen}
+                class:disabled={liderDropdownDisabled}
+                disabled={liderDropdownDisabled}
+                on:click={toggleLiderDropdown}
+              >
+                {#if liderSeleccionado}
+                  <span class="lider-name">{liderSeleccionado.nombre}</span>
+                  <span
+                    class={`lider-grupo-badge ${getGrupoColorClass(
+                      liderSeleccionado.grupo,
+                    )}`}
+                  >
+                    {liderSeleccionado.grupo}
+                  </span>
+                {:else}
+                  <span class="lider-placeholder"
+                    >{liderDropdownDisabled
+                      ? "Selecciona primero los grupos requeridos"
+                      : "Selecciona un líder"}</span
+                  >
+                {/if}
+                <span class="lider-dropdown-arrow">▾</span>
+              </button>
+
+              {#if liderDropdownOpen}
+                <div class="lider-dropdown-panel">
+                  <input
+                    type="search"
+                    class="lider-search-input"
+                    bind:value={liderSearchQuery}
+                    placeholder="Buscar líder o grupo..."
+                  />
+                  {#if gruposRequeridosForm.length > 0 && !liderSearchQuery}
+                    <div class="lider-filter-hint">
+                      Mostrando líderes de: <strong>{gruposRequeridosForm.join(', ')}</strong>
+                    </div>
+                  {/if}
+
+                  <div class="lider-options-list">
+                    {#if filteredLideresGrupoOptions.length === 0}
+                      <div class="lider-empty-state">
+                        {gruposRequeridosForm.length > 0
+                          ? `No hay líderes registrados para ${gruposRequeridosForm.join(', ')}.`
+                          : 'No se encontraron líderes.'}
+                      </div>
+                    {:else}
+                      {#each filteredLideresGrupoOptions as lider}
+                        <button
+                          type="button"
+                          class="lider-option-item"
+                          class:selected={lider.nombre === liderActividadForm}
+                          on:click={() => seleccionarLider(lider)}
+                        >
+                          <span class="lider-option-name">{lider.nombre}</span>
+                          <span
+                            class={`lider-grupo-badge ${getGrupoColorClass(
+                              lider.grupo,
+                            )}`}
+                          >
+                            {lider.grupo}
+                          </span>
+                        </button>
+                      {/each}
+                    {/if}
+                  </div>
                 </div>
               {/if}
             </div>
@@ -2776,6 +2804,12 @@
     color: var(--primary);
     line-height: 1;
     letter-spacing: -0.02em;
+  }
+
+  .stat-total {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-muted);
   }
 
   .stat-label {
@@ -4779,6 +4813,7 @@
     cursor: pointer;
     font-family: inherit;
     transition: all var(--transition);
+    overflow: hidden;
   }
 
   .grupos-required-trigger.open,
@@ -4793,6 +4828,10 @@
     color: #6b7280;
     text-align: left;
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .grupos-selected-chips {
@@ -4922,6 +4961,7 @@
     font-family: inherit;
     cursor: pointer;
     transition: all var(--transition);
+    overflow: hidden;
   }
 
   .lider-dropdown-trigger.disabled {
@@ -4942,6 +4982,10 @@
     color: #6b7280;
     text-align: left;
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .lider-name {
@@ -4949,6 +4993,10 @@
     font-weight: 600;
     text-align: left;
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .lider-dropdown-arrow {
