@@ -133,7 +133,7 @@ export async function convocarActividad(
     return await ApiClient.post<ConvocarActividadResponse>(
       '/programar_actividad',
       payload,
-      { requireAuth: false },
+      { requireAuth: true },
     );
   } catch (error) {
     console.error('Error al convocar actividad:', error);

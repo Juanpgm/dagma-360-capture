@@ -1,6 +1,37 @@
 export type GrupoKey = "cuadrilla" | "vivero" | "gobernanza" | "ecosistemas" | "umata";
 export type GrupoFormType = GrupoKey | "operativo";
 
+/**
+ * Normaliza un nombre de grupo para comparaciones tolerantes en el frontend.
+ *
+ * Equivale a `app.utils.text_utils.normalize_grupo` del backend:
+ *   - lowercase + trim
+ *   - elimina tildes/diacríticos (NFKD + filtrado de marcas combinantes)
+ *   - trata "_" como espacio (para grupos como "Central_Social" vs "Central Social")
+ *   - colapsa secuencias de espacios en uno solo
+ *
+ * Garantiza que "Central Social", "central_social" y "CENTRAL  SOCIAL" se
+ * consideren equivalentes, y que "Reacción" coincida con "reaccion".
+ * Úsala SIEMPRE para comparar nombres de grupo provenientes de fuentes
+ * heterogéneas (Firestore, formularios, claims de Firebase Auth, etc.).
+ */
+export function normalizeGrupo(value: string | null | undefined): string {
+	if (!value) return '';
+	return value
+		.toString()
+		.normalize('NFKD')
+		.replace(/\p{M}+/gu, '')
+		.toLowerCase()
+		.replace(/_/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+/** True si dos nombres de grupo representan el mismo grupo (tolerante a tildes, "_" y mayúsculas). */
+export function gruposMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+	return normalizeGrupo(a) === normalizeGrupo(b);
+}
+
 // Claves de grupos operativos estándar (ajustar según la app)
 export const GRUPO_KEYS: GrupoKey[] = [
 	"cuadrilla",
@@ -72,6 +103,7 @@ export interface LiderGrupoOption {
 	nombre: string;
 	grupo: string;
 	email?: string;
+	role?: string;
 }
 
 /** Obtiene líderes desde el catálogo canónico de usuarios para usarlos en selects de actividades */
@@ -91,9 +123,10 @@ export async function getLideresFromGrupos(): Promise<LiderGrupoOption[]> {
 			).toString().trim();
 			const grupo = (item.grupo || '').toString().trim();
 			const email = (item.email || '').toString().trim();
+			const role = (item.role || '').toString().trim() || undefined;
 			if (!nombre) continue;
 			const key = `${nombre}::${grupo}`.toLowerCase();
-			if (!map.has(key)) map.set(key, { nombre, grupo, email: email || undefined });
+			if (!map.has(key)) map.set(key, { nombre, grupo, email: email || undefined, role });
 		}
 		return [...map.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 	} catch {
