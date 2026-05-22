@@ -451,6 +451,27 @@
     });
   }
 
+  // Paginación
+  let pageSize = 25;
+  let currentPage = 1;
+  const PAGE_SIZE_OPTIONS = [25, 50, 100];
+
+  // Resetear página al cambiar filtros o tamaño de página
+  $: { filteredActividades; pageSize; currentPage = 1; }
+
+  $: totalPages = Math.max(1, Math.ceil(filteredActividades.length / pageSize));
+  $: pagedActividades = filteredActividades.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+  $: pageStart = filteredActividades.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  $: pageEnd = Math.min(currentPage * pageSize, filteredActividades.length);
+
+  function goToPage(page: number) {
+    currentPage = Math.max(1, Math.min(page, totalPages));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   // Parsear fecha en formato DD/MM/YYYY
   function parseDateDDMMYYYY(dateString: string): Date {
     if (!dateString) return new Date();
@@ -1620,12 +1641,12 @@
         <div class="stats">
           <div class="stat-item">
             <span class="stat-value">
-              {filteredActividades.length}
+              {actividades.length}
               {#if filteredActividades.length !== actividades.length}
-                <span class="stat-total">/ {actividades.length}</span>
+                <span class="stat-total">({filteredActividades.length} filtradas)</span>
               {/if}
             </span>
-            <span class="stat-label">{filteredActividades.length !== actividades.length ? 'filtradas' : 'Actividades'}</span>
+            <span class="stat-label">Actividades</span>
           </div>
         </div>
 
@@ -1773,7 +1794,7 @@
     {:else}
       <!-- Contenedores de actividades -->
       <div class="actividades-container">
-        {#each filteredActividades as actividad, actIdx (actividad.id)}
+        {#each pagedActividades as actividad, actIdx (actividad.id)}
           <div class="actividad-card">
             <!-- Contenido principal del card -->
             <div class="card-header">
@@ -2078,6 +2099,79 @@
           </div>
         {/each}
       </div>
+
+      <!-- Controles de paginación -->
+      {#if filteredActividades.length > 0}
+        <div class="pagination-bar">
+          <div class="pagination-info">
+            Mostrando {pageStart}–{pageEnd} de {filteredActividades.length}{filteredActividades.length !== actividades.length ? ` (${actividades.length} en total)` : ''}
+          </div>
+          <div class="pagination-controls">
+            <button
+              class="page-btn"
+              type="button"
+              disabled={currentPage === 1}
+              on:click={() => goToPage(1)}
+              aria-label="Primera página"
+            >«</button>
+            <button
+              class="page-btn"
+              type="button"
+              disabled={currentPage === 1}
+              on:click={() => goToPage(currentPage - 1)}
+              aria-label="Página anterior"
+            >‹</button>
+
+            {#each Array.from({ length: totalPages }, (_, i) => i + 1).filter(p =>
+              p === 1 || p === totalPages ||
+              (p >= currentPage - 2 && p <= currentPage + 2)
+            ) as page, i}
+              {#if i > 0}
+                {#if (Array.from({ length: totalPages }, (_, j) => j + 1).filter(p =>
+                  p === 1 || p === totalPages ||
+                  (p >= currentPage - 2 && p <= currentPage + 2)
+                ))[i] - (Array.from({ length: totalPages }, (_, j) => j + 1).filter(p =>
+                  p === 1 || p === totalPages ||
+                  (p >= currentPage - 2 && p <= currentPage + 2)
+                ))[i - 1] > 1}
+                  <span class="page-ellipsis">…</span>
+                {/if}
+              {/if}
+              <button
+                class="page-btn {page === currentPage ? 'page-btn--active' : ''}"
+                type="button"
+                on:click={() => goToPage(page)}
+                aria-current={page === currentPage ? 'page' : undefined}
+              >{page}</button>
+            {/each}
+
+            <button
+              class="page-btn"
+              type="button"
+              disabled={currentPage === totalPages}
+              on:click={() => goToPage(currentPage + 1)}
+              aria-label="Página siguiente"
+            >›</button>
+            <button
+              class="page-btn"
+              type="button"
+              disabled={currentPage === totalPages}
+              on:click={() => goToPage(totalPages)}
+              aria-label="Última página"
+            >»</button>
+          </div>
+          <div class="pagination-size">
+            <span>Por página:</span>
+            {#each PAGE_SIZE_OPTIONS as size}
+              <button
+                class="size-btn {pageSize === size ? 'size-btn--active' : ''}"
+                type="button"
+                on:click={() => { pageSize = size; }}
+              >{size}</button>
+            {/each}
+          </div>
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
@@ -2825,9 +2919,11 @@
   }
 
   .stat-total {
-    font-size: 1rem;
-    font-weight: 500;
+    font-size: 0.75rem;
+    font-weight: 400;
     color: var(--text-muted);
+    display: block;
+    margin-top: 0.125rem;
   }
 
   .stat-label {
@@ -3215,6 +3311,108 @@
       grid-row: 2;
       border-left: 2px solid var(--border);
     }
+  }
+
+  /* Pagination */
+  .pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 1rem 0 0.5rem;
+    border-top: 1px solid var(--border);
+    margin-top: 1.5rem;
+  }
+
+  .pagination-info {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    min-width: max-content;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .page-btn {
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition), border-color var(--transition);
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  .page-btn:hover:not(:disabled) {
+    background: var(--primary-light, #e8f5e9);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .page-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .page-btn--active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+    font-weight: 700;
+  }
+
+  .page-btn--active:hover {
+    background: var(--primary);
+    color: #fff;
+  }
+
+  .page-ellipsis {
+    padding: 0 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    user-select: none;
+  }
+
+  .pagination-size {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+
+  .size-btn {
+    min-width: 2.25rem;
+    height: 1.75rem;
+    padding: 0 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition), border-color var(--transition);
+  }
+
+  .size-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .size-btn--active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+    font-weight: 600;
   }
 
   .actividad-card {

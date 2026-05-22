@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { authStore, permissions } from "../stores/authStore";
   import { GRUPO_DISPLAY_NAMES, type GrupoKey } from "../lib/grupos";
 
@@ -32,6 +33,16 @@
     }
   };
 
+  // Deep-link desde correos de notificación: ?view=convocatorias (u otras vistas).
+  // La URL puede incluir este parámetro antes del login; cuando Home monta ya está autenticado.
+  onMount(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get("view") as View | null;
+    if (viewParam && viewLoaders[viewParam]) {
+      navigate(viewParam);
+    }
+  });
+
   let navigationError: string | null = null;
   let showProfileModal = false;
   let UserProfileModal: any = null;
@@ -53,7 +64,7 @@
   async function navigate(view: View): Promise<void> {
     if (view === "grupos" && !$permissions.canManageUsers) return;
     if (view === "usuarios" && !$permissions.canAccessUserAdmin) return;
-    if (view === "anuncios" && !$permissions.canAccessUserAdmin) return;
+    if (view === "anuncios" && !$permissions.canSendAnnouncements) return;
     navigationError = null;
     if (view !== "home" && viewLoaders[view]) {
       try {
@@ -85,14 +96,15 @@
   $: userGrupo = (() => { const g = currentUser?.grupo || "No asignado"; return GRUPO_DISPLAY_NAMES[g as GrupoKey] ?? g.charAt(0).toUpperCase() + g.slice(1); })();
   import { normalizeRole, ROLE_LABELS, ROLE_COLORS } from "../lib/permissions";
   $: userRolRaw =
-    currentUser?.rol ||
     currentUser?.role ||
+    currentUser?.rol ||
     (Array.isArray(currentUser?.roles) && currentUser.roles.length > 0
       ? currentUser.roles[0]
       : "operador");
   $: userRolNorm = normalizeRole(userRolRaw);
   $: userRolLabel = ROLE_LABELS[userRolNorm] || "No asignado";
   $: userRolColor = ROLE_COLORS[userRolNorm] || "#64748b";
+  $: isDirector = userRolNorm === 'director';
   $: userAvatarLetter = (
     userFullName?.[0] ||
     currentUser?.email?.[0] ||
@@ -120,8 +132,8 @@
         DAGMA 360
       </div>
       <div class="header-right">
-        <div class="user-chip">
-          <div class="user-avatar">
+        <div class="user-chip" class:user-chip--director={isDirector}>
+          <div class="user-avatar" class:user-avatar--director={isDirector}>
             {#if userPhotoURL}
               <img
                 src={userPhotoURL}
@@ -285,7 +297,7 @@
             <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
           {/if}
-          {#if $permissions.canAccessUserAdmin}
+          {#if $permissions.canSendAnnouncements}
           <button class="action-card" on:click={() => navigate("anuncios")} data-testid="home-card-anuncios">
             <div class="action-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -376,6 +388,18 @@
     border-radius: var(--radius);
     border: 1px solid var(--border);
     background: var(--surface-alt);
+  }
+
+  /* Director — marco dorado sutil */
+  .user-chip--director {
+    border-color: #c9972e;
+    background: linear-gradient(135deg, #fffbf0 0%, #fff8e6 100%);
+    box-shadow: 0 0 0 1px rgba(201, 151, 46, 0.18), 0 1px 4px rgba(184, 150, 46, 0.12);
+  }
+
+  .user-avatar--director {
+    background: linear-gradient(135deg, #c9972e 0%, #e8b84b 100%);
+    box-shadow: 0 0 0 2px rgba(201, 151, 46, 0.25);
   }
 
   .btn-gear {

@@ -18,7 +18,7 @@
     assignableRoles,
     type Role,
   } from "../../lib/permissions";
-  import { GRUPO_DISPLAY_NAMES, GRUPO_KEYS, getGruposConIds, type GrupoKey, type GrupoConId } from "../../lib/grupos";
+  import { GRUPO_DISPLAY_NAMES, GRUPO_KEYS, getGruposConIds, type GrupoKey, type GrupoConId, gruposMatch } from "../../lib/grupos";
 
   // ─── State ────────────────────────────────────────────────────────────────
   let users: UserRecord[] = [];
@@ -55,7 +55,7 @@
   $: perms = $permissions;
   $: currentUser = $authStore.user;
   $: isDev = perms.isDev;
-  $: isAdmin = perms.isAdmin || perms.isDev;
+  $: isAdmin = perms.isAdmin || perms.isDirector || perms.isDev;
   $: myRoles = assignableRoles(currentUser);
 
   function displayName(u: UserRecord) {
@@ -74,9 +74,10 @@
 
   const ROLE_ORDER: Record<string, number> = {
     desarrollador: 0,
-    administrador: 1,
-    lider: 2,
-    operador: 3,
+    director: 1,
+    administrador: 2,
+    lider: 3,
+    operador: 4,
   };
 
   $: filtered = users
@@ -88,7 +89,7 @@
         (u.email ?? "").toLowerCase().includes(term) ||
         (u.grupo ?? "").toLowerCase().includes(term);
       const matchRole = !filterRole || displayRole(u) === filterRole;
-      const matchGrupo = !filterGrupo || u.grupo === filterGrupo;
+      const matchGrupo = !filterGrupo || gruposMatch(u.grupo, filterGrupo);
       return matchTerm && matchRole && matchGrupo;
     })
     .sort((a, b) => {

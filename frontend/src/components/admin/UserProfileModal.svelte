@@ -31,7 +31,7 @@
 
   $: currentPhotoURL = user?.photoURL ?? null;
   $: avatarLetter = (fullName?.[0] || user?.email?.[0] || "U").toUpperCase();
-  $: roleKey = normalizeRole(user?.rol || user?.role || (Array.isArray(user?.roles) ? user?.roles?.[0] : "") || "operador");
+  $: roleKey = normalizeRole(user?.role || user?.rol || (Array.isArray(user?.roles) ? user?.roles?.[0] : "") || "operador");
   $: roleLabel = ROLE_LABELS[roleKey] ?? roleKey;
   $: roleColor = ROLE_COLORS[roleKey] ?? "#64748b";
   $: grupoLabel = (() => {

@@ -2,18 +2,19 @@
  * Sistema de roles y permisos
  *
  * Jerarquía (menor a mayor):
- *   operador (1) < lider (2) < administrador (3) < desarrollador (4)
+ *   operador (1) < lider (2) < administrador (3) = director (3) < desarrollador (4)
  *
  * Estas funciones son puras (no dependen de stores) para facilitar testing.
  * Para uso reactivo en componentes Svelte usa el store $permissions de authStore.
  */
 
-export type Role = 'operador' | 'lider' | 'administrador' | 'desarrollador';
+export type Role = 'operador' | 'lider' | 'administrador' | 'director' | 'desarrollador';
 
 export const ROLE_HIERARCHY: Record<Role, number> = {
   operador: 1,
   lider: 2,
   administrador: 3,
+  director: 3,
   desarrollador: 4,
 };
 
@@ -21,6 +22,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   operador: 'Operador',
   lider: 'Líder',
   administrador: 'Administrador',
+  director: 'Director',
   desarrollador: 'Desarrollador',
 };
 
@@ -28,6 +30,7 @@ export const ROLE_COLORS: Record<Role, string> = {
   operador: '#64748b',
   lider: '#2563eb',
   administrador: '#7c3aed',
+  director: '#b8962e',
   desarrollador: '#dc2626',
 };
 
@@ -37,6 +40,7 @@ export function normalizeRole(raw: string | string[] | undefined | null): Role {
   if (!str) return 'operador';
   const lower = str.toLowerCase().trim();
   if (lower === 'admin' || lower === 'administrador') return 'administrador';
+  if (lower === 'director' || lower === 'directora') return 'director';
   if (lower === 'lider' || lower === 'líder' || lower === 'leader') return 'lider';
   if (lower === 'desarrollador' || lower === 'developer' || lower === 'dev') return 'desarrollador';
   return 'operador';
@@ -106,7 +110,12 @@ export function canAssignInGroup(
 export function canChangeRoles(user: { role?: string; rol?: string; roles?: string[] } | null | undefined): boolean {
   // Solo desarrollador puede asignar/quitar el rol desarrollador
   const normalized = normalizeRole(user?.role ?? user?.rol ?? user?.roles);
-  return normalized === 'desarrollador' || normalized === 'administrador';
+  return normalized === 'desarrollador' || normalized === 'administrador' || normalized === 'director';
+}
+
+/** Puede enviar anuncios (solo director y desarrollador) */
+export function canSendAnnouncements(user: { role?: string; rol?: string; roles?: string[] } | null | undefined): boolean {
+  return hasRole(user, 'director', 'desarrollador');
 }
 
 /**
@@ -116,8 +125,8 @@ export function canChangeRoles(user: { role?: string; rol?: string; roles?: stri
 export function assignableRoles(user: { role?: string; rol?: string; roles?: string[] } | null | undefined): Role[] {
   if (!user) return [];
   const normalized = normalizeRole(user.role ?? user.rol ?? user.roles);
-  if (normalized === 'desarrollador') return ['operador', 'lider', 'administrador', 'desarrollador'];
-  if (normalized === 'administrador') return ['operador', 'lider', 'administrador'];
+  if (normalized === 'desarrollador') return ['operador', 'lider', 'administrador', 'director', 'desarrollador'];
+  if (normalized === 'administrador' || normalized === 'director') return ['operador', 'lider', 'administrador', 'director'];
   // Líder y operador no pueden asignar roles
   return [];
 }
@@ -133,12 +142,14 @@ export function buildPermissions(user: { role?: string; rol?: string; roles?: st
     canAccessUserAdmin: canAccessUserAdmin(user),
     canSeeAllGroups: canSeeAllGroups(user),
     canChangeRoles: canChangeRoles(user),
+    canSendAnnouncements: canSendAnnouncements(user),
     /** Pass a target grupo string to check if the current user can assign in it */
     canAssignInGroup: (targetGrupo: string) => canAssignInGroup(user, targetGrupo),
     assignableRoles: assignableRoles(user),
     isOperador: hasRole(user, 'operador'),
     isLider: hasRole(user, 'lider'),
     isAdmin: hasRole(user, 'administrador'),
+    isDirector: hasRole(user, 'director'),
     isDev: hasRole(user, 'desarrollador'),
   };
 }

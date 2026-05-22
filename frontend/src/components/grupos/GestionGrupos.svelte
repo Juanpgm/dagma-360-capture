@@ -6,7 +6,7 @@
   import CambiarRolModal from "./CambiarRolModal.svelte";
    import { normalizeRole, ROLE_LABELS, ROLE_COLORS } from "../../lib/permissions";
   import { verificarRegistroPersonalOperativo } from '../../api/verificarPersonal';
-  import { GRUPO_DISPLAY_NAMES, type GrupoKey } from "../../lib/grupos";
+  import { GRUPO_DISPLAY_NAMES, type GrupoKey, normalizeGrupo, gruposMatch } from "../../lib/grupos";
   import { getAsistenciasResumen, type AsistenciaResumenItem } from '../../api/actividades';
 
   function grupoLabel(g: string | null | undefined): string {
@@ -89,21 +89,23 @@
 
   let selectedGrupoId: string | null = null;
   $: selectedGrupo = grupos.find((g) => g.id === selectedGrupoId) ?? null;
-  // Comparación case-insensitive: grupo puede estar en minúsculas ("cuadrilla") o con mayúscula ("Cuadrilla")
+  // Comparación tolerante: el `grupo` puede estar guardado con tildes/sin tildes,
+  // distintas mayúsculas, o con "_" en lugar de espacio (p.ej. "Central_Social"
+  // vs "Central Social"). `normalizeGrupo` unifica todas esas variantes.
   $: personalFiltrado = selectedGrupoId
-    ? personal.filter((p) => (p.grupo ?? '').toLowerCase() === (selectedGrupo?.nombre ?? '').toLowerCase())
+    ? personal.filter((p) => gruposMatch(p.grupo, selectedGrupo?.nombre))
     : personal;
   $: usuariosFiltrado = selectedGrupoId
-    ? usuarios.filter((u) => ((u.grupo ?? u.nombre_centro_gestor) ?? '').toLowerCase() === (selectedGrupo?.nombre ?? '').toLowerCase())
+    ? usuarios.filter((u) => gruposMatch(u.grupo ?? u.nombre_centro_gestor, selectedGrupo?.nombre))
     : usuarios;
 
   // ── Permissions ──
 
   /** Grupos visibles para el usuario: líder ve solo su grupo, admin/dev ven todos.
-   *  Comparación case-insensitive porque Firestore puede guardar "cuadrilla" o "Cuadrilla". */
+   *  Comparación tolerante a tildes, "_" y mayúsculas. */
   $: gruposVisibles = $permissions.canSeeAllGroups
     ? grupos
-    : grupos.filter((g) => g.nombre.toLowerCase() === ($authStore.user?.grupo ?? '').toLowerCase());
+    : grupos.filter((g) => gruposMatch(g.nombre, $authStore.user?.grupo));
 
   /** Líder: auto-select su propio grupo al cargar */
   $: if (!$permissions.canSeeAllGroups && gruposVisibles.length > 0 && selectedGrupoId === null) {
@@ -119,7 +121,7 @@
   let errorAsistencias = '';
 
   $: asistenciasFiltradas = selectedGrupo
-    ? asistencias.filter(a => a.grupos_participantes.some(g => g.toLowerCase() === (selectedGrupo?.nombre ?? '').toLowerCase()))
+    ? asistencias.filter(a => a.grupos_participantes.some(g => gruposMatch(g, selectedGrupo?.nombre)))
     : asistencias;
 
   async function fetchAsistencias() {
@@ -416,7 +418,7 @@
         </button>
         {/if}
         {#each gruposVisibles as grupo (grupo.id)}
-          {@const count = personal.filter((p) => (p.grupo ?? '').toLowerCase() === grupo.nombre.toLowerCase()).length + usuarios.filter((u) => ((u.grupo ?? u.nombre_centro_gestor) ?? '').toLowerCase() === grupo.nombre.toLowerCase()).length}
+          {@const count = personal.filter((p) => gruposMatch(p.grupo, grupo.nombre)).length + usuarios.filter((u) => gruposMatch(u.grupo ?? u.nombre_centro_gestor, grupo.nombre)).length}
           <button
             class="grupo-item"
             class:active={selectedGrupoId === grupo.id}
