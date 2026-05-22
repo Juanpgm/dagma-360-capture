@@ -1229,6 +1229,8 @@
         duracion_actividad: duracionHorasForm ? Number(duracionHorasForm) : 0,
         grupos_requeridos: gruposRequeridosForm,
         lider_actividad: liderActividadForm.trim(),
+        lider_actividad_email: liderSeleccionado?.email || "",
+        lider_actividad_telefono: liderSeleccionado?.telefono || "",
         objetivo_actividad: objetivoActividadForm.trim(),
         observaciones: observacionesForm.trim(),
         punto_encuentro: {

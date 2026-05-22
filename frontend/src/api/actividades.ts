@@ -12,6 +12,8 @@ const LIDERES_GRUPO_URL = '/admin/users/lideres';
 export interface LiderGrupoOption {
   nombre: string;
   grupo: string;
+  email?: string;
+  telefono?: string;
 }
 
 export interface EliminarActividadResponse {
@@ -104,7 +106,12 @@ export async function getLideresGrupo(): Promise<LiderGrupoOption[]> {
           .toString()
           .trim();
 
-        return nombre ? { nombre, grupo: grupo || 'Sin grupo' } : null;
+        const email = (item.email || '').toString().trim();
+        const telefono = item.numero_contacto != null
+          ? String(item.numero_contacto).trim()
+          : (item.telefono || '').toString().trim();
+
+        return nombre ? { nombre, grupo: grupo || 'Sin grupo', email: email || undefined, telefono: telefono || undefined } : null;
       }
       return null;
     })
