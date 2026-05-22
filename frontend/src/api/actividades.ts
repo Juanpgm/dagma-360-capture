@@ -32,19 +32,30 @@ export interface ModificarActividadResponse {
  * en vuelo y el manejo centralizado de auth/errores.
  */
 export async function getActividadesPlanDistritoVerde(grupo?: string): Promise<ActividadPlanDistritoVerde[]> {
-  const endpoint = grupo
-    ? `/actividades?grupo=${encodeURIComponent(grupo)}`
-    : '/actividades';
+  const PAGE_SIZE = 200;
+  const all: ActividadPlanDistritoVerde[] = [];
+  let cursor: string | null = null;
 
-  const json = await ApiClient.get<ActividadesAPIResponse>(endpoint);
-  if (json.success && json.data) {
-    return json.data.sort((a, b) => {
-      const fechaA = a.marca_temporal ? new Date(a.marca_temporal).getTime() : 0;
-      const fechaB = b.marca_temporal ? new Date(b.marca_temporal).getTime() : 0;
-      return fechaB - fechaA;
-    });
-  }
-  return [];
+  do {
+    const params = new URLSearchParams();
+    if (grupo) params.set('grupo', grupo);
+    params.set('limit', String(PAGE_SIZE));
+    if (cursor) params.set('start_after', cursor);
+
+    const endpoint = `/actividades?${params.toString()}`;
+    const json = await ApiClient.get<ActividadesAPIResponse>(endpoint);
+
+    if (json.success && json.data) {
+      all.push(...json.data);
+    }
+    cursor = json.next_cursor ?? null;
+  } while (cursor);
+
+  return all.sort((a, b) => {
+    const fechaA = a.marca_temporal ? new Date(a.marca_temporal).getTime() : 0;
+    const fechaB = b.marca_temporal ? new Date(b.marca_temporal).getTime() : 0;
+    return fechaB - fechaA;
+  });
 }
 
 /**

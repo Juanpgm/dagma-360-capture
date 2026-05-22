@@ -54,6 +54,7 @@ export interface ActividadesAPIResponse {
   success: boolean;
   total: number;
   data: ActividadPlanDistritoVerde[];
+  next_cursor: string | null;
 }
 
 export interface ConvocarActividadRequest {
