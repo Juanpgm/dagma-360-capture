@@ -97,7 +97,12 @@ export async function enqueueReporte(input: EnqueueReporteInput): Promise<string
     status: 'pending',
   };
   await tx.objectStore('queue').add(item);
-  await tx.done;
+  try {
+    await tx.done;
+  } catch (txErr) {
+    console.error('[offlineQueue] Error guardando reporte en IndexedDB:', txErr);
+    throw new Error('No se pudo encolar el reporte offline. Verifique el almacenamiento del dispositivo.');
+  }
 
   await requestPersistentStorage();
   await refreshPendingCount();

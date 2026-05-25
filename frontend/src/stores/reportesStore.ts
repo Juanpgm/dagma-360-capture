@@ -59,6 +59,8 @@ function createReportesStore() {
             resultado.value.data.forEach((r: any) => {
               allReportes.push({ ...r, grupo: r.grupo || grupoKey });
             });
+          } else if (resultado.status === 'rejected') {
+            console.warn('[reportesStore] Error cargando reportes para grupo', GRUPO_KEYS[index], ':', resultado.reason);
           }
         });
         

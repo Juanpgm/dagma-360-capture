@@ -3,7 +3,7 @@
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
   import { getGoogleMapsUrl } from "../../api/actividades";
   import type { GrupoKey } from "../../lib/grupos";
-  import { GRUPO_DISPLAY_NAMES } from "../../lib/grupos";
+  import { GRUPO_DISPLAY_NAMES, gruposMatch } from "../../lib/grupos";
 
   export let actividades: ActividadPlanDistritoVerde[];
   export let selectedActividad: ActividadPlanDistritoVerde | null;
@@ -45,10 +45,8 @@
 
   $: actividadesFiltradas = actividades
     .filter((a) =>
-      grupoDisplayName
-        ? a.grupos_requeridos?.some(
-            (g) => g.toLowerCase() === grupoDisplayName!.toLowerCase(),
-          )
+      grupoFiltro
+        ? a.grupos_requeridos?.some((g) => gruposMatch(g, grupoFiltro))
         : true,
     )
     .sort((a, b) => parseFecha(b.fecha_actividad) - parseFecha(a.fecha_actividad));

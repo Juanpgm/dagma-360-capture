@@ -14,6 +14,8 @@ export interface Coordenadas {
   longitude: number;
   accuracy?: number;
   timestamp?: number;
+  /** true when the browser denied/failed GPS and a default fallback location was used */
+  isDefault?: boolean;
 }
 
 export interface ReconocimientoParque {

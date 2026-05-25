@@ -99,6 +99,8 @@ const BACKEND_ALLOWED_MIME = new Set([
 
 // Extensions that the browser cannot decode in a canvas (pass through as-is)
 const PASSTHROUGH_EXT = /\.(heic|heif|avif|dng|raw|cr2|nef)$/i;
+/** Maximum file size accepted for canvas conversion (15 MB). Files beyond this are sent as-is. */
+const MAX_CANVAS_BYTES = 15 * 1024 * 1024;
 
 /** Convert any image File to JPEG via Canvas (for formats the backend rejects, e.g. AVIF).
  *  Falls back to the original file if conversion fails or takes too long (5s timeout).
@@ -106,6 +108,11 @@ const PASSTHROUGH_EXT = /\.(heic|heif|avif|dng|raw|cr2|nef)$/i;
 function convertToJpeg(file: File): Promise<File> {
   // If the file extension suggests an undecoded format, skip canvas conversion
   if (PASSTHROUGH_EXT.test(file.name)) return Promise.resolve(file);
+  // Reject extremely large files to avoid OOM during canvas allocation
+  if (file.size > MAX_CANVAS_BYTES) {
+    console.warn(`[visitas] Archivo demasiado grande para conversión canvas (${(file.size / 1024 / 1024).toFixed(1)} MB > 15 MB), se envía sin convertir.`);
+    return Promise.resolve(file);
+  }
 
   return new Promise((resolve) => {
     let settled = false;

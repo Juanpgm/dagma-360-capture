@@ -152,6 +152,10 @@ function createVisitaStore() {
       try {
         const coords = await getCurrentPosition();
 
+        if (coords.isDefault) {
+          console.warn('[visitaStore] GPS no disponible — se usaron coordenadas de Plaza de Caicedo por defecto. El reporte quedará geoetiquetado con ubicación aproximada.');
+        }
+
         // Formatear coordenadas como JSON array string
         const coordinatesData = JSON.stringify([coords.longitude, coords.latitude]);
 

@@ -8,6 +8,23 @@ let _pollTimer: ReturnType<typeof setInterval> | null = null;
 
 const POLL_MS = 30_000;
 
+// Module-level handler references so they can be removed in stopOfflineSync()
+const _onOnline = () => { void flushQueue(); };
+const _onVisibilityChange = () => {
+  if (document.visibilityState === 'visible' && navigator.onLine) {
+    void flushQueue();
+  }
+};
+const _onFocus = () => { if (navigator.onLine) void flushQueue(); };
+const _onPageShow = () => { if (navigator.onLine) void flushQueue(); };
+const _onBeforeUnload = (e: BeforeUnloadEvent) => {
+  if ((window as any).__dagmaPendingCount > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+};
+let _swMessageHandler: ((event: MessageEvent) => void) | null = null;
+
 function startPolling() {
   if (_pollTimer) return;
   _pollTimer = setInterval(() => {
@@ -32,52 +49,44 @@ export function startOfflineSync() {
   });
 
   // 2) Vuelta de la conexión
-  window.addEventListener('online', () => {
-    void flushQueue();
-  });
+  window.addEventListener('online', _onOnline);
 
   // 3) La pestaña vuelve a ser visible (clave en iOS donde el bfcache puede congelar la app)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && navigator.onLine) {
-      void flushQueue();
-    }
-  });
+  document.addEventListener('visibilitychange', _onVisibilityChange);
 
   // 4) Foco — refuerza el caso anterior en escritorio
-  window.addEventListener('focus', () => {
-    if (navigator.onLine) void flushQueue();
-  });
+  window.addEventListener('focus', _onFocus);
 
   // 5) pageshow — dispara incluso desde bfcache (iOS Safari)
-  window.addEventListener('pageshow', () => {
-    if (navigator.onLine) void flushQueue();
-  });
+  window.addEventListener('pageshow', _onPageShow);
 
   // 6) Polling cuando hay pendientes
   startPolling();
 
   // 7) Mensajes del SW (sync event o flush manual)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', (event) => {
+    _swMessageHandler = (event: MessageEvent) => {
       if (event.data?.type === 'DAGMA_FLUSH_QUEUE') {
         void flushQueue();
       }
-    });
+    };
+    navigator.serviceWorker.addEventListener('message', _swMessageHandler);
   }
 
   // 8) beforeunload: avisar si hay pendientes
-  window.addEventListener('beforeunload', (e) => {
-    // Solo si hay pendientes — leemos del store implícitamente
-    // (importamos el store reactivo desde fuera para evitar ciclos)
-    // Hacemos un check rápido usando una variable global expuesta por el store.
-    if ((window as any).__dagmaPendingCount > 0) {
-      e.preventDefault();
-      e.returnValue = '';
-    }
-  });
+  window.addEventListener('beforeunload', _onBeforeUnload);
 }
 
 export function stopOfflineSync() {
   stopPolling();
+  window.removeEventListener('online', _onOnline);
+  document.removeEventListener('visibilitychange', _onVisibilityChange);
+  window.removeEventListener('focus', _onFocus);
+  window.removeEventListener('pageshow', _onPageShow);
+  window.removeEventListener('beforeunload', _onBeforeUnload);
+  if (_swMessageHandler && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.removeEventListener('message', _swMessageHandler);
+    _swMessageHandler = null;
+  }
   _started = false;
 }

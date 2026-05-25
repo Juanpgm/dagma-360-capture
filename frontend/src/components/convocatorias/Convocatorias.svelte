@@ -22,7 +22,7 @@
   import type { AsistenciaRecord } from "../../api/actividades";
 
   import { getUsers } from "../../api/admin";
-  import { getGruposNombres, getLideresFromGrupos } from "../../lib/grupos";
+  import { getGruposNombres, getLideresFromGrupos, gruposMatch } from "../../lib/grupos";
   import { authStore } from "../../stores/authStore";
   import { hasMinRole } from "../../lib/permissions";
   import { ApiClient } from "../../lib/api-client";
@@ -418,10 +418,10 @@
         if (!searchableText.includes(query)) return false;
       }
 
-      // Filtro por grupo (buscar en el array de grupos)
+      // Filtro por grupo (buscar en el array de grupos, tolerante a tildes/case/'_')
       if (
         selectedGrupo &&
-        !actividad.grupos_requeridos?.includes(selectedGrupo)
+        !actividad.grupos_requeridos?.some((g) => gruposMatch(g, selectedGrupo))
       )
         return false;
 

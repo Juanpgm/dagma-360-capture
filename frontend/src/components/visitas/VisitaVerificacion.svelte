@@ -13,7 +13,6 @@
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
   import type { PlantaEntry, ArbolEntry } from "../../types/visitas";
   import type { GrupoKey, GrupoFormType } from "../../lib/grupos";
-  import { GRUPO_DISPLAY_NAMES } from "../../lib/grupos";
   import Stepper from "../ui/Stepper.svelte";
   import Button from "../ui/Button.svelte";
   import Modal from "../ui/Modal.svelte";
@@ -114,8 +113,10 @@
   }
 
   async function handleLoadActividades() {
-    const grupoDisplayName = selectedGrupo ? GRUPO_DISPLAY_NAMES[selectedGrupo] : undefined;
-    await visitaStore.loadActividades(grupoDisplayName);
+    // Enviamos la clave canónica del grupo (lowercase, sin tildes) en lugar
+    // del display name. El backend normaliza igualmente, pero esto elimina
+    // ambigüedad y se alinea con la forma canónica en Firestore.
+    await visitaStore.loadActividades(selectedGrupo ?? undefined);
   }
 
   async function handleCaptureGPS() {

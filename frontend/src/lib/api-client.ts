@@ -171,8 +171,7 @@ export class ApiClient {
             ApiClient._cachedTokenExp = 0;
           }
           if (import.meta.env.DEV) {
-            const errorText = await response.text();
-            console.error(`[API] Error response:`, errorText);
+            console.warn(`[API] Error ${response.status} en ${requestUrl}`);
           }
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }

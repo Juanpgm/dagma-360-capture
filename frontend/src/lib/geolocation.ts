@@ -93,7 +93,7 @@ export async function getCurrentPosition(
             '[geolocation] GPS no disponible, usando coordenadas por defecto (Cali):',
             error.message,
           );
-          resolve({ ...DEFAULT_COORDS, timestamp: Date.now() });
+          resolve({ ...DEFAULT_COORDS, timestamp: Date.now(), isDefault: true });
           return;
         }
 
