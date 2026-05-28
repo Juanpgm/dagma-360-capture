@@ -16,6 +16,10 @@ export interface Coordenadas {
   timestamp?: number;
   /** true when the browser denied/failed GPS and a default fallback location was used */
   isDefault?: boolean;
+  /** 'gps' = capturada del dispositivo; 'manual' = editada por el usuario (bug #5, 2026-05-28) */
+  source?: 'gps' | 'manual';
+  /** true si el usuario editó las coordenadas manualmente tras la captura GPS */
+  manuallyEdited?: boolean;
 }
 
 export interface ReconocimientoParque {

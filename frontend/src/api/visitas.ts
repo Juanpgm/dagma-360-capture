@@ -251,6 +251,8 @@ export interface RegistrarIntervencionParams {
   observaciones?: string;
   coordinates_type?: string;
   coordinates_data?: string;
+  /** 'gps' o 'manual' — origen de las coordenadas (bug #5, 2026-05-28) */
+  coordenadas_origen?: string;
   // Group-specific (all optional — backend ignores irrelevant ones)
   arboles_data?: string;        // [cuadrilla]              JSON array '[{"especie":"Ceiba","cantidad":5}]'
   tipos_plantas?: string;       // [vivero]                 JSON dict  '{"Guayacán":10}'
@@ -282,6 +284,7 @@ export async function registrarIntervencion(
   if (params.observaciones) formData.append('observaciones', params.observaciones);
   formData.append('coordinates_type', params.coordinates_type ?? 'Point');
   formData.append('coordinates_data', params.coordinates_data);
+  if (params.coordenadas_origen) formData.append('coordenadas_origen', params.coordenadas_origen);
 
   // Group-specific fields
   if (params.arboles_data) formData.append('arboles_data', params.arboles_data);

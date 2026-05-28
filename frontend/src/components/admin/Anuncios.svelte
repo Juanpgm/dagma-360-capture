@@ -7,6 +7,7 @@
     type BroadcastResponse,
   } from "../../api/notifications";
   import NotificationsHealthBadge from "./NotificationsHealthBadge.svelte";
+  import RichTextEditor from "./RichTextEditor.svelte";
 
   type AudienceType = "all" | "lideres" | "grupo" | "emails";
 
@@ -152,16 +153,20 @@
       />
     </label>
 
-    <label>
-      <span>Mensaje (HTML permitido) *</span>
+    <div class="field">
+      <span class="field-label">Mensaje (editor enriquecido) *</span>
+      <RichTextEditor bind:value={messageHtml}
+        placeholder="Escribe tu anuncio. Puedes pegar o arrastrar imágenes." />
+      <!-- Campo oculto para que el navegador valide presencia de contenido. -->
       <textarea
         bind:value={messageHtml}
-        rows="8"
         required
-        placeholder="<p>Hola equipo...</p>"
         data-testid="anuncios-message"
+        class="rte-mirror"
+        tabindex="-1"
+        aria-hidden="true"
       ></textarea>
-    </label>
+    </div>
 
     <fieldset class="audience">
       <legend>Audiencia *</legend>
@@ -310,6 +315,16 @@
     font-weight: 400;
   }
 
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .field-label {
+    font-size: 0.9rem;
+    color: var(--text-primary, #111827);
+  }
+
   input[type="text"],
   input[type="email"],
   input[type="url"],
@@ -327,6 +342,22 @@
   textarea {
     resize: vertical;
     min-height: 80px;
+  }
+
+  /* Textarea espejo oculto: mantiene la validación HTML5 sin verse. */
+  textarea.rte-mirror {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    border: 0;
+    min-height: 0;
+    resize: none;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .row {

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { pendingCount, flushQueue } from '../../lib/offline/offlineQueue';
+  import { installState, triggerInstall } from '../../lib/install/installPrompt';
+  import IosInstallInstructions from './IosInstallInstructions.svelte';
 
   export let open = false;
   export let onClose: () => void = () => {};
@@ -11,6 +13,40 @@
   let swState: 'idle' | 'checking' | 'update-available' | 'up-to-date' = 'idle';
   let syncing = false;
   let syncResult: { ok: number; failed: number; remaining: number } | null = null;
+
+  // Bug #1, #6 — Instalación PWA
+  let iosHelpOpen = false;
+  let installFeedback: string | null = null;
+  let copyOk = false;
+
+  async function handleInstallClick() {
+    installFeedback = null;
+    const state = $installState;
+    if (state.isInstalled) {
+      installFeedback = 'La app ya está instalada en este dispositivo.';
+      return;
+    }
+    if (state.platform === 'ios') {
+      iosHelpOpen = true;
+      return;
+    }
+    if (state.canInstall) {
+      const outcome = await triggerInstall();
+      if (outcome === 'accepted') installFeedback = '¡Listo! Revisa tu pantalla de inicio.';
+      else if (outcome === 'dismissed') installFeedback = 'Cancelaste la instalación.';
+      else installFeedback = 'No se pudo abrir el instalador del navegador.';
+      return;
+    }
+    // Fallback: copiar URL
+    try {
+      await navigator.clipboard.writeText(window.location.origin);
+      copyOk = true;
+      installFeedback = 'Enlace copiado. Ábrelo en Chrome (Android) o Safari (iOS) para instalar.';
+      setTimeout(() => { copyOk = false; }, 3000);
+    } catch {
+      installFeedback = 'No fue posible copiar el enlace. Cópialo manualmente desde la barra de direcciones.';
+    }
+  }
 
   function close() { open = false; onClose(); }
 
@@ -81,7 +117,7 @@
 
       <!-- Info de versión -->
       <section class="section">
-        <h3 class="section-title">Información de la app</h3>
+        <h3 class="section-title">Información</h3>
         <div class="info-row">
           <span class="info-label">Versión</span>
           <span class="info-value badge-version">v{appVersion}</span>
@@ -111,6 +147,39 @@
           <p class="feedback-ok">La app ya está al día.</p>
         {:else if swState === 'update-available'}
           <p class="feedback-ok">Actualizando — la página se recargará en un momento.</p>
+        {/if}
+      </section>
+
+      <!-- Instalación PWA (bug #1, #6) -->
+      <section class="section">
+        <h3 class="section-title">Instalación de la app</h3>
+        {#if $installState.isInstalled}
+          <p class="section-desc">✅ La app ya está instalada en este dispositivo.</p>
+        {:else}
+          <p class="section-desc">
+            {#if $installState.platform === 'ios'}
+              En iPhone / iPad puedes agregar DAGMA 360 a tu pantalla de inicio para usarla como una app nativa.
+            {:else if $installState.canInstall}
+              Instala la app en tu dispositivo para acceso rápido y uso sin conexión.
+            {:else if $installState.platform === 'android' || $installState.platform === 'desktop'}
+              Tu navegador aún no ofrece la instalación. Recarga la app o vuelve más tarde; si persiste, copiaremos el enlace para abrirlo en Chrome.
+            {:else}
+              Tu navegador no soporta instalación directa. Copia el enlace y ábrelo en Chrome (Android) o Safari (iOS).
+            {/if}
+          </p>
+          <button class="btn-action btn-update" on:click={handleInstallClick}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            {#if $installState.platform === 'ios'}
+              Cómo instalar en iPhone / iPad
+            {:else if $installState.canInstall}
+              Instalar en este dispositivo
+            {:else}
+              Copiar enlace de instalación
+            {/if}
+          </button>
+          {#if installFeedback}
+            <p class="feedback-ok">{installFeedback}</p>
+          {/if}
         {/if}
       </section>
 
@@ -144,6 +213,7 @@
 
     </div>
   </div>
+  <IosInstallInstructions bind:open={iosHelpOpen} onClose={() => (iosHelpOpen = false)} />
 {/if}
 
 <style>

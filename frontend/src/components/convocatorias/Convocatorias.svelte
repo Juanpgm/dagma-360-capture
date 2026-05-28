@@ -75,6 +75,7 @@
     "Intervención DAGMA",
     "Recorrido en área protegida",
     "PMU",
+    "Talleres de participación ciudadana",
   ];
 
   // Estado modal convocar actividad

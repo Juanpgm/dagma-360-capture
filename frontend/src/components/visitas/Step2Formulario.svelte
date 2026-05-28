@@ -3,6 +3,7 @@
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import Select from "../ui/Select.svelte";
+  import CoordsEditorModal from "./CoordsEditorModal.svelte";
   import type { Coordenadas, PlantaEntry, ArbolEntry } from "../../types/visitas";
   import type { GrupoFormType } from "../../lib/grupos";
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
@@ -158,6 +159,22 @@
   let distanceToParque: number | null = null;
   let showDistanceWarning = false;
   let isAutoCaptureInProgress = false;
+  let coordsEditorOpen = false;
+
+  function openCoordsEditor() {
+    coordsEditorOpen = true;
+  }
+
+  function handleCoordsSaved(next: Coordenadas) {
+    coordenadas = next;
+    gpsError = "";
+    // Log para métricas: distancia desde el GPS original (si lo hubo).
+    try {
+      console.info(
+        `[COORDS] origin=manual lat=${next.latitude.toFixed(6)} lng=${next.longitude.toFixed(6)}`
+      );
+    } catch (_) {}
+  }
 
   // Recalcular distancia cuando cambien las coordenadas
   $: if (coordenadas && selectedActividad?.punto_encuentro?.geometry) {
@@ -212,14 +229,25 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px;margin-right:6px"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Ubicación GPS
         </h3>
         {#if coordenadas}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleCaptureGPS}
-            disabled={isLoading}
-          >
-            {isLoading ? "Actualizando..." : "Actualizar"}
-          </Button>
+          <div class="gps-actions">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={openCoordsEditor}
+              disabled={isLoading}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              Editar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCaptureGPS}
+              disabled={isLoading}
+            >
+              {isLoading ? "Actualizando..." : "Actualizar"}
+            </Button>
+          </div>
         {/if}
       </div>
 
@@ -263,6 +291,11 @@
             {#if distanceToParque !== null}
               <span class="info-badge">
                 📏 Distancia: {formatDistance(distanceToParque)}
+              </span>
+            {/if}
+            {#if coordenadas.manuallyEdited}
+              <span class="info-badge info-badge-manual">
+                ✎ Editado manualmente
               </span>
             {/if}
           </div>
@@ -572,6 +605,12 @@
   </div>
 </div>
 
+<CoordsEditorModal
+  bind:open={coordsEditorOpen}
+  {coordenadas}
+  onSave={handleCoordsSaved}
+/>
+
 <style>
   .step-container {
     display: flex;
@@ -675,6 +714,18 @@
     border-radius: 6px;
     font-size: 0.75rem;
     font-weight: 600;
+  }
+
+  .info-badge-manual {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #92400e;
+  }
+
+  .gps-actions {
+    display: inline-flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
   }
 
   .error-box {

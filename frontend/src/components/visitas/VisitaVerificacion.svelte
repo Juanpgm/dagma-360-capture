@@ -277,6 +277,10 @@
         coordinates_data:
           finalCoordinatesData ||
           JSON.stringify([finalCoordenadas.longitude, finalCoordenadas.latitude]),
+        coordenadas_origen:
+          finalCoordenadas?.source === "manual" || finalCoordenadas?.manuallyEdited
+            ? "manual"
+            : "gps",
         direccion: direccion || "Sin direccion registrada",
       };
 
