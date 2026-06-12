@@ -12,6 +12,7 @@
     calculateDistanceToGeometry,
   } from "../../lib/geolocation";
   import { ESPECIES_ARBOLES } from "../../lib/arboles-valle-cauca";
+  import { visitaStore } from "../../stores/visitaStore";
 
   export let coordenadas: Coordenadas | undefined;
   export let tipoIntervencion: string | undefined;
@@ -168,6 +169,12 @@
   function handleCoordsSaved(next: Coordenadas) {
     coordenadas = next;
     gpsError = "";
+    // Sync to store so the final submission uses the edited coordinates.
+    visitaStore.updateData({
+      coordenadas_gps: next,
+      coordinates_data: JSON.stringify([next.longitude, next.latitude]),
+      coordinates_type: 'Point',
+    });
     // Log para métricas: distancia desde el GPS original (si lo hubo).
     try {
       console.info(

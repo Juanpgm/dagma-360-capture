@@ -57,9 +57,11 @@
   let online = typeof navigator !== "undefined" ? navigator.onLine : true;
   let chipExpanded = false;
   let hasInitialCoords = false;
+  let _prevOpen = false; // guard: only re-init when open transitions false→true
 
   // ── Sync inputs con coords al abrir + recordar el punto original ──
-  $: if (open) {
+  $: if (open && !_prevOpen) {
+    _prevOpen = true;
     const has = coordenadas?.latitude != null && coordenadas?.longitude != null;
     hasInitialCoords = !!has;
     const lat = has ? (coordenadas!.latitude as number) : DEFAULT_LAT;
@@ -75,6 +77,7 @@
   }
   $: if (!open) {
     // Permitir capturar de nuevo el "original" la próxima vez que se abra.
+    _prevOpen = false;
     originalLat = null;
     originalLng = null;
     chipExpanded = false;
@@ -143,8 +146,20 @@
     const lng = parseLng(lngStr);
     if (lat === null || lng === null) return;
     crosshairMarker.setLatLng([lat, lng]);
-    mapInstance.panTo([lat, lng]);
+    // No panTo aquí: mover el marcador es suficiente mientras se escribe.
+    // El pan al nuevo punto se hace solo cuando el input pierde el foco (onLatBlur/onLngBlur).
   }
+
+  function panToMarker() {
+    if (!crosshairMarker || !mapInstance) return;
+    const lat = parseLat(latStr);
+    const lng = parseLng(lngStr);
+    if (lat === null || lng === null) return;
+    mapInstance.setView([lat, lng], mapInstance.getZoom(), { animate: false });
+  }
+
+  function onLatBlur() { panToMarker(); }
+  function onLngBlur() { panToMarker(); }
 
   function setBasemap(key: string) {
     const k = key as BasemapKey;
@@ -194,6 +209,7 @@
       zoomControl: true,
       attributionControl: false,
       doubleClickZoom: false,
+      keyboard: false,   // evita que Leaflet robe el foco de los inputs de texto
     }).setView([lat, lng], initialZoom);
     mapInstance.zoomControl.setPosition("bottomright");
 
@@ -351,13 +367,15 @@
           <div class="chip-edit">
             <div class="chip-field">
               <label for="coords-lat">Lat</label>
-              <input id="coords-lat" type="number" step="0.000001" min="-90" max="90"
-                bind:value={latStr} on:input={onLatInput} class:has-error={!!latError} />
+              <input id="coords-lat" type="text" inputmode="decimal" autocomplete="off"
+                bind:value={latStr} on:input={onLatInput} on:blur={onLatBlur}
+                class:has-error={!!latError} placeholder="3.451600" />
             </div>
             <div class="chip-field">
               <label for="coords-lng">Lng</label>
-              <input id="coords-lng" type="number" step="0.000001" min="-180" max="180"
-                bind:value={lngStr} on:input={onLngInput} class:has-error={!!lngError} />
+              <input id="coords-lng" type="text" inputmode="decimal" autocomplete="off"
+                bind:value={lngStr} on:input={onLngInput} on:blur={onLngBlur}
+                class:has-error={!!lngError} placeholder="-76.532000" />
             </div>
             <button type="button" class="chip-collapse" on:click={() => (chipExpanded = false)} aria-label="Cerrar editor">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>

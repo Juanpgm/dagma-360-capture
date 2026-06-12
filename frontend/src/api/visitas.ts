@@ -499,3 +499,28 @@ export async function obtenerReportesAll(
     total_general: res?.total_general ?? normalized.length,
   };
 }
+
+// ── PATCH: Actualizar coordenadas de un reporte ya guardado ──
+
+export interface UpdateCoordenadasResult {
+  success: boolean;
+  id: string;
+  message: string;
+  coordinates: { type: string; coordinates: [number, number] };
+  comuna_corregimiento?: string;
+  barrio_vereda?: string;
+}
+
+export async function actualizarCoordenadas(
+  grupoKey: GrupoKey,
+  reporteId: string,
+  lat: number,
+  lng: number,
+  coordinatesType = 'Point'
+): Promise<UpdateCoordenadasResult> {
+  const url = buildApiUrl(`/grupos/${grupoKey}/reporte_intervencion/${reporteId}/coordenadas`);
+  return ApiClient.patch<UpdateCoordenadasResult>(url, {
+    coordinates_data: JSON.stringify([lng, lat]),
+    coordinates_type: coordinatesType,
+  }, { requireAuth: true });
+}
