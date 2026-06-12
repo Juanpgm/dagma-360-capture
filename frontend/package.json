@@ -29,7 +29,9 @@
   "dependencies": {
     "chart.js": "^4.5.1",
     "firebase": "^12.6.0",
+    "html2canvas": "^1.4.1",
     "idb": "^7.1.1",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "svelte-chartjs": "^3.1.5",
     "workbox-precaching": "^7.4.0",

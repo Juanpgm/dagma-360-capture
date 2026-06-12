@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
   import { onMount } from "svelte";
   import { Bar, Line, Doughnut } from "svelte-chartjs";
   import {
@@ -11,12 +11,13 @@
     obtenerReportes,
     type ReporteIntervencion,
   } from "../../api/visitas";
-  import { GRUPO_KEYS } from "../../lib/grupos";
+  import { GRUPO_KEYS, normalizeGrupo } from "../../lib/grupos";
   import { authStore, permissions } from "../../stores/authStore";
   import KPICard from "./KPICard.svelte";
   import MapaIntervenciones from "./MapaIntervenciones.svelte";
   import MapaCoropletico from "./MapaCoropletico.svelte";
   import DashboardReportesList from "./DashboardReportesList.svelte";
+  import InformeConfigModal from "./InformeConfigModal.svelte";
 
   // ── Utilidades de color por grupo ───────────────────────────────────────────
   function getGrupoColor(grupo: string | null | undefined): string {
@@ -58,6 +59,7 @@
   let activeTab: "graficas" | "tabla" = "tabla";
   let activeMapView: "puntos" | "coropletico" = "coropletico";
   let selectedComuna = "todas";
+  let informeModalOpen = false;
   let selectedBarrio = "todos";
 
   // Paginación eliminada — DashboardReportesList maneja su propio "load more"
@@ -403,25 +405,52 @@
     loading = true;
     error = null;
     try {
-      const userGrupo = $authStore.user?.grupo?.toLowerCase() ?? '';
+      // Normaliza el grupo del usuario igual que el backend para evitar mismatches
+      const userGrupoRaw = $authStore.user?.grupo ?? '';
+      const userGrupoNorm = normalizeGrupo(userGrupoRaw);
       const keysToFetch = $permissions.canSeeAllGroups
         ? GRUPO_KEYS
-        : GRUPO_KEYS.filter((k) => k === userGrupo);
+        : GRUPO_KEYS.filter((k) => normalizeGrupo(k) === userGrupoNorm || userGrupoNorm.includes(normalizeGrupo(k)));
+
+      // Si no hay keys que correspondan al grupo del usuario, intentar con todos
+      const keys = keysToFetch.length > 0 ? keysToFetch : GRUPO_KEYS;
+
       const resultados = await Promise.allSettled(
-        keysToFetch.map((key) => obtenerReportes(key)),
+        keys.map((key) => obtenerReportes(key)),
       );
+
       let todos: ReporteIntervencion[] = [];
+      let fallidos = 0;
       resultados.forEach((r) => {
         if (r.status === "fulfilled" && r.value?.data) {
           todos = [...todos, ...r.value.data];
+        } else {
+          fallidos++;
         }
       });
-      if (todos.length === 0) {
+
+      // Ordenar por fecha descendente (más recientes primero)
+      todos.sort((a, b) => {
+        const da = a.fecha_registro ? new Date(a.fecha_registro).getTime() : 0;
+        const db = b.fecha_registro ? new Date(b.fecha_registro).getTime() : 0;
+        return db - da;
+      });
+
+      if (todos.length === 0 && fallidos === keys.length) {
+        // Todos los grupos fallaron — error real
+        error = "No se pudieron cargar los reportes. Verifique su conexión e intente nuevamente.";
+        reportes = [];
+      } else if (todos.length === 0) {
+        // Requests exitosos pero sin datos
         error = "No hay reportes de intervenciones disponibles.\n\nRegistre una intervención desde el módulo correspondiente.";
         reportes = [];
       } else {
         reportes = todos;
         lastUpdated = new Date();
+        // Si algunos grupos fallaron, limpiar error y mostrar advertencia suave
+        if (fallidos > 0) {
+          console.warn(`[Dashboard] ${fallidos} grupo(s) no se pudieron cargar. Mostrando ${todos.length} reportes disponibles.`);
+        }
       }
     } catch (err: any) {
       error = err.message || "Error al cargar los reportes";
@@ -514,6 +543,15 @@
             {@html icons.close} Limpiar filtros
           </button>
         {/if}
+        <button class="btn-informe" on:click={() => (informeModalOpen = true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          Generar Informe
+        </button>
         <button class="btn-secondary" on:click={cargarReportes}>
           {@html icons.refresh} Actualizar
         </button>
@@ -869,12 +907,25 @@
           <h3>Reportes de Intervenciones <span class="count-badge">{filteredReportes.length}</span></h3>
           <span class="reports-subtitle">Ordenados del más reciente al más antiguo</span>
         </div>
-        <DashboardReportesList reportes={filteredReportes} />
+        <DashboardReportesList
+          reportes={filteredReportes}
+          on:updated={(e) => {
+            // Actualizar el reporte en la lista local sin recargar todo
+            const updated = e.detail;
+            reportes = reportes.map(r => r.id === updated.id ? { ...r, ...updated } : r);
+          }}
+        />
       </div>
     {/if}
   {/if}
 </div>
 
+<!-- InformeConfigModal — recibe todos los reportes, el modal filtra internamente -->
+<InformeConfigModal
+  bind:open={informeModalOpen}
+  reportes={reportes}
+  on:close={() => (informeModalOpen = false)}
+/>
 
 
 
@@ -1058,6 +1109,27 @@
   }
 
   .btn-secondary :global(svg) { width: 16px; height: 16px; }
+
+  .btn-informe {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--space-2) var(--space-4);
+    background: linear-gradient(135deg, #0a5e3a, #059669);
+    border: 1px solid #0a5e3a;
+    border-radius: var(--radius);
+    color: #fff;
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: all var(--transition);
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+  }
+  .btn-informe:hover {
+    background: linear-gradient(135deg, #047857, #10b981);
+    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+    transform: translateY(-1px);
+  }
 
   /* ── Filtros ─────────────────────────────────────────────────────────────── */
   .filters-card {

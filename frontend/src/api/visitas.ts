@@ -47,6 +47,17 @@ export interface ReporteIntervencion {
   fecha_registro?: string;
   comuna?: string;
   barrio?: string;
+  // Campos enriquecidos de actividad (presentes cuando el reporte tiene id_actividad)
+  actividad_codigo?: string | null;
+  actividad_tipo_jornada?: string | null;
+  actividad_lider?: string | null;
+  actividad_estado?: string | null;
+  actividad_objetivo?: string | null;
+  actividad_fecha?: string | null;
+  // Flags de edición
+  editado?: boolean;
+  ultima_edicion_coords?: string | null;
+  ultima_edicion_campos?: string | null;
 }
 
 export interface ReportesIntervencionResponse {
@@ -523,4 +534,30 @@ export async function actualizarCoordenadas(
     coordinates_data: JSON.stringify([lng, lat]),
     coordinates_type: coordinatesType,
   }, { requireAuth: true });
+}
+
+// ── PATCH: Actualizar campos de texto de un reporte ──
+
+export interface UpdateCamposReporteParams {
+  tipo_intervencion?: string;
+  descripcion_intervencion?: string;
+  observaciones?: string;
+  direccion?: string;
+}
+
+export interface UpdateCamposReporteResult {
+  success: boolean;
+  id: string;
+  message: string;
+  campos_actualizados: string[];
+  data: ReporteIntervencion;
+}
+
+export async function actualizarCamposReporte(
+  grupoKey: GrupoKey,
+  reporteId: string,
+  campos: UpdateCamposReporteParams
+): Promise<UpdateCamposReporteResult> {
+  const url = buildApiUrl(`/grupos/${grupoKey}/reporte_intervencion/${reporteId}`);
+  return ApiClient.patch<UpdateCamposReporteResult>(url, campos, { requireAuth: true });
 }

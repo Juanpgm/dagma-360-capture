@@ -3,6 +3,21 @@
   import { obtenerReportesAll } from '../../api/visitas';
   import { GRUPO_DISPLAY_NAMES, type GrupoKey } from '../../lib/grupos';
   import { authStore, permissions } from '../../stores/authStore';
+  import ReporteEditModal from '../dashboard/ReporteEditModal.svelte';
+
+  let editReporte: ReporteIntervencion | null = null;
+  let editModalOpen = false;
+
+  function openEdit(r: ReporteIntervencion) {
+    editReporte = r;
+    editModalOpen = true;
+  }
+
+  function handleUpdated(event: CustomEvent<ReporteIntervencion>) {
+    const updated = event.detail;
+    reportes = reportes.map(r => r.id === updated.id ? { ...r, ...updated } : r);
+    editModalOpen = false;
+  }
 
   $: canSeeAll = $permissions.canSeeAllGroups;
   $: lockedGrupo = canSeeAll ? '' : ($authStore.user?.grupo ?? '');
@@ -53,7 +68,7 @@
         ...(filterGrupo ? { grupo: filterGrupo } : {}),
         page: 1,
         per_page: PAGE_SIZE,
-        slim: true,
+        slim: false,
       });
       reportes = res.data;
       pagination = res.pagination;
@@ -73,7 +88,7 @@
         ...(filterGrupo ? { grupo: filterGrupo } : {}),
         page: nextPage,
         per_page: PAGE_SIZE,
-        slim: true,
+        slim: false,
       });
       reportes = [...reportes, ...res.data];
       pagination = res.pagination;
@@ -156,6 +171,32 @@
 
   $: totalCount = pagination?.total ?? reportes.length;
   $: hasMore = pagination?.has_next ?? false;
+  let expandedActivity: Set<string> = new Set();
+  function toggleActivity(id: string) {
+    if (expandedActivity.has(id)) expandedActivity.delete(id);
+    else expandedActivity.add(id);
+    expandedActivity = expandedActivity; // trigger reactivity
+  }
+
+  // Estado de actividad → color y etiqueta
+  const ESTADO_ACT_COLORS: Record<string, string> = {
+    "Programada":    "#3b82f6",
+    "En ejecución":  "#f59e0b",
+    "Finalizada":    "#10b981",
+  };
+  function getActEstadoColor(estado: string | null | undefined): string {
+    return ESTADO_ACT_COLORS[estado ?? ""] ?? "#94a3b8";
+  }
+
+  function getImpacto(r: ReporteIntervencion): { value: number; label: string } | null {
+    if (r.numero_individuos_intervenidos != null)
+      return { value: r.numero_individuos_intervenidos, label: "individuos" };
+    if (r.cantidad_total_plantas != null)
+      return { value: r.cantidad_total_plantas, label: "plantas" };
+    if (r.unidades_impactadas != null)
+      return { value: r.unidades_impactadas, label: r.unidad_medida ?? "unid." };
+    return null;
+  }
 </script>
 
 <svelte:window on:keydown={handleLightboxKey} />
@@ -211,6 +252,7 @@
         {@const curIdx = carouselIndices[r.id] ?? 0}
         {@const currentPhoto = photos[curIdx] ?? ''}
         {@const grupoColor = GRUPO_COLORS[r.grupo?.toLowerCase() ?? ''] ?? '#64748b'}
+        {@const impacto = getImpacto(r)}
 
         <div class="reconoc-card">
           <!-- Header -->
@@ -321,8 +363,71 @@
             {/if}
           {/if}
 
+          <!-- Actividad badge & panel -->
+          {#if r.actividad_codigo}
+            {@const actExpanded = expandedActivity.has(r.id)}
+            <button
+              class="activity-badge"
+              type="button"
+              on:click={() => toggleActivity(r.id)}
+              title="Ver datos de actividad"
+              aria-expanded={actExpanded}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              {r.actividad_tipo_jornada ?? r.actividad_codigo}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"
+                style="transform: rotate({actExpanded ? '180deg' : '0deg'}); transition: transform 150ms">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+
+            {#if actExpanded}
+              <div class="activity-panel">
+                <div class="act-row">
+                  <span class="act-label">Código</span>
+                  <span class="act-value act-code">{r.actividad_codigo}</span>
+                </div>
+                {#if r.actividad_lider}
+                  <div class="act-row">
+                    <span class="act-label">Líder</span>
+                    <span class="act-value">{r.actividad_lider}</span>
+                  </div>
+                {/if}
+                {#if r.actividad_estado}
+                  <div class="act-row">
+                    <span class="act-label">Estado</span>
+                    <span class="act-estado" style="color:{getActEstadoColor(r.actividad_estado)}; border-color:{getActEstadoColor(r.actividad_estado)}40">
+                      {r.actividad_estado}
+                    </span>
+                  </div>
+                {/if}
+                {#if r.actividad_fecha}
+                  <div class="act-row">
+                    <span class="act-label">Fecha</span>
+                    <span class="act-value">{r.actividad_fecha}</span>
+                  </div>
+                {/if}
+                {#if r.actividad_objetivo}
+                  <div class="act-row act-row-full">
+                    <span class="act-label">Objetivo</span>
+                    <span class="act-value act-objetivo">{r.actividad_objetivo}</span>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          {/if}
+
           <!-- Footer -->
-          <div class="card-footer">
+          <div class="card-footer" style="--c: {grupoColor}">
+            {#if impacto}
+              <span class="meta-impacto">
+                {impacto.value.toLocaleString("es-CO")} <em>{impacto.label}</em>
+              </span>
+            {/if}
             {#if r.registrado_por}
               <span class="footer-item">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -339,6 +444,18 @@
                 {r.direccion}
               </span>
             {/if}
+            
+            <!-- Botón Editar -->
+            <button
+              class="btn-edit"
+              type="button"
+              title="Editar reporte"
+              on:click={() => openEdit(r)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+              </svg>
+            </button>
           </div>
         </div>
       {/each}
@@ -357,6 +474,14 @@
     {/if}
   {/if}
 </div>
+
+<!-- Modal de edición -->
+<ReporteEditModal
+  bind:open={editModalOpen}
+  reporte={editReporte}
+  on:updated={handleUpdated}
+  on:close={() => (editModalOpen = false)}
+/>
 
 <!-- Lightbox -->
 {#if lightboxUrl}
@@ -785,4 +910,116 @@
   }
 
   .lightbox-close:hover { color: white; }
+
+  /* ── Elementos añadidos (Edit & Activity) ── */
+  .btn-edit {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 120ms;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+  .btn-edit:hover {
+    background: #f0fdf4;
+    border-color: #059669;
+    color: #059669;
+  }
+
+  .meta-impacto {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--c);
+    display: flex;
+    gap: 3px;
+    align-items: center;
+  }
+  .meta-impacto em { font-style: normal; font-weight: 400; color: #64748b; }
+
+  .activity-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+    color: #0284c7;
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 120ms;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    width: fit-content;
+  }
+  .activity-badge:hover { background: #e0f2fe; }
+
+  .activity-panel {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    animation: fadeIn 150ms ease;
+    margin-bottom: 0.25rem;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+  .act-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .act-row-full { flex-direction: column; gap: 2px; }
+  .act-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    flex-shrink: 0;
+    min-width: 60px;
+  }
+  .act-value { color: #334155; font-weight: 500; }
+  .act-code {
+    font-family: ui-monospace, 'SF Mono', monospace;
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 10px;
+  }
+  .act-estado {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid;
+    background: transparent;
+  }
+  .act-objetivo {
+    font-size: 11px;
+    color: #475569;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 </style>
