@@ -12,7 +12,7 @@
     type PeriodPreset,
     type InformeConfig,
   } from "../../lib/pdf/generarInforme";
-  import { GRUPO_KEYS, GRUPO_DISPLAY_NAMES, normalizeGrupo } from "../../lib/grupos";
+  import { GRUPO_KEYS, GRUPO_DISPLAY_NAMES, normalizeGrupo, canonicalGrupoKey } from "../../lib/grupos";
 
   export let open = false;
   /** Recibe todos los reportes sin pre-filtrar para que el modal controle los filtros */
@@ -110,7 +110,7 @@
   }
 
   function getGrupoColor(normalizedKey: string): string {
-    if (normalizedKey.includes("cuadrilla"))   return "var(--primary)";
+    if (canonicalGrupoKey(normalizedKey) === "flora_urbana") return "var(--primary)";
     if (normalizedKey.includes("vivero"))      return "var(--blue-500)";
     if (normalizedKey.includes("gobernanza"))  return "var(--amber-500)";
     if (normalizedKey.includes("ecosistema")) return "var(--purple-500)";

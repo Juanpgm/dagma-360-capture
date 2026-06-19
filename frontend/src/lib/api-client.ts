@@ -7,7 +7,7 @@ import { auth } from './firebase';
 // Permite alternar entre proxy local o API externa
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
-function resolveUrl(endpoint: string): string {
+export function resolveUrl(endpoint: string): string {
   if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
     return endpoint;
   }
@@ -137,8 +137,23 @@ export class ApiClient {
     };
   }
 
+  /** Retryable status codes for GET requests (transient server/gateway errors). */
+  private static readonly _RETRY_STATUSES = new Set([502, 503, 504, 429]);
+  private static readonly _MAX_RETRIES = 3;
+
+  private static _isRetryableError(error: unknown, status?: number): boolean {
+    if (status !== undefined) return ApiClient._RETRY_STATUSES.has(status);
+    // Network errors (TypeError: Failed to fetch, etc.)
+    return error instanceof TypeError;
+  }
+
+  private static _sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   /**
-   * GET request with in-flight deduplication and opt-in TTL caching.
+   * GET request with in-flight deduplication, opt-in TTL caching, and exponential backoff retry.
+   * Retries up to 3 times on 5xx/network errors (1s → 2s → 4s). Never retries 4xx.
    */
   static async get<T = any>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
     const requestUrl = resolveUrl(endpoint);
@@ -157,40 +172,54 @@ export class ApiClient {
     if (existing) return existing;
 
     const promise = (async () => {
-      try {
-        const headers = await this.getHeaders(options.requireAuth ?? true);
-        if (import.meta.env.DEV) console.log(`[API] GET ${requestUrl}`);
-
-        const response = await fetch(requestUrl, { method: 'GET', headers });
-
-        if (!response.ok) {
-          if (response.status === 403) notifyForbidden();
-          // Token expirado: limpia cache para forzar refresh en la siguiente request
-          if (response.status === 401) {
-            ApiClient._cachedToken = null;
-            ApiClient._cachedTokenExp = 0;
-          }
-          if (import.meta.env.DEV) {
-            console.warn(`[API] Error ${response.status} en ${requestUrl}`);
-          }
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      let lastError: unknown;
+      for (let attempt = 0; attempt < ApiClient._MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          const delayMs = 1000 * Math.pow(2, attempt - 1); // 1s, 2s
+          if (import.meta.env.DEV) console.warn(`[API] Retry ${attempt}/${ApiClient._MAX_RETRIES - 1} for ${requestUrl} in ${delayMs}ms`);
+          await ApiClient._sleep(delayMs);
         }
+        try {
+          const headers = await this.getHeaders(options.requireAuth ?? true);
+          if (import.meta.env.DEV) console.log(`[API] GET ${requestUrl}`);
 
-        const value = (await response.json()) as T;
-        if (cacheMs > 0) {
-          ApiClient._cache.set(requestUrl, { value, expires: Date.now() + cacheMs });
+          const response = await fetch(requestUrl, { method: 'GET', headers });
+
+          if (!response.ok) {
+            if (response.status === 403) notifyForbidden();
+            if (response.status === 401) {
+              ApiClient._cachedToken = null;
+              ApiClient._cachedTokenExp = 0;
+            }
+            if (import.meta.env.DEV) console.warn(`[API] Error ${response.status} en ${requestUrl}`);
+            const err = new Error(`HTTP ${response.status}: ${response.statusText}`);
+            if (ApiClient._isRetryableError(err, response.status) && attempt < ApiClient._MAX_RETRIES - 1) {
+              lastError = err;
+              continue;
+            }
+            throw err;
+          }
+
+          const value = (await response.json()) as T;
+          if (cacheMs > 0) {
+            ApiClient._cache.set(requestUrl, { value, expires: Date.now() + cacheMs });
+          }
+          return value;
+        } catch (error) {
+          if (ApiClient._isRetryableError(error) && attempt < ApiClient._MAX_RETRIES - 1) {
+            lastError = error;
+            continue;
+          }
+          if (import.meta.env.DEV) console.error(`[API] Request failed:`, error);
+          throw error;
         }
-        return value;
-      } catch (error) {
-        if (import.meta.env.DEV) console.error(`[API] Request failed:`, error);
-        throw error;
-      } finally {
-        ApiClient._inflight.delete(requestUrl);
       }
+      throw lastError;
     })();
 
-    ApiClient._inflight.set(requestUrl, promise as Promise<unknown>);
-    return promise;
+    const tracked = promise.finally(() => ApiClient._inflight.delete(requestUrl));
+    ApiClient._inflight.set(requestUrl, tracked as Promise<unknown>);
+    return tracked as Promise<T>;
   }
 
   /**
@@ -280,15 +309,26 @@ export class ApiClient {
     return response.json();
   }
 
+  /** Cross-resource invalidation map: mutating a key prefix also invalidates its listed prefixes. */
+  private static readonly _CROSS_INVALIDATION: Record<string, string[]> = {
+    '/grupos': ['/reportes_intervenciones', '/asistencia_actividades'],
+    '/actividades': ['/asistencia_actividades'],
+    '/programar_actividad': ['/actividades'],
+    '/personal_operativo': ['/grupos'],
+    '/asistencia_actividades': ['/actividades'],
+  };
+
   /** Heuristica: invalida cache para el recurso base de un endpoint de mutacion. */
   private static _invalidateForEndpoint(endpoint: string): void {
-    // Quita query string
     const path = endpoint.split('?')[0];
-    // Recorta el ultimo segmento si parece un ID (no contiene barras adicionales)
     const segments = path.split('/').filter(Boolean);
     if (segments.length === 0) return;
-    // Invalida el recurso base y el path completo
     const base = '/' + segments[0];
     ApiClient.invalidate(base);
+    // Cross-resource invalidation for known domain relationships
+    const related = ApiClient._CROSS_INVALIDATION[base];
+    if (related) {
+      for (const prefix of related) ApiClient.invalidate(prefix);
+    }
   }
 }

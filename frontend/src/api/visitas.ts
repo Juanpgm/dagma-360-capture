@@ -80,6 +80,7 @@ export interface PaginationMeta {
 export interface ObtenerReportesAllFilters {
   grupo?: string;
   id_actividad?: string;
+  sin_actividad?: boolean;
   page?: number;
   per_page?: number;
   slim?: boolean;
@@ -265,7 +266,7 @@ export interface RegistrarIntervencionParams {
   /** 'gps' o 'manual' — origen de las coordenadas (bug #5, 2026-05-28) */
   coordenadas_origen?: string;
   // Group-specific (all optional — backend ignores irrelevant ones)
-  arboles_data?: string;        // [cuadrilla]              JSON array '[{"especie":"Ceiba","cantidad":5}]'
+  arboles_data?: string;        // [flora_urbana]           JSON array '[{"especie":"Ceiba","cantidad":5}]'
   tipos_plantas?: string;       // [vivero]                 JSON dict  '{"Guayacán":10}'
   unidades_impactadas?: number; // [gobernanza,umata,ecosistemas]
   unidad_medida?: string;       // [ecosistemas]
@@ -358,7 +359,7 @@ export async function registrarIntervencion(
     try { token = await auth.currentUser.getIdToken(true); } catch { /* ignore */ }
   }
   if (!token) token = get(authStore).token;
-  if (!token) token = localStorage.getItem('token') || sessionStorage.getItem('authToken');
+  if (!token) token = sessionStorage.getItem('authToken');
   if (!token) token = await authStore.refreshToken();
 
   try {
@@ -482,6 +483,7 @@ export async function obtenerReportesAll(
   const params = new URLSearchParams();
   if (filters?.grupo) params.append('grupo', filters.grupo);
   if (filters?.id_actividad) params.append('id_actividad', filters.id_actividad);
+  if (filters?.sin_actividad) params.append('sin_actividad', 'true');
   if (filters?.page != null) params.append('page', String(filters.page));
   if (filters?.per_page != null) params.append('per_page', String(filters.per_page));
   if (filters?.slim != null) params.append('slim', String(filters.slim));

@@ -46,7 +46,7 @@ async function getAuthToken(): Promise<string | null> {
   } catch {/* ignore */}
   const s = get(authStore);
   if (s?.token) return s.token;
-  return localStorage.getItem('token') || sessionStorage.getItem('authToken');
+  return sessionStorage.getItem('authToken');
 }
 
 function buildApiUrl(endpoint: string): string {

@@ -37,7 +37,7 @@
   export let unidadMedida: string = "";
 
   // ── Tipos de intervención por grupo ──
-  const TIPOS_INTERVENCION_CUADRILLA = [
+  const TIPOS_INTERVENCION_FLORA_URBANA = [
     { label: "Poda", value: "Poda" },
     { label: "Tala", value: "Tala" },
     { label: "Mantenimiento arbóreo", value: "Mantenimiento arbóreo" },
@@ -324,13 +324,13 @@
       <h3 class="card-title">Datos del Reconocimiento</h3>
 
       <div class="form-fields">
-        {#if grupoFormType === "cuadrilla"}
-          <!-- ── Campos específicos CUADRILLA ── -->
+        {#if grupoFormType === "flora_urbana"}
+          <!-- ── Campos específicos FLORA URBANA ── -->
           <div class="field">
             <Select
               label="Tipo de Intervención"
               bind:value={tipoIntervencion}
-              options={TIPOS_INTERVENCION_CUADRILLA}
+              options={TIPOS_INTERVENCION_FLORA_URBANA}
               placeholder="Seleccione tipo de intervención"
               required
             />

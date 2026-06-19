@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import { authStore, permissions } from "../stores/authStore";
   import { GRUPO_DISPLAY_NAMES, type GrupoKey } from "../lib/grupos";
+  import AppHeader from "./AppHeader.svelte";
+  import ActionList from "./ActionList.svelte";
 
   type View = "home" | "visita" | "reportes" | "convocatorias" | "dashboard" | "grupos" | "usuarios" | "anuncios";
   let currentView: View = "home";
@@ -110,6 +112,10 @@
     currentUser?.email?.[0] ||
     "U"
   ).toUpperCase();
+
+  function navigateFromEvent(view: string): void {
+    navigate(view as View);
+  }
 </script>
 
 {#if currentView === "visita"}
@@ -120,48 +126,20 @@
   {/if}
 {:else}
   <div class="shell">
-    <header class="header" class:sticky={currentView === "home"}>
-      {#if currentView !== "home"}
-        <button class="btn-back" on:click={() => navigate("home")}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-          Volver
-        </button>
-      {/if}
-      <div class="brand">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4-4 8-7.5 8-12a8 8 0 1 0-16 0c0 4.5 4 8 8 12z"/><circle cx="12" cy="10" r="3"/></svg>
-        DAGMA 360
-      </div>
-      <div class="header-right">
-        <div class="user-chip" class:user-chip--director={isDirector}>
-          <div class="user-avatar" class:user-avatar--director={isDirector}>
-            {#if userPhotoURL}
-              <img
-                src={userPhotoURL}
-                alt={userFullName}
-                class="user-photo"
-                referrerpolicy="no-referrer"
-                on:error={(e) => { userPhotoURL = null; }}
-              />
-            {:else}
-              {userAvatarLetter}
-            {/if}
-          </div>
-          <div class="user-meta">
-            <span class="user-name">{userFullName}</span>
-            <span class="user-detail">{userGrupo} · <span style="color:{userRolColor};font-weight:500">{userRolLabel}</span></span>
-          </div>
-          <button class="btn-gear" on:click={openProfileModal} title="Configuración de perfil" aria-label="Editar perfil">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </button>
-        </div>
-        <button class="btn-icon" on:click={handleLogout} title="Cerrar sesión">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        </button>
-        <button class="btn-icon" on:click={() => showSettings = true} title="Ajustes de la app" aria-label="Abrir ajustes">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-      </div>
-    </header>
+    <AppHeader
+      {userPhotoURL}
+      {userFullName}
+      {userGrupo}
+      {userRolLabel}
+      {userRolColor}
+      {userAvatarLetter}
+      {isDirector}
+      isAtHome={currentView === "home"}
+      on:logout={handleLogout}
+      on:openProfile={openProfileModal}
+      on:openSettings={() => showSettings = true}
+      on:navigateHome={() => navigate("home")}
+    />
 
     {#if showProfileModal && UserProfileModal}
       <svelte:component
@@ -210,124 +188,16 @@
         <div class="loading-view">Cargando…</div>
       {/if}
     {:else}
-      <main class="home-content">
-        {#if navigationError}
-          <div class="nav-error">{navigationError}</div>
-        {/if}
-        <section class="welcome">
-          <h2>Bienvenido</h2>
-          <p>Gestión ambiental integral</p>
-        </section>
-
-        <div class="actions-list">
-          <button class="action-card" on:click={() => navigate("convocatorias")}>
-            <div class="action-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            </div>
-            <div class="action-text">
-              <span class="action-title">Programación — Plan Distrito Verde</span>
-              <span class="action-desc">Consulta las actividades programadas</span>
-            </div>
-            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <button class="action-card" on:click={() => navigate("visita")}>
-            <div class="action-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 1 0 0-5 1.5 1.5 0 0 1 0-3"/><path d="M14.5 10a4 4 0 0 0 0-8"/><path d="M8.5 10a4 4 0 0 1 0-8"/><path d="M2 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 0 1 0-5C3.5 5 3 3.5 3 2"/><path d="M12 22V10"/><path d="M2 10h20"/></svg>
-            </div>
-            <div class="action-text">
-              <span class="action-title">Intervención</span>
-              <span class="action-desc">Registrar intervención ambiental</span>
-            </div>
-            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-
-          <button class="action-card" on:click={() => navigate("reportes")}>
-            <div class="action-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            </div>
-            <div class="action-text">
-              <span class="action-title">Reportes</span>
-              <span class="action-desc">Historial de intervenciones</span>
-            </div>
-            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-
-          <button class="action-card" on:click={() => navigate("dashboard")}>
-            <div class="action-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            </div>
-            <div class="action-text">
-              <span class="action-title">Dashboard</span>
-              <span class="action-desc">Panel analítico</span>
-            </div>
-            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-
-          {#if $permissions.canManageUsers}
-          <button class="action-card" on:click={() => navigate("grupos")}>
-            <div class="action-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-            </div>
-            <div class="action-text">
-              <span class="action-title">Grupos y Personal</span>
-              <span class="action-desc">Gestionar grupos y personal</span>
-            </div>
-            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          {/if}
-
-          {#if $permissions.canAccessUserAdmin}
-          <button class="action-card" on:click={() => navigate("usuarios")}>
-            <div class="action-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="8" r="4"/>
-                <path d="M20 21a8 8 0 1 0-16 0"/>
-                <path d="m16 18 2 2 4-4"/>
-              </svg>
-            </div>
-            <div class="action-text">
-              <span class="action-title">Gestión de Usuarios</span>
-              <span class="action-desc">Administrar cuentas y privilegios</span>
-            </div>
-            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          {/if}
-          {#if $permissions.canSendAnnouncements}
-          <button class="action-card" on:click={() => navigate("anuncios")} data-testid="home-card-anuncios">
-            <div class="action-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 11v3a4 4 0 0 0 4 4h.5l3 4v-4h6a4 4 0 0 0 4-4v-3a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4z"/>
-                <line x1="7" y1="11" x2="17" y2="11"/>
-              </svg>
-            </div>
-            <div class="action-text">
-              <span class="action-title">Anuncios</span>
-              <span class="action-desc">Envía notificaciones a usuarios y grupos</span>
-            </div>
-            <svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          {/if}
-        </div>
-      </main>
+      <ActionList
+        permissions={$permissions}
+        {navigationError}
+        on:navigate={(e) => navigateFromEvent(e.detail.view)}
+      />
     {/if}
   </div>
 {/if}
 
 <style>
-  .nav-error {
-    background: #fee2e2;
-    color: #dc2626;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin: 0 1rem 0.75rem;
-    font-size: 0.875rem;
-  }
-
   .loading-view {
     display: flex;
     align-items: center;
@@ -341,260 +211,5 @@
     min-height: 100vh;
     min-height: 100dvh;
     background-color: var(--background);
-  }
-
-  /* Header */
-  .header {
-    background: var(--surface);
-    padding: 0.75rem 1.25rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  .header.sticky {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    backdrop-filter: blur(12px);
-    background: rgba(255, 255, 255, 0.9);
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: var(--text-primary);
-    font-size: 1.125rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    margin-right: auto;
-  }
-  .brand svg {
-    color: var(--primary);
-  }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .user-chip {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.375rem 0.625rem;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    background: var(--surface-alt);
-  }
-
-  /* Director — marco dorado sutil */
-  .user-chip--director {
-    border-color: #c9972e;
-    background: linear-gradient(135deg, #fffbf0 0%, #fff8e6 100%);
-    box-shadow: 0 0 0 1px rgba(201, 151, 46, 0.18), 0 1px 4px rgba(184, 150, 46, 0.12);
-  }
-
-  .user-avatar--director {
-    background: linear-gradient(135deg, #c9972e 0%, #e8b84b 100%);
-    box-shadow: 0 0 0 2px rgba(201, 151, 46, 0.25);
-  }
-
-  .btn-gear {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    border-radius: var(--radius-sm);
-    padding: 0;
-    flex-shrink: 0;
-    transition: color var(--transition), background var(--transition);
-  }
-  .btn-gear:hover { color: var(--primary); background: rgba(5,150,105,.08); }
-
-  .user-avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: var(--primary);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 0.8125rem;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-
-  .user-photo {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 50%;
-  }
-
-  .user-meta {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.2;
-  }
-
-  .user-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    font-size: 0.8125rem;
-  }
-
-  .user-detail {
-    color: var(--text-muted);
-    font-size: 0.6875rem;
-  }
-
-  .btn-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    background: none;
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-    padding: 0.375rem 0.75rem;
-    border-radius: var(--radius);
-    font-weight: 500;
-    font-size: 0.8125rem;
-    transition: all var(--transition);
-  }
-  .btn-back:hover {
-    background: var(--surface-alt);
-    color: var(--text-primary);
-  }
-
-  .btn-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    background: none;
-    color: var(--text-muted);
-    transition: all var(--transition);
-  }
-  .btn-icon:hover {
-    color: var(--error);
-    border-color: var(--error);
-    background: rgba(220, 38, 38, 0.04);
-  }
-
-  /* Home Content */
-  .home-content {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 1.5rem 1.25rem 3rem;
-  }
-
-  .welcome {
-    margin-bottom: 1.25rem;
-  }
-  .welcome h2 {
-    font-size: 1.375rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 0.2rem;
-  }
-  .welcome p {
-    color: var(--text-muted);
-    font-size: 0.875rem;
-  }
-
-  .actions-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.625rem;
-  }
-
-  .action-card {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.875rem 1rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all var(--transition);
-    text-align: left;
-    width: 100%;
-  }
-  .action-card:hover {
-    border-color: var(--primary);
-    box-shadow: var(--shadow);
-  }
-
-  .action-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius);
-    background: var(--surface-alt);
-    color: var(--text-secondary);
-    flex-shrink: 0;
-  }
-
-  .action-text {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .action-title {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    line-height: 1.3;
-  }
-
-  .action-desc {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin: 0;
-    line-height: 1.4;
-  }
-
-  .action-arrow {
-    color: var(--text-muted);
-    flex-shrink: 0;
-  }
-
-  @media (max-width: 640px) {
-    .user-meta {
-      display: none;
-    }
-    .user-chip {
-      padding: 0.25rem 0.5rem;
-      gap: 0.375rem;
-    }
-    .user-avatar {
-      width: 34px;
-      height: 34px;
-      font-size: 0.875rem;
-    }
-    .btn-gear {
-      width: 28px;
-      height: 28px;
-    }
-    .home-content {
-      padding: 1rem;
-    }
   }
 </style>

@@ -11,7 +11,7 @@
     actualizarCamposReporte,
     actualizarCoordenadas,
   } from "../../api/visitas";
-  import type { GrupoKey } from "../../lib/grupos";
+  import { canonicalGrupoKey, type GrupoKey } from "../../lib/grupos";
   import CoordsEditorModal from "../visitas/CoordsEditorModal.svelte";
   import type { Coordenadas } from "../../types/visitas";
 
@@ -83,7 +83,7 @@
   // ── Guardar campos de texto ──
   async function handleSaveDatos() {
     if (!reporte) return;
-    const grupoKey = (reporte.grupo ?? "").toLowerCase() as GrupoKey;
+    const grupoKey = canonicalGrupoKey(reporte.grupo) as GrupoKey;
     if (!grupoKey) {
       errorMsg = "No se puede determinar el grupo del reporte.";
       return;
@@ -118,7 +118,7 @@
 
   async function handleSaveCoordenadas(next: Coordenadas) {
     if (!reporte) return;
-    const grupoKey = (reporte.grupo ?? "").toLowerCase() as GrupoKey;
+    const grupoKey = canonicalGrupoKey(reporte.grupo) as GrupoKey;
 
     savingCoords = true;
     errorMsg = "";

@@ -3,6 +3,7 @@
   import L from "leaflet";
   import "leaflet/dist/leaflet.css";
   import type { ReporteIntervencion } from "../../api/visitas";
+  import { canonicalGrupoKey } from "../../lib/grupos";
 
   export let filteredReportes: ReporteIntervencion[] = [];
 
@@ -15,7 +16,7 @@
   const CALI_CENTER: [number, number] = [3.4516, -76.532];
   const CALI_BOUNDS: L.LatLngBoundsExpression = [[3.2800, -76.6300], [3.5900, -76.4300]];
   const COLOR_MAP: Record<string, string> = {
-    cuadrilla: "#10b981",
+    flora_urbana: "#10b981",
     vivero:    "#3b82f6",
     gobernanza:"#f59e0b",
     ecosistemas:"#8b5cf6",
@@ -78,7 +79,8 @@
   }
 
   function getColor(grupo: string): string {
-    return COLOR_MAP[(grupo || "").toLowerCase()] ?? "#6b7280";
+    const canonical = canonicalGrupoKey(grupo);
+    return COLOR_MAP[canonical] ?? COLOR_MAP[(grupo || "").toLowerCase()] ?? "#6b7280";
   }
 
   function buildPopupHtml(reporte: ReporteIntervencion, color: string): string {

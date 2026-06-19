@@ -44,6 +44,7 @@ import {
   type PartialGoogleUser,
 } from './auth';
 import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { canonicalGrupoKey } from '../lib/grupos';
 
 const mockPopup = vi.mocked(signInWithPopup);
 const mockRedirect = vi.mocked(signInWithRedirect);
@@ -68,7 +69,7 @@ const backendOk = (overrides: object = {}) => ({
     full_name: 'Test User',
     photoURL: null,
     role: 'Operador',
-    grupo: 'Cuadrilla 1',
+    grupo: 'Flora urbana',
   },
   ...overrides,
 });
@@ -92,7 +93,7 @@ describe('loginWithGoogle() — desktop (popup)', () => {
     mockFetch.mockReturnValueOnce(fetchOk(backendOk()));
     const res = await loginWithGoogle();
     expect(res.access_token).toBe('mock-id-token-xyz');
-    expect(res.user.grupo).toBe('Cuadrilla 1');
+    expect(res.user.grupo).toBe('Flora urbana');
   });
 
   it('throws NeedsProfileCompletionError when no grupo', async () => {
@@ -148,7 +149,7 @@ describe('handleGoogleRedirectResult()', () => {
     mockFetch.mockReturnValueOnce(fetchOk(backendOk()));
     const res = await handleGoogleRedirectResult();
     expect(res).not.toBeNull();
-    expect(res!.user.grupo).toBe('Cuadrilla 1');
+    expect(res!.user.grupo).toBe('Flora urbana');
   });
 
   it('throws NeedsProfileCompletionError via redirect when no grupo', async () => {
@@ -190,5 +191,12 @@ describe('NeedsProfileCompletionError', () => {
     expect(err).toBeInstanceOf(Error);
     expect(err.message).toBe('NEEDS_PROFILE_COMPLETION');
     expect(err.partialUser).toEqual(partial);
+  });
+});
+
+// ── Regression: canonicalGrupoKey backward-compatibility ────────────────────
+describe('canonicalGrupoKey — backward compat with old grupo values', () => {
+  it('maps stale "cuadrilla" from localStorage/Firestore to flora_urbana', () => {
+    expect(canonicalGrupoKey('cuadrilla')).toBe('flora_urbana');
   });
 });

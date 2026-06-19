@@ -3,6 +3,7 @@
   import type { ReporteIntervencion } from "../../api/visitas";
   import ReporteEditModal from "./ReporteEditModal.svelte";
   import { authStore, permissions } from "../../stores/authStore";
+  import { canonicalGrupoKey } from "../../lib/grupos";
 
   export let reportes: ReporteIntervencion[] = [];
 
@@ -31,7 +32,7 @@
 
   // ── Colores por grupo ──
   const COLOR_MAP: Record<string, string> = {
-    cuadrilla:  "#10b981",
+    flora_urbana: "#10b981",
     vivero:     "#3b82f6",
     gobernanza: "#f59e0b",
     ecosistemas:"#8b5cf6",
@@ -39,13 +40,14 @@
   };
 
   function getColor(grupo: string | null | undefined): string {
-    return COLOR_MAP[(grupo ?? "").toLowerCase()] ?? "#6b7280";
+    const canonical = canonicalGrupoKey(grupo);
+    return COLOR_MAP[canonical] ?? COLOR_MAP[(grupo ?? "").toLowerCase()] ?? "#6b7280";
   }
 
   function getLabel(grupo: string | null | undefined): string {
     if (!grupo) return "Sin grupo";
+    if (canonicalGrupoKey(grupo) === "flora_urbana") return "Flora urbana";
     const g = grupo.toLowerCase();
-    if (g.includes("cuadrilla"))  return "Cuadrilla";
     if (g.includes("vivero"))     return "Vivero";
     if (g.includes("gobernanza")) return "Gobernanza";
     if (g.includes("ecosistema")) return "Ecosistemas";
@@ -90,13 +92,6 @@
     return null;
   }
 
-  function getUbicacion(r: ReporteIntervencion): string | null {
-    const parts = [r.barrio_vereda, r.comuna_corregimiento].filter(Boolean);
-    if (parts.length > 0) return parts.join(" · ");
-    if (r.direccion) return r.direccion;
-    return null;
-  }
-
   function isRecent(val: string | undefined): boolean {
     if (!val) return false;
     return Date.now() - new Date(val).getTime() < 7 * 86_400_000;
@@ -133,7 +128,6 @@
         {@const color = getColor(r.grupo)}
         {@const impacto = getImpacto(r)}
         {@const detalle = getDetalle(r)}
-        {@const ubicacion = getUbicacion(r)}
         {@const rel = relativeDay(r.fecha_registro)}
         {@const hasActivity = !!r.actividad_codigo}
         {@const actExpanded = expandedActivity.has(r.id)}
@@ -226,12 +220,6 @@
               <span class="meta-impacto">
                 {impacto.value.toLocaleString("es-CO")}<em>{impacto.label}</em>
               </span>
-            {/if}
-            {#if ubicacion}
-              <span class="meta-ubicacion">{ubicacion}</span>
-            {/if}
-            {#if r.registrado_por}
-              <span class="meta-by">{r.registrado_por}</span>
             {/if}
             {#if (r.photos_uploaded ?? 0) > 0}
               <span class="meta-photos">{r.photos_uploaded} foto{r.photos_uploaded !== 1 ? "s" : ""}</span>

@@ -8,10 +8,10 @@
   ChartJS.register(...registerables);
 
   import {
-    obtenerReportes,
+    obtenerReportesAll,
     type ReporteIntervencion,
   } from "../../api/visitas";
-  import { GRUPO_KEYS, normalizeGrupo } from "../../lib/grupos";
+  import { normalizeGrupo, canonicalGrupoKey } from "../../lib/grupos";
   import { authStore, permissions } from "../../stores/authStore";
   import KPICard from "./KPICard.svelte";
   import MapaIntervenciones from "./MapaIntervenciones.svelte";
@@ -22,8 +22,8 @@
   // ── Utilidades de color por grupo ───────────────────────────────────────────
   function getGrupoColor(grupo: string | null | undefined): string {
     if (!grupo) return "#6b7280";
+    if (canonicalGrupoKey(grupo) === "flora_urbana") return "#10b981";
     const g = grupo.toLowerCase();
-    if (g.includes("cuadrilla")) return "#10b981";
     if (g.includes("vivero"))    return "#3b82f6";
     if (g.includes("gobernanza")) return "#f59e0b";
     if (g.includes("ecosistema")) return "#8b5cf6";
@@ -33,8 +33,8 @@
 
   function getGrupoLabel(grupo: string | null | undefined): string {
     if (!grupo) return "Sin grupo";
+    if (canonicalGrupoKey(grupo) === "flora_urbana") return "Flora urbana";
     const g = grupo.toLowerCase();
-    if (g.includes("cuadrilla"))  return "Cuadrilla";
     if (g.includes("vivero"))     return "Vivero";
     if (g.includes("gobernanza")) return "Gobernanza";
     if (g.includes("ecosistema")) return "Ecosistemas";
@@ -336,8 +336,8 @@
   }
 
   function getImpactoLabel(r: ReporteIntervencion): string {
+    if (canonicalGrupoKey(r.grupo) === "flora_urbana") return "individuos";
     const g = (r.grupo || "").toLowerCase();
-    if (g.includes("cuadrilla")) return "individuos";
     if (g.includes("vivero"))    return "plantas";
     return "unid.";
   }
@@ -405,52 +405,37 @@
     loading = true;
     error = null;
     try {
-      // Normaliza el grupo del usuario igual que el backend para evitar mismatches
-      const userGrupoRaw = $authStore.user?.grupo ?? '';
-      const userGrupoNorm = normalizeGrupo(userGrupoRaw);
-      const keysToFetch = $permissions.canSeeAllGroups
-        ? GRUPO_KEYS
-        : GRUPO_KEYS.filter((k) => normalizeGrupo(k) === userGrupoNorm || userGrupoNorm.includes(normalizeGrupo(k)));
+      // Non-admin users are restricted to their own group
+      const grupoFilter = $permissions.canSeeAllGroups
+        ? undefined
+        : normalizeGrupo($authStore.user?.grupo ?? '') || undefined;
 
-      // Si no hay keys que correspondan al grupo del usuario, intentar con todos
-      const keys = keysToFetch.length > 0 ? keysToFetch : GRUPO_KEYS;
-
-      const resultados = await Promise.allSettled(
-        keys.map((key) => obtenerReportes(key)),
-      );
-
+      // Loop through all pages of the unified endpoint (no Firestore limit) until exhausted
       let todos: ReporteIntervencion[] = [];
-      let fallidos = 0;
-      resultados.forEach((r) => {
-        if (r.status === "fulfilled" && r.value?.data) {
-          todos = [...todos, ...r.value.data];
-        } else {
-          fallidos++;
-        }
-      });
+      let page = 1;
+      let hasNext = true;
 
-      // Ordenar por fecha descendente (más recientes primero)
+      while (hasNext) {
+        const result = await obtenerReportesAll({ grupo: grupoFilter, page, per_page: 100 });
+        console.log(`[Dashboard] page=${page} grupoFilter=${grupoFilter} data=${result.data.length} total=${result.pagination.total} has_next=${result.pagination.has_next}`);
+        todos = [...todos, ...result.data];
+        hasNext = result.pagination.has_next;
+        page++;
+      }
+      console.log(`[Dashboard] total cargado: ${todos.length}`);
+
       todos.sort((a, b) => {
         const da = a.fecha_registro ? new Date(a.fecha_registro).getTime() : 0;
         const db = b.fecha_registro ? new Date(b.fecha_registro).getTime() : 0;
         return db - da;
       });
 
-      if (todos.length === 0 && fallidos === keys.length) {
-        // Todos los grupos fallaron — error real
-        error = "No se pudieron cargar los reportes. Verifique su conexión e intente nuevamente.";
-        reportes = [];
-      } else if (todos.length === 0) {
-        // Requests exitosos pero sin datos
+      if (todos.length === 0) {
         error = "No hay reportes de intervenciones disponibles.\n\nRegistre una intervención desde el módulo correspondiente.";
         reportes = [];
       } else {
         reportes = todos;
         lastUpdated = new Date();
-        // Si algunos grupos fallaron, limpiar error y mostrar advertencia suave
-        if (fallidos > 0) {
-          console.warn(`[Dashboard] ${fallidos} grupo(s) no se pudieron cargar. Mostrando ${todos.length} reportes disponibles.`);
-        }
       }
     } catch (err: any) {
       error = err.message || "Error al cargar los reportes";
@@ -677,7 +662,7 @@
             <KPICard
               title="Árboles Intervenidos"
               value={individuosIntervenidos.toLocaleString("es-CO")}
-              subtitle="Individuos · Cuadrilla"
+              subtitle="Individuos · Flora urbana"
               icon={icons.tree}
               color="green"
             />
@@ -756,7 +741,7 @@
           </div>
           <div class="map-legend" class:choropleth-legend={activeMapView === "coropletico"}>
             {#if activeMapView === "puntos"}
-              {#each [["Cuadrilla","#10b981"],["Vivero","#3b82f6"],["Gobernanza","#f59e0b"],["Ecosistemas","#8b5cf6"],["UMATA","#ef4444"]] as [g, c]}
+              {#each [["Flora urbana","#10b981"],["Vivero","#3b82f6"],["Gobernanza","#f59e0b"],["Ecosistemas","#8b5cf6"],["UMATA","#ef4444"]] as [g, c]}
                 <span class="legend-item">
                   <span class="legend-dot" style="background:{c}"></span>{g}
                 </span>

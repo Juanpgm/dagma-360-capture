@@ -18,7 +18,7 @@
 
   // SVG icons per group (inline, 32×32 viewBox, stroke-based matching the app's design system)
   const GRUPO_ICONS: Record<GrupoKey, string> = {
-    cuadrilla: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    flora_urbana: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 2C10 2 8 4 8 7c0 2 1 3.5 2.5 4.3C8 12.2 6 14.8 6 18h12c0-3.2-2-5.8-4.5-6.7C15 10.5 16 9 16 7c0-3-2-5-4-5z"/>
       <line x1="12" y1="11.3" x2="12" y2="12.3"/>
     </svg>`,

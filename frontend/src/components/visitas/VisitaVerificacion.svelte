@@ -13,6 +13,7 @@
   import type { ActividadPlanDistritoVerde } from "../../types/actividades";
   import type { PlantaEntry, ArbolEntry } from "../../types/visitas";
   import type { GrupoKey, GrupoFormType } from "../../lib/grupos";
+  import { canonicalGrupoKey } from "../../lib/grupos";
   import Stepper from "../ui/Stepper.svelte";
   import Button from "../ui/Button.svelte";
   import Modal from "../ui/Modal.svelte";
@@ -52,15 +53,15 @@
   $: state = $visitaStore;
   $: currentUser = $authStore.user;
   $: grupoFormType = (selectedGrupo ?? "operativo") as GrupoFormType;
-  $: isCuadrilla = grupoFormType === "cuadrilla";
+  $: isFloraUrbana = canonicalGrupoKey(grupoFormType) === "flora_urbana";
   $: canContinue =
     state.currentStep === 3
       ? photoFiles.length > 0
       : state.currentStep === 2
         ? tipoIntervencion &&
           descripcionIntervencion &&
-          (isCuadrilla || direccion) &&
-          (grupoFormType === "cuadrilla"
+          (isFloraUrbana || direccion) &&
+          (grupoFormType === "flora_urbana"
             ? arbolesData.some((a) => a.especie && a.cantidad > 0)
             : grupoFormType === "vivero"
               ? tiposPlantas.some((p) => p.nombre && p.cantidad > 0)
@@ -97,7 +98,7 @@
 
   function handleActividadSelect(actividad: ActividadPlanDistritoVerde) {
     visitaStore.selectActividad(actividad);
-    if (!isCuadrilla) {
+    if (!isFloraUrbana) {
       const defaults: Partial<Record<string, string>> = {
         vivero: "Siembra en sitio definitivo",
         gobernanza: "Jornada de sensibilizacion ambiental",
@@ -132,7 +133,7 @@
     }
 
     if (state.currentStep === 2) {
-      if (state.selectedActividad && !isCuadrilla) {
+      if (state.selectedActividad && !isFloraUrbana) {
         tipoIntervencion ||=
           state.selectedActividad.tipo_jornada || "Sin especificar";
       }
@@ -147,7 +148,7 @@
         direccion,
         observaciones,
       };
-      if (grupoFormType === "cuadrilla") updatePayload.arboles_data = arbolesData;
+      if (grupoFormType === "flora_urbana") updatePayload.arboles_data = arbolesData;
       if (grupoFormType === "vivero") updatePayload.tipos_plantas = tiposPlantas;
       if (["gobernanza", "ecosistemas", "umata"].includes(grupoFormType)) {
         updatePayload.unidades_impactadas = unidadesImpactadas;
@@ -193,7 +194,7 @@
     submitting = true;
 
     try {
-      if (state.selectedActividad && !isCuadrilla) {
+      if (state.selectedActividad && !isFloraUrbana) {
         tipoIntervencion ||=
           state.selectedActividad.tipo_jornada || "Sin especificar";
       }
@@ -209,7 +210,7 @@
         direccion,
         observaciones,
       };
-      if (grupoFormType === "cuadrilla") updatePayload.arboles_data = arbolesData;
+      if (grupoFormType === "flora_urbana") updatePayload.arboles_data = arbolesData;
       if (grupoFormType === "vivero") updatePayload.tipos_plantas = tiposPlantas;
       if (["gobernanza", "ecosistemas", "umata"].includes(grupoFormType)) {
         updatePayload.unidades_impactadas = unidadesImpactadas;
@@ -230,7 +231,7 @@
         );
       }
 
-      if (!isCuadrilla && !direccion) throw new Error("La direccion es requerida");
+      if (!isFloraUrbana && !direccion) throw new Error("La direccion es requerida");
 
       let finalCoordenadas = data.coordenadas_gps;
       let finalCoordinatesData = data.coordinates_data;
@@ -285,7 +286,7 @@
       };
 
       switch (grupoFormType) {
-        case "cuadrilla": {
+        case "flora_urbana": {
           const arbolesValidos = arbolesData.filter(
             (a) => a.especie && a.cantidad > 0,
           );

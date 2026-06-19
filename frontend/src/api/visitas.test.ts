@@ -14,6 +14,7 @@ vi.mock('../lib/api-client', () => ({
 // Must import AFTER the mock is registered
 import { obtenerReportesAll } from './visitas';
 import { ApiClient } from '../lib/api-client';
+import { canonicalGrupoKey } from '../lib/grupos';
 
 const mockGet = vi.mocked(ApiClient.get);
 
@@ -32,7 +33,7 @@ const makePagination = (overrides = {}) => ({
 const makeRawReporte = (overrides = {}) => ({
   id: 'rep-001',
   registrado_por: 'Juan Pérez',
-  grupo: 'cuadrilla',
+  grupo: 'flora_urbana',
   observaciones: '',
   coordinates: { type: 'Point', coordinates: [-76.532, 3.4516] },
   tipo_intervencion: 'Poda',
@@ -60,7 +61,7 @@ describe('obtenerReportesAll()', () => {
       status: 'success',
       data: rawData,
       pagination: makePagination({ total: 60, total_pages: 2, has_next: true }),
-      totals: { cuadrilla: 2 },
+      totals: { flora_urbana: 2 },
       total_general: 60,
     });
 
@@ -72,7 +73,7 @@ describe('obtenerReportesAll()', () => {
     expect(result.pagination.total).toBe(60);
     expect(result.pagination.has_next).toBe(true);
     expect(result.pagination.total_pages).toBe(2);
-    expect(result.totals).toEqual({ cuadrilla: 2 });
+    expect(result.totals).toEqual({ flora_urbana: 2 });
     expect(result.total_general).toBe(60);
   });
 
@@ -195,7 +196,7 @@ describe('obtenerReportesAll()', () => {
     // Some older backend response without pagination key
     mockGet.mockResolvedValue({
       data: [makeRawReporte()],
-      totals: { cuadrilla: 1 },
+      totals: { flora_urbana: 1 },
       total_general: 1,
       // No pagination field
     });
@@ -206,5 +207,12 @@ describe('obtenerReportesAll()', () => {
     expect(result.pagination.total).toBe(1);
     expect(result.pagination.has_next).toBe(false);
     expect(result.data).toHaveLength(1);
+  });
+
+  it('canonicalGrupoKey maps stale "cuadrilla" from old server responses to flora_urbana', () => {
+    // When old server data still returns grupo: 'cuadrilla', the frontend normalizes it
+    expect(canonicalGrupoKey('cuadrilla')).toBe('flora_urbana');
+    // New canonical key passes through
+    expect(canonicalGrupoKey('flora_urbana')).toBe('flora_urbana');
   });
 });

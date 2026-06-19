@@ -1,4 +1,4 @@
-export type GrupoKey = "cuadrilla" | "vivero" | "gobernanza" | "ecosistemas" | "umata";
+export type GrupoKey = "flora_urbana" | "vivero" | "gobernanza" | "ecosistemas" | "umata";
 export type GrupoFormType = GrupoKey | "operativo";
 
 /**
@@ -32,9 +32,27 @@ export function gruposMatch(a: string | null | undefined, b: string | null | und
 	return normalizeGrupo(a) === normalizeGrupo(b);
 }
 
+/**
+ * Normalizes a group key to its canonical form.
+ * Maps all historical variants of flora urbana / cuadrilla to "flora_urbana".
+ * Other groups are returned normalized (lowercase, no accents, underscores preserved
+ * as spaces by normalizeGrupo — single-word groups come back identical).
+ */
+const VARIANTES_FLORA_URBANA = new Set(["cuadrilla", "flora urbana", "flora urbana (cuadrilla)"]);
+
+export function canonicalGrupoKey(value: string | null | undefined): string {
+	if (!value) return '';
+	const normalizedSpaces = normalizeGrupo(value); // e.g. "cuadrilla", "flora urbana", "vivero"
+	if (VARIANTES_FLORA_URBANA.has(normalizedSpaces)) {
+		return 'flora_urbana';
+	}
+	// For other groups: normalizeGrupo returns the single word (vivero, gobernanza, etc.)
+	return normalizedSpaces;
+}
+
 // Claves de grupos operativos estándar (ajustar según la app)
 export const GRUPO_KEYS: GrupoKey[] = [
-	"cuadrilla",
+	"flora_urbana",
 	"vivero",
 	"gobernanza",
 	"ecosistemas",
@@ -43,7 +61,7 @@ export const GRUPO_KEYS: GrupoKey[] = [
 
 // Nombres para mostrar en UI — UMATA siempre en mayúsculas completas
 export const GRUPO_DISPLAY_NAMES: Record<GrupoKey, string> = {
-	cuadrilla: "Cuadrilla",
+	flora_urbana: "Flora urbana",
 	vivero: "Vivero",
 	gobernanza: "Gobernanza",
 	ecosistemas: "Ecosistemas",
@@ -52,7 +70,7 @@ export const GRUPO_DISPLAY_NAMES: Record<GrupoKey, string> = {
 
 // Descripción corta por grupo para UI de selección
 export const GRUPO_DESCRIPTIONS: Record<GrupoKey, string> = {
-	cuadrilla: "Intervenciones arbóreas: poda, tala, mantenimiento",
+	flora_urbana: "Intervenciones arbóreas: poda, tala, mantenimiento",
 	vivero: "Siembra, trasplante y distribución de material vegetal",
 	gobernanza: "Talleres, capacitaciones y sensibilización ambiental",
 	ecosistemas: "Restauración, monitoreo y control ambiental",

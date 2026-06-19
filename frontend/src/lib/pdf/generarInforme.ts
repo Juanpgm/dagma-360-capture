@@ -12,7 +12,7 @@
 
 import jsPDF from "jspdf";
 import type { ReporteIntervencion } from "../../api/visitas";
-import { GRUPO_DISPLAY_NAMES } from "../grupos";
+import { GRUPO_DISPLAY_NAMES, canonicalGrupoKey } from "../grupos";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -49,7 +49,7 @@ const COLORS = {
   white:      [255, 255, 255] as const,
   border:     [209, 213, 219] as const,
 
-  cuadrilla:  [16,  185, 129] as const,
+  flora_urbana: [16,  185, 129] as const,
   vivero:     [59,  130, 246] as const,
   gobernanza: [245, 158, 11] as const,
   ecosistemas:[139, 92, 246] as const,
@@ -57,8 +57,8 @@ const COLORS = {
 };
 
 function grupoColor(grupo: string): readonly [number, number, number] {
+  if (canonicalGrupoKey(grupo) === "flora_urbana") return COLORS.flora_urbana;
   const g = (grupo ?? "").toLowerCase();
-  if (g.includes("cuadrilla"))   return COLORS.cuadrilla;
   if (g.includes("vivero"))      return COLORS.vivero;
   if (g.includes("gobernanza"))  return COLORS.gobernanza;
   if (g.includes("ecosistema"))  return COLORS.ecosistemas;
