@@ -113,6 +113,8 @@
     "U"
   ).toUpperCase();
 
+  // TS type assertions (`as View`) are not valid inside Svelte markup
+  // expressions, so the cast lives here in the script instead.
   function navigateFromEvent(view: string): void {
     navigate(view as View);
   }

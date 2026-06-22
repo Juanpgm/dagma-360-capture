@@ -417,12 +417,10 @@
 
       while (hasNext) {
         const result = await obtenerReportesAll({ grupo: grupoFilter, page, per_page: 100 });
-        console.log(`[Dashboard] page=${page} grupoFilter=${grupoFilter} data=${result.data.length} total=${result.pagination.total} has_next=${result.pagination.has_next}`);
         todos = [...todos, ...result.data];
         hasNext = result.pagination.has_next;
         page++;
       }
-      console.log(`[Dashboard] total cargado: ${todos.length}`);
 
       todos.sort((a, b) => {
         const da = a.fecha_registro ? new Date(a.fecha_registro).getTime() : 0;
