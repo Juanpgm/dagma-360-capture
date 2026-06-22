@@ -107,8 +107,10 @@
     return ESTADO_ACT_COLORS[estado ?? ""] ?? "#94a3b8";
   }
 
-  // ¿El usuario actual puede editar?
-  $: canEdit = $permissions.canSeeAllGroups || true; // TODO: refinar por rol si se requiere
+  // En el panel de dashboard, editar se reserva a administrador o superior
+  // ($permissions.canEdit). Los operadores editan sus propios reportes desde la
+  // vista principal de Reportes. El backend enforcea la autorización por reporte.
+  $: canEdit = $permissions.canEdit;
 
   // Expandir/colapsar info de actividad por tarjeta
   let expandedActivity: Set<string> = new Set();
