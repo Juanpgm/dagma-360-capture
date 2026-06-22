@@ -7,6 +7,7 @@
   import ReporteEditModal from '../dashboard/ReporteEditModal.svelte';
   import type { ReporteIntervencion, PaginationMeta } from '../../api/visitas';
   import type { ActividadPlanDistritoVerde } from '../../types/actividades';
+  import { matchReporte, tipoIntervencionOptions } from '../../lib/reportesFilter';
 
   // ── Edit modal ──────────────────────────────────────────────────────────────
   let editReporte: ReporteIntervencion | null = null;
@@ -85,6 +86,7 @@
   // ── Filters ──────────────────────────────────────────────────────────────────
   let filterGrupo = '';
   let filterTipoJornada = '';
+  let filterTipoIntervencion = '';
   let filterFechaDesde = '';
   let filterFechaHasta = '';
   let filterEstado = '';
@@ -162,10 +164,18 @@
     return [...keys].sort();
   })();
 
-  $: hasActiveFilters = !!(filterTipoJornada || filterFechaDesde || filterFechaHasta || filterEstado || (canSeeAll && filterGrupo) || debouncedSearch);
+  // Tipo de intervención options are derived from the reports already loaded
+  // (cache + orphans); they grow as the user expands more activities.
+  $: allTipoIntervencionOptions = tipoIntervencionOptions([
+    ...[...reportesCache.values()].flat(),
+    ...orphanReportes,
+  ]);
+
+  $: hasActiveFilters = !!(filterTipoJornada || filterTipoIntervencion || filterFechaDesde || filterFechaHasta || filterEstado || (canSeeAll && filterGrupo) || debouncedSearch);
 
   function clearFilters() {
     filterTipoJornada = '';
+    filterTipoIntervencion = '';
     filterFechaDesde = '';
     filterFechaHasta = '';
     filterEstado = '';
@@ -246,17 +256,8 @@
     }, 300);
   }
 
-  function matchSearch(r: ReporteIntervencion, term: string): boolean {
-    if (!term) return true;
-    const t = term.toLowerCase();
-    return (
-      (r.descripcion_intervencion || '').toLowerCase().includes(t) ||
-      (r.tipo_intervencion || '').toLowerCase().includes(t) ||
-      (r.barrio_vereda || '').toLowerCase().includes(t) ||
-      (r.comuna_corregimiento || '').toLowerCase().includes(t) ||
-      (r.direccion || '').toLowerCase().includes(t)
-    );
-  }
+  // Report-level filtering (search + tipo_intervencion) lives in a pure, tested
+  // helper: src/lib/reportesFilter.ts → matchReporte / tipoIntervencionOptions.
 
   // ── Image / carousel helpers ──────────────────────────────────────────────────
   function handleImgError(url: string) {
@@ -359,6 +360,13 @@
         <option value="Finalizada">Finalizada</option>
       </select>
 
+      <select class="filter-chip" bind:value={filterTipoIntervencion} disabled={allTipoIntervencionOptions.length === 0} title="Filtrar por tipo de intervención (disponible al desplegar actividades)">
+        <option value="">Tipo de intervención</option>
+        {#each allTipoIntervencionOptions as ti}
+          <option value={ti}>{ti}</option>
+        {/each}
+      </select>
+
       <div class="date-range">
         <input class="filter-date" type="date" title="Fecha desde" bind:value={filterFechaDesde} />
         <span class="date-sep">→</span>
@@ -451,14 +459,14 @@
                   <div class="act-spinner">
                     <div class="spinner spinner-sm"></div>
                   </div>
-                {:else if actReportes.filter(r => matchSearch(r, debouncedSearch)).length === 0}
+                {:else if actReportes.filter(r => matchReporte(r, { search: debouncedSearch, tipoIntervencion: filterTipoIntervencion })).length === 0}
                   <div class="act-empty">
-                    {actReportes.length === 0 ? 'Sin reportes para esta actividad' : `Sin resultados para "${debouncedSearch}"`}
+                    {actReportes.length === 0 ? 'Sin reportes para esta actividad' : 'Sin resultados para los filtros aplicados'}
                   </div>
                 {:else}
                   <!-- Level 3: Report cards -->
                   <div class="cards-list cards-list-indented">
-                    {#each actReportes.filter(r => matchSearch(r, debouncedSearch)).sort((a, b) => {
+                    {#each actReportes.filter(r => matchReporte(r, { search: debouncedSearch, tipoIntervencion: filterTipoIntervencion })).sort((a, b) => {
                       const da = a.timestamp ? new Date(a.timestamp).getTime() : 0;
                       const db = b.timestamp ? new Date(b.timestamp).getTime() : 0;
                       return db - da;
@@ -689,7 +697,7 @@
           <div class="act-empty">No hay reportes sin actividad asociada</div>
         {:else}
           <div class="cards-list cards-list-indented">
-            {#each orphanReportes.filter(r => matchSearch(r, debouncedSearch)) as r (r.id)}
+            {#each orphanReportes.filter(r => matchReporte(r, { search: debouncedSearch, tipoIntervencion: filterTipoIntervencion })) as r (r.id)}
               {@const photos = r.photosUrl ?? []}
               {@const curIdx = carouselIndices[r.id] ?? 0}
               {@const currentPhoto = photos[curIdx] ?? ''}
