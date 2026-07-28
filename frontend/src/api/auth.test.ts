@@ -37,15 +37,22 @@ global.fetch = mockFetch;
 
 // ── Imports AFTER mocks ──────────────────────────────────────────────────────
 import {
+  login,
   loginWithGoogle,
   handleGoogleRedirectResult,
   completeGoogleProfile,
   NeedsProfileCompletionError,
   type PartialGoogleUser,
 } from './auth';
-import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import {
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+} from 'firebase/auth';
 import { canonicalGrupoKey } from '../lib/grupos';
 
+const mockSignInPassword = vi.mocked(signInWithEmailAndPassword);
 const mockPopup = vi.mocked(signInWithPopup);
 const mockRedirect = vi.mocked(signInWithRedirect);
 const mockGetRedirect = vi.mocked(getRedirectResult);
@@ -198,5 +205,36 @@ describe('NeedsProfileCompletionError', () => {
 describe('canonicalGrupoKey — backward compat with old grupo values', () => {
   it('maps stale "cuadrilla" from localStorage/Firestore to flora_urbana', () => {
     expect(canonicalGrupoKey('cuadrilla')).toBe('flora_urbana');
+  });
+});
+
+// ── login() — Firebase error-code mapping ────────────────────────────────────
+describe('login() — Firebase error-code mapping', () => {
+  const CREDS = { username: 'user@dagma.gov.co', password: 'irrelevant' };
+  const firebaseError = (code: string) => Object.assign(new Error(code), { code });
+
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('maps auth/invalid-credential to an actionable message (Google account / password reset)', async () => {
+    mockSignInPassword.mockRejectedValueOnce(firebaseError('auth/invalid-credential'));
+    await expect(login(CREDS)).rejects.toThrow(
+      'Credenciales inválidas. Si tu cuenta fue creada con Google, usa "Continuar con Google" o restablece tu contraseña con "¿Olvidaste tu contraseña?".'
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('maps auth/wrong-password to "Contraseña incorrecta"', async () => {
+    mockSignInPassword.mockRejectedValueOnce(firebaseError('auth/wrong-password'));
+    await expect(login(CREDS)).rejects.toThrow('Contraseña incorrecta');
+  });
+
+  it('maps auth/user-not-found to "Usuario no encontrado"', async () => {
+    mockSignInPassword.mockRejectedValueOnce(firebaseError('auth/user-not-found'));
+    await expect(login(CREDS)).rejects.toThrow('Usuario no encontrado');
+  });
+
+  it('propagates unmapped errors unchanged (API failures keep their detail)', async () => {
+    mockSignInPassword.mockRejectedValueOnce(firebaseError('auth/network-request-failed'));
+    await expect(login(CREDS)).rejects.toThrow('auth/network-request-failed');
   });
 });

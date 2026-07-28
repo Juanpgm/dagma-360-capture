@@ -160,6 +160,8 @@ const loginWithAPI = async (credentials: LoginCredentials): Promise<LoginRespons
       throw new Error('Usuario no encontrado');
     } else if (err.code === 'auth/wrong-password') {
       throw new Error('Contraseña incorrecta');
+    } else if (err.code === 'auth/invalid-credential') {
+      throw new Error('Credenciales inválidas. Si tu cuenta fue creada con Google, usa "Continuar con Google" o restablece tu contraseña con "¿Olvidaste tu contraseña?".');
     } else if (err.code === 'auth/invalid-email') {
       throw new Error('Email inválido');
     } else if (err.code === 'auth/too-many-requests') {
@@ -276,6 +278,8 @@ const loginWithFirebase = async (credentials: LoginCredentials): Promise<LoginRe
       throw new Error('Usuario no encontrado');
     } else if (err.code === 'auth/wrong-password') {
       throw new Error('Contraseña incorrecta');
+    } else if (err.code === 'auth/invalid-credential') {
+      throw new Error('Credenciales inválidas. Si tu cuenta fue creada con Google, usa "Continuar con Google" o restablece tu contraseña con "¿Olvidaste tu contraseña?".');
     } else if (err.code === 'auth/invalid-email') {
       throw new Error('Email inválido');
     } else if (err.code === 'auth/too-many-requests') {
